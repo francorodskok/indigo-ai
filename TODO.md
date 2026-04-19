@@ -8,9 +8,10 @@ Marcar con `[x]` a medida que se cierran.
 
 ---
 
-- [ ] **Paso 1 · Crear el repositorio y estructura de carpetas**
+- [x] **Paso 1 · Crear el repositorio y estructura de carpetas** ✅ 2026-04-19
   Responsable: tercer socio técnico · Semana 1 · ~2 h
   Output: repo público en GitHub con `/pipeline`, `/philosophy`, `/dashboard`, `/infra`, `/docs`, README, `.gitignore`, commit inicial `chore: initial structure`.
+  _Estado: repo local en `C:\Users\franc\Indigo-AI` (branch `main`), commit `6d2d379`. Falta crear el remote en GitHub y hacer `push` cuando se decida el nombre del repo público._
 
 - [ ] **Paso 2 · Cargar el corpus filosófico**
   Responsable: Franco + Felipe · Semana 2 · ~6 h
