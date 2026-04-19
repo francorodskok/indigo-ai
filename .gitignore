@@ -99,6 +99,9 @@ lerna-debug.log*
 # ─────────────────────────────────────────────
 pipeline/outputs/
 pipeline/data/cache/
+
+# Corpus crudo (PDFs/HTML del canon) — se normaliza a /philosophy/canon/*.md
+raw/
 *.csv.bak
 *.db
 *.sqlite
