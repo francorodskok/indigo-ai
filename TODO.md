@@ -24,7 +24,7 @@ Marcar con `[x]` a medida que se cierran.
   Responsable: Franco + Felipe · Semana 2 · ~3 h
   Output: `/philosophy/constitution.md` (15 secciones, firmada) + `/philosophy/exclusions.md` (4 categorías de exclusión).
 
-- [ ] **Paso 4 · Construir el filtro cuantitativo (Capa 1)**
+- [x] **Paso 4 · Construir el filtro cuantitativo (Capa 1)** ✅ 2026-04-21
   Responsable: tercer socio · Semana 3 · ~10 h
   Output: script que reduce el S&P 500 a ~60 nombres elegibles según criterios de la constitución; listado en `/pipeline/outputs/filtered_YYYY-MM-DD.csv`.
 

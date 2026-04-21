@@ -103,6 +103,13 @@ class TestPassesFilter:
         assert not ok
         assert "roic" in reason
 
+    def test_boundary_roic_passes(self):
+        """ROIC exactamente en el umbral debe pasar (>=)."""
+        c = good_company()
+        c["roic_proxy_pct"] = 10.0
+        ok, _ = passes_filter(c, EXCLUSION_KW)
+        assert ok
+
     def test_none_revenue_cagr_does_not_fail(self):
         """Si no tenemos dato de CAGR, no descartamos (falla graceful)."""
         c = good_company()

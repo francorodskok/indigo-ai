@@ -174,15 +174,32 @@ def fetch_fundamentals(ticker: str) -> dict | None:
         except Exception:
             pass
 
-        # ROIC proxy: returnOnEquity * (1 - D/A) — simplified
+        # ROIC: Net Income / (Total Equity + Total Debt) — desde balance sheet
         roic_proxy = None
         try:
-            roe = info.get("returnOnEquity")
-            total_assets = info.get("totalAssets") or 0
-            total_debt_r = info.get("totalDebt") or 0
-            if roe is not None and total_assets > 0:
-                equity_ratio = 1 - (total_debt_r / total_assets)
-                roic_proxy = roe * equity_ratio * 100  # en porcentaje
+            bs = t.balance_sheet
+            inc = t.income_stmt
+            if bs is not None and not bs.empty and inc is not None and not inc.empty:
+                # Tomar el año más reciente (primera columna)
+                equity = None
+                for lbl in ["Stockholders Equity", "Total Equity Gross Minority Interest",
+                             "Common Stock Equity"]:
+                    if lbl in bs.index:
+                        equity = float(bs.loc[lbl].iloc[0])
+                        break
+                debt = 0.0
+                for lbl in ["Total Debt", "Long Term Debt", "Long Term Debt And Capital Lease Obligation"]:
+                    if lbl in bs.index:
+                        debt = float(bs.loc[lbl].iloc[0])
+                        break
+                net_income = None
+                for lbl in ["Net Income", "Net Income Common Stockholders"]:
+                    if lbl in inc.index:
+                        net_income = float(inc.loc[lbl].iloc[0])
+                        break
+                invested_capital = (equity or 0) + debt
+                if net_income is not None and invested_capital > 0:
+                    roic_proxy = (net_income / invested_capital) * 100
         except Exception:
             pass
 
@@ -304,6 +321,18 @@ def run_filter() -> pd.DataFrame:
 
     # Guardar CSV
     out_df = pd.DataFrame(passed)
+
+    # Si sobran candidatos, rankear por calidad y tomar los mejores N
+    if len(out_df) > FILTER_TARGET_CANDIDATES:
+        log.info(f"Más de {FILTER_TARGET_CANDIDATES} candidatos — aplicando ranking por calidad")
+        out_df["_rank_score"] = (
+            out_df["roic_proxy_pct"].fillna(0) * 0.4
+            + out_df["revenue_cagr"].fillna(0) * 100 * 0.3
+            + (out_df["net_debt_ebitda"].fillna(3).clip(upper=3) * -10) * 0.3
+        )
+        out_df = out_df.nlargest(FILTER_TARGET_CANDIDATES, "_rank_score").drop(columns=["_rank_score"])
+        log.info(f"Reducido a {len(out_df)} candidatos por ranking")
+
     out_path = OUTPUTS_DIR / f"filtered_{date.today().isoformat()}.csv"
     out_df.to_csv(out_path, index=False)
     log.info(f"Guardado: {out_path}")
