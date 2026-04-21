@@ -20,9 +20,9 @@ Marcar con `[x]` a medida que se cierran.
   _Stubs pendientes: Lynch, Graham, Munger, Fisher, Klarman, Smith — cada stub documenta los temas clave y cómo agregar el material._
   _Nota de tokens: el corpus crudo suma ~1.38M tokens. El target de 200k se logra en Paso 5 con compresión temática (selección de secciones representativas antes de armar el bloque cacheable)._
 
-- [ ] **Paso 3 · Escribir la constitución v1.0**
+- [x] **Paso 3 · Escribir la constitución v1.0** ✅ 2026-04-21
   Responsable: Franco + Felipe · Semana 2 · ~3 h
-  Output: `/philosophy/constitution.md` (≤ 2 páginas) + `/philosophy/exclusions.md`.
+  Output: `/philosophy/constitution.md` (15 secciones, firmada) + `/philosophy/exclusions.md` (4 categorías de exclusión).
 
 - [ ] **Paso 4 · Construir el filtro cuantitativo (Capa 1)**
   Responsable: tercer socio · Semana 3 · ~10 h
