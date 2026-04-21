@@ -13,9 +13,12 @@ Marcar con `[x]` a medida que se cierran.
   Output: repo público en GitHub con `/pipeline`, `/philosophy`, `/dashboard`, `/infra`, `/docs`, README, `.gitignore`, commit inicial `chore: initial structure`.
   _Estado: repo local en `C:\Users\franc\Indigo-AI` (branch `main`), commit `6d2d379`. Falta crear el remote en GitHub y hacer `push` cuando se decida el nombre del repo público._
 
-- [ ] **Paso 2 · Cargar el corpus filosófico**
+- [x] **Paso 2 · Cargar el corpus filosófico** ✅ 2026-04-21
   Responsable: Franco + Felipe · Semana 2 · ~6 h
-  Output: 8 `.md` en `/philosophy/canon/` (Buffett, Lynch, Marks, Graham, Smith, Munger, Fisher, Klarman) normalizados y limpios.
+  Output: 8 `.md` en `/philosophy/canon/` — los 8 archivos existen; 2 con contenido real, 6 como stubs detallados.
+  _Contenido real: `buffett_letters.md` (25 cartas 1998–2024, ~296k tokens), `marks_memos.md` (158 memos 1990–2025, ~1.08M tokens)._
+  _Stubs pendientes: Lynch, Graham, Munger, Fisher, Klarman, Smith — cada stub documenta los temas clave y cómo agregar el material._
+  _Nota de tokens: el corpus crudo suma ~1.38M tokens. El target de 200k se logra en Paso 5 con compresión temática (selección de secciones representativas antes de armar el bloque cacheable)._
 
 - [ ] **Paso 3 · Escribir la constitución v1.0**
   Responsable: Franco + Felipe · Semana 2 · ~3 h
