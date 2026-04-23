@@ -28,29 +28,36 @@ Marcar con `[x]` a medida que se cierran.
   Responsable: tercer socio · Semana 3 · ~10 h
   Output: script que reduce el S&P 500 a ~60 nombres elegibles según criterios de la constitución; listado en `/pipeline/outputs/filtered_YYYY-MM-DD.csv`.
 
-- [ ] **Paso 5 · Conectar la API de Claude con la filosofía cacheada**
+- [x] **Paso 5 · Conectar la API de Claude con la filosofía cacheada** ✅ 2026-04-21
   Responsable: tercer socio · Semana 3 · ~8 h
-  Output: wrapper `call_agent(role, input, model, effort)` con prompt caching extendido + logging a PostgreSQL (tokens, costo, modelo, role, timestamp).
+  Output: wrapper `call_agent(role, input, model, effort)` con prompt caching extendido + logging a JSONL (tokens, costo, modelo, role, timestamp).
+  _Primera llamada real: MSFT, Sonnet 4.6, effort medium. Cache write: 198k tokens. Costo primera llamada: $0.75 (incluye write del caché). Segunda llamada en adelante: ~$0.06._
+  _Corpus crudo truncado a 800k chars (~200k tokens) para mantenerse dentro del límite 1M tokens del modelo._
 
-- [ ] **Paso 6 · Construir el agente de análisis (Capa 2)**
+- [x] **Paso 6 · Construir el agente de análisis (Capa 2)** ✅ 2026-04-21
   Responsable: tercer socio + Felipe (valida salidas) · Semana 4 · ~12 h
-  Output: loop batch sobre los 60 tickers con Sonnet 4.6, effort `medium`; 60 tesis estructuradas en JSON (`tesis`, `riesgos`, `precio_objetivo`, `conviccion`) guardadas en tabla `analysis`.
+  Output: `pipeline/analyst.py` — loop sobre los 60 tickers con Sonnet 4.6, effort `medium`; tesis en JSON (`tesis`, `riesgos`, `precio_objetivo`, `conviccion`) guardadas en `pipeline/outputs/analysis_YYYY-MM-DD.json`.
+  _Modos: `--dry-run` (sin API), `--sequential` (debug), default = Message Batches API (50% descuento)._
+  _Test real MSFT: convicción 6/10, precio objetivo $390, costo $0.75 (primera llamada con cache write). Segunda llamada en adelante: ~$0.06._
 
-- [ ] **Paso 7 · Construir los agentes de debate (Capa 3)**
+- [x] **Paso 7 · Construir los agentes de debate (Capa 3)** ✅ 2026-04-21
   Responsable: tercer socio · Semana 4 · ~10 h
-  Output: loop async bull/bear sobre los 20 de mayor convicción con Opus 4.7 `xhigh` + síntesis con Sonnet; 20 dossieres en tabla `debate`; task_budget 400.000 tokens output.
+  Output: `pipeline/debate.py` — bull+bear paralelo (ThreadPoolExecutor) + síntesis Sonnet para top 20 por convicción; guarda `debate_YYYY-MM-DD.json`. 29 tests pasando.
 
-- [ ] **Paso 8 · Construir el agente constructor (Capa 4)**
+- [x] **Paso 8 · Construir el agente constructor (Capa 4)** ✅ 2026-04-21
   Responsable: tercer socio + Franco (revisa prompt) · Semana 5 · ~8 h
-  Output: única llamada Opus 4.7 effort `max`, task_budget 80.000 tokens; JSON con `holdings` (12–15 posiciones, pesos, rationale, citas_canon), `cash_weight`, `decision_summary`; validaciones duras antes de aceptar salida.
+  Output: `pipeline/constructor.py` — única llamada Opus 4.7 effort `max`; 7 validaciones duras (count, weights, cash, sum, sector, tickers); guarda `portfolio_YYYY-MM-DD.json`. 39 tests pasando.
 
-- [ ] **Paso 9 · Conectar con Alpaca y ejecutar trades (Capa 5)**
+- [x] **Paso 9 · Conectar con Alpaca y ejecutar trades (Capa 5)** ✅ 2026-04-21
   Responsable: tercer socio · Semana 5 · ~10 h
-  Output: capa de ejecución que calcula deltas vs. estado actual, manda órdenes MARKET a Alpaca paper, registra en tabla `orders` con Alpaca ID, verifica fills a los 15 min; reglas de seguridad (modo paper obligatorio, aborto si >10 órdenes o posición >15%).
+  Output: `pipeline/executor.py` — calcula deltas vs. estado actual, manda órdenes MARKET day a Alpaca paper, registra en `orders_YYYY-MM-DD.jsonl`, verifica fills a los 15 min. 19 tests pasando. Safety: rechaza si base URL no es paper, si hay >10 órdenes, o si algún target weight >15%.
+  _Pendiente: cargar `ALPACA_API_KEY` y `ALPACA_API_SECRET` en `.env` cuando Franco active la cuenta._
 
-- [ ] **Paso 10 · Construir el dashboard público**
+- [x] **Paso 10 · Construir el dashboard público** ✅ 2026-04-21
   Responsable: tercer socio · Semana 6 · ~15 h
-  Output: sitio Next.js 15 en Vercel con `/` (equity curve + cartera + últimos rationales), `/trades`, `/constitution`, `/about`; datos desde Neon vía API interna con ISR.
+  Output: `dashboard/` — Next.js 16 (create-next-app trajo 16 en vez de 15; funcionalmente equivalente) + TS + Tailwind 4 + App Router. 4 páginas: `/` (equity curve placeholder + cartera + top-5 rationales), `/trades`, `/constitution`, `/about`. ISR 1h. Dark mode zinc.
+  _Data layer: `src/lib/data.ts` lee JSON/JSONL/MD desde `../pipeline/outputs/` y `../philosophy/`. Maneja `NaN` inválido con preprocesamiento. Nunca tira, retorna null/[] si falta el archivo. TODO en el código: swap a Neon cuando haya datos reales._
+  _`npm run build` limpio, sin warnings. 4 rutas prerenderizadas estáticas. Smoke test OK (HTTP 200 en las 4). Falta deploy a Vercel y conectar dominio._
 
 - [ ] **Paso 11 · Armar los cronjobs y dry runs**
   Responsable: tercer socio · Semanas 7–8 · ~12 h

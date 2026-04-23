@@ -1,0 +1,395 @@
+import {
+  getLatestAnalysis,
+  getLatestDebate,
+  getLatestPortfolio,
+} from "@/lib/data";
+import type { Analysis, Debate, DebateVerdict } from "@/lib/types";
+
+export const revalidate = 3600;
+
+function formatPct(weight: number | null | undefined): string {
+  if (weight == null || Number.isNaN(weight)) return "—";
+  return (weight * 100).toFixed(2) + "%";
+}
+
+function formatUsd(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  return "$" + n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+}
+
+function formatMarketCap(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  if (n >= 1e12) return "$" + (n / 1e12).toFixed(2) + "T";
+  if (n >= 1e9) return "$" + (n / 1e9).toFixed(1) + "B";
+  if (n >= 1e6) return "$" + (n / 1e6).toFixed(0) + "M";
+  return "$" + n.toLocaleString("en-US");
+}
+
+function formatPctRaw(n: number | null | undefined, digits = 1): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  return (n * 100).toFixed(digits) + "%";
+}
+
+function formatNum(n: number | null | undefined, digits = 2): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  return n.toFixed(digits);
+}
+
+function coerceNum(v: unknown): number | null {
+  if (v == null) return null;
+  const n = typeof v === "string" ? parseFloat(v) : (v as number);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseRiesgos(raw: unknown): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.map(String);
+  if (typeof raw === "string") {
+    // El analyst puede guardar como string '["r1", "r2"]' o ya como array.
+    try {
+      const parsed = JSON.parse(raw.replace(/'/g, '"'));
+      if (Array.isArray(parsed)) return parsed.map(String);
+    } catch {
+      // Si no parsea, devolverlo como una sola entrada.
+      return [raw];
+    }
+  }
+  return [];
+}
+
+function decisionLabel(d: string | undefined): { label: string; color: string } {
+  const s = (d ?? "").toLowerCase();
+  if (s.includes("invertir") && !s.includes("no")) return { label: "invertir", color: "text-emerald-400" };
+  if (s.includes("no_invertir") || s === "no invertir") return { label: "no invertir", color: "text-rose-400" };
+  if (s.includes("esperar") || s.includes("watch")) return { label: "esperar", color: "text-amber-400" };
+  return { label: s || "—", color: "text-[color:var(--muted)]" };
+}
+
+export default async function HomePage() {
+  const [analysis, debate, portfolio] = await Promise.all([
+    getLatestAnalysis(),
+    getLatestDebate(),
+    getLatestPortfolio(),
+  ]);
+
+  // Index analyst & debate por ticker para cruzarlos con los holdings.
+  const analysisByTicker = new Map<string, Analysis>();
+  (analysis?.analyses ?? []).forEach((a) => analysisByTicker.set(a.ticker, a));
+  const debateByTicker = new Map<string, Debate>();
+  (debate?.debates ?? []).forEach((d) => debateByTicker.set(d.ticker, d));
+
+  const sortedHoldings = (portfolio?.holdings ?? [])
+    .slice()
+    .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0));
+
+  return (
+    <div className="space-y-12">
+      <section>
+        <h1 className="text-3xl font-semibold tracking-tight mb-1">Indigo AI</h1>
+        <p className="text-[color:var(--muted)] text-sm">
+          Portafolio S&amp;P 500 gestionado por agentes de Claude. Paper trading en Alpaca.
+        </p>
+      </section>
+
+      {/* Equity curve placeholder */}
+      <section>
+        <h2 className="text-lg font-semibold mb-3">Curva de equity</h2>
+        <div className="border border-dashed border-[color:var(--border)] rounded-lg h-56 flex items-center justify-center text-sm text-[color:var(--muted)]">
+          equity curve (disponible tras primer ciclo real)
+        </div>
+      </section>
+
+      {/* Tabla de pesos */}
+      <section>
+        <h2 className="text-lg font-semibold mb-3">
+          Cartera actual
+          {portfolio?._dateISO && (
+            <span className="text-sm font-normal text-[color:var(--muted)] ml-2">
+              {portfolio._dateISO}
+            </span>
+          )}
+        </h2>
+        {portfolio && sortedHoldings.length > 0 ? (
+          <div className="border border-[color:var(--border)] rounded-lg overflow-hidden mb-4">
+            <table className="w-full text-sm">
+              <thead className="bg-[color:var(--border)]/40 text-xs uppercase tracking-wider text-[color:var(--muted)]">
+                <tr>
+                  <th className="text-left px-4 py-2">Ticker</th>
+                  <th className="text-left px-4 py-2">Sector</th>
+                  <th className="text-right px-4 py-2">Peso</th>
+                  <th className="text-right px-4 py-2">Convicción</th>
+                  <th className="text-right px-4 py-2">Precio obj.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedHoldings.map((h) => {
+                  const a = analysisByTicker.get(h.ticker);
+                  return (
+                    <tr key={h.ticker} className="border-t border-[color:var(--border)]">
+                      <td className="px-4 py-2 mono font-semibold">
+                        <a href={`#holding-${h.ticker}`} className="hover:underline">
+                          {h.ticker}
+                        </a>
+                      </td>
+                      <td className="px-4 py-2 text-[color:var(--muted)] text-xs">
+                        {a?.sector ?? "—"}
+                      </td>
+                      <td className="px-4 py-2 text-right mono">{formatPct(h.weight)}</td>
+                      <td className="px-4 py-2 text-right mono">
+                        {h.conviction != null ? `${h.conviction}/10` : "—"}
+                      </td>
+                      <td className="px-4 py-2 text-right mono text-[color:var(--muted)]">
+                        {formatUsd(coerceNum(a?.precio_objetivo))}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {portfolio.cash_weight != null && (
+                  <tr className="border-t border-[color:var(--border)] bg-[color:var(--border)]/20">
+                    <td className="px-4 py-2 mono font-semibold text-[color:var(--muted)]">CASH</td>
+                    <td />
+                    <td className="px-4 py-2 text-right mono text-[color:var(--muted)]">
+                      {formatPct(portfolio.cash_weight)}
+                    </td>
+                    <td colSpan={2} />
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="border border-[color:var(--border)] rounded-lg px-4 py-6 text-sm text-[color:var(--muted)]">
+            Cartera no construida aún.
+          </div>
+        )}
+
+        {/* Tesis del portfolio completo */}
+        {portfolio?.decision_summary && (
+          <div className="border border-[color:var(--border)] rounded-lg p-4 text-sm text-[color:var(--foreground)]/85 leading-relaxed mb-4">
+            <span className="font-semibold text-xs uppercase tracking-wider text-[color:var(--muted)] block mb-1">
+              Tesis del portfolio
+            </span>
+            {portfolio.decision_summary}
+          </div>
+        )}
+
+        {/* Macro concerns */}
+        {portfolio?.macro_concerns && portfolio.macro_concerns.length > 0 && (
+          <div className="border border-[color:var(--border)] rounded-lg p-4 text-sm text-[color:var(--foreground)]/85 leading-relaxed">
+            <span className="font-semibold text-xs uppercase tracking-wider text-[color:var(--muted)] block mb-2">
+              Macro concerns
+            </span>
+            <ul className="space-y-1 list-disc list-inside">
+              {portfolio.macro_concerns.map((c, i) => (
+                <li key={i}>{c}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+
+      {/* Detalle por posición — enriquecido */}
+      {sortedHoldings.length > 0 && (
+        <section>
+          <h2 className="text-lg font-semibold mb-1">Reflexión por posición</h2>
+          <p className="text-xs text-[color:var(--muted)] mb-4">
+            Análisis del analyst + debate bull/bear + veredicto de síntesis para cada posición del portfolio.
+          </p>
+          <div className="space-y-10">
+            {sortedHoldings.map((h) => {
+              const a = analysisByTicker.get(h.ticker);
+              const d = debateByTicker.get(h.ticker);
+              const verdict = (d?.verdict && typeof d.verdict !== "string"
+                ? (d.verdict as DebateVerdict)
+                : undefined);
+              const riesgos = parseRiesgos(a?.riesgos);
+              const verdictInfo = decisionLabel(verdict?.decision);
+
+              return (
+                <article
+                  key={h.ticker}
+                  id={`holding-${h.ticker}`}
+                  className="border border-[color:var(--border)] rounded-lg p-5 space-y-5 scroll-mt-20"
+                >
+                  {/* Header */}
+                  <header>
+                    <div className="flex flex-wrap items-baseline justify-between gap-3 mb-1">
+                      <div className="flex items-baseline gap-3 flex-wrap">
+                        <h3 className="mono font-bold text-xl">{h.ticker}</h3>
+                        <span className="text-sm text-[color:var(--muted)]">{a?.name ?? ""}</span>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="mono">
+                          peso <span className="font-semibold">{formatPct(h.weight)}</span>
+                        </span>
+                        {h.conviction != null && (
+                          <span className="mono">
+                            conv <span className="font-semibold text-[color:var(--accent)]">{h.conviction}</span>/10
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {(a?.sector || a?.industry) && (
+                      <p className="text-xs text-[color:var(--muted)]">
+                        {a?.sector}
+                        {a?.industry ? ` · ${a.industry}` : ""}
+                        {a?.market_cap != null ? ` · ${formatMarketCap(coerceNum(a.market_cap))}` : ""}
+                      </p>
+                    )}
+                  </header>
+
+                  {/* Fundamentales */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div className="border border-[color:var(--border)] rounded p-2">
+                      <div className="text-[color:var(--muted)] uppercase tracking-wider text-[10px]">
+                        Revenue CAGR
+                      </div>
+                      <div className="mono font-semibold text-sm mt-1">
+                        {formatPctRaw(coerceNum(a?.revenue_cagr))}
+                      </div>
+                    </div>
+                    <div className="border border-[color:var(--border)] rounded p-2">
+                      <div className="text-[color:var(--muted)] uppercase tracking-wider text-[10px]">
+                        ROIC (proxy)
+                      </div>
+                      <div className="mono font-semibold text-sm mt-1">
+                        {(() => {
+                          const v = coerceNum(a?.roic_proxy_pct);
+                          return v == null ? "—" : v.toFixed(1) + "%";
+                        })()}
+                      </div>
+                    </div>
+                    <div className="border border-[color:var(--border)] rounded p-2">
+                      <div className="text-[color:var(--muted)] uppercase tracking-wider text-[10px]">
+                        Net Debt / EBITDA
+                      </div>
+                      <div className="mono font-semibold text-sm mt-1">
+                        {formatNum(coerceNum(a?.net_debt_ebitda))}×
+                      </div>
+                    </div>
+                    <div className="border border-[color:var(--border)] rounded p-2">
+                      <div className="text-[color:var(--muted)] uppercase tracking-wider text-[10px]">
+                        Precio obj. analyst
+                      </div>
+                      <div className="mono font-semibold text-sm mt-1">
+                        {formatUsd(coerceNum(a?.precio_objetivo))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Rationale del constructor */}
+                  {h.rationale && (
+                    <div>
+                      <h4 className="text-xs uppercase tracking-wider text-[color:var(--muted)] mb-1">
+                        Rationale del portfolio
+                      </h4>
+                      <p className="text-sm text-[color:var(--foreground)]/90 leading-relaxed">
+                        {h.rationale}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Tesis del analyst */}
+                  {a?.tesis && (
+                    <div>
+                      <h4 className="text-xs uppercase tracking-wider text-[color:var(--muted)] mb-1">
+                        Tesis del analyst
+                      </h4>
+                      <p className="text-sm text-[color:var(--foreground)]/90 leading-relaxed whitespace-pre-line">
+                        {a.tesis}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Riesgos */}
+                  {riesgos.length > 0 && (
+                    <div>
+                      <h4 className="text-xs uppercase tracking-wider text-[color:var(--muted)] mb-1">
+                        Riesgos principales
+                      </h4>
+                      <ul className="space-y-1 text-sm text-[color:var(--foreground)]/85 list-disc list-inside">
+                        {riesgos.map((r, i) => (
+                          <li key={i}>{r}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Debate bull vs bear */}
+                  {(d?.bull_argument || d?.bear_argument) && (
+                    <div>
+                      <h4 className="text-xs uppercase tracking-wider text-[color:var(--muted)] mb-2">
+                        Debate bull vs bear
+                      </h4>
+                      <div className="grid md:grid-cols-2 gap-3">
+                        {d.bull_argument && (
+                          <div className="border border-emerald-400/30 bg-emerald-400/5 rounded-lg p-3">
+                            <div className="text-[10px] uppercase tracking-wider text-emerald-400 font-semibold mb-1">
+                              Bull
+                            </div>
+                            <p className="text-sm text-[color:var(--foreground)]/90 leading-relaxed whitespace-pre-line">
+                              {d.bull_argument}
+                            </p>
+                          </div>
+                        )}
+                        {d.bear_argument && (
+                          <div className="border border-rose-400/30 bg-rose-400/5 rounded-lg p-3">
+                            <div className="text-[10px] uppercase tracking-wider text-rose-400 font-semibold mb-1">
+                              Bear
+                            </div>
+                            <p className="text-sm text-[color:var(--foreground)]/90 leading-relaxed whitespace-pre-line">
+                              {d.bear_argument}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Veredicto del debate */}
+                  {verdict && (
+                    <div>
+                      <h4 className="text-xs uppercase tracking-wider text-[color:var(--muted)] mb-1">
+                        Veredicto de síntesis
+                      </h4>
+                      <div className="border border-[color:var(--border)] rounded-lg p-3 text-sm space-y-1">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <span className="text-[color:var(--muted)] text-xs">decisión:</span>
+                          <span className={`font-semibold uppercase text-xs tracking-wider ${verdictInfo.color}`}>
+                            {verdictInfo.label}
+                          </span>
+                          {verdict.conviccion_ajustada != null && (
+                            <span className="text-xs text-[color:var(--muted)]">
+                              conv ajustada{" "}
+                              <span className="font-semibold text-[color:var(--accent)]">
+                                {verdict.conviccion_ajustada}
+                              </span>
+                              /10
+                            </span>
+                          )}
+                          {verdict.precio_objetivo_ajustado != null && (
+                            <span className="text-xs text-[color:var(--muted)]">
+                              precio obj. ajustado{" "}
+                              <span className="font-semibold mono">
+                                {formatUsd(verdict.precio_objetivo_ajustado)}
+                              </span>
+                            </span>
+                          )}
+                        </div>
+                        {verdict.razon && (
+                          <p className="text-[color:var(--foreground)]/85 leading-relaxed pt-1">
+                            {verdict.razon}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}

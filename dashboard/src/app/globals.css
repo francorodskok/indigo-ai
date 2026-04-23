@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+:root {
+  --background: #09090b; /* zinc-950 */
+  --foreground: #e4e4e7; /* zinc-200 */
+  --muted: #a1a1aa; /* zinc-400 */
+  --border: #27272a; /* zinc-800 */
+  --accent: #fafafa; /* zinc-50 */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+body {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+.mono {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Markdown prose styling for /constitution. */
+.prose-indigo h1,
+.prose-indigo h2,
+.prose-indigo h3,
+.prose-indigo h4 {
+  color: var(--accent);
+  font-weight: 600;
+  margin-top: 1.75em;
+  margin-bottom: 0.6em;
+  line-height: 1.25;
+}
+.prose-indigo h1 { font-size: 1.875rem; }
+.prose-indigo h2 { font-size: 1.5rem; }
+.prose-indigo h3 { font-size: 1.25rem; }
+.prose-indigo h4 { font-size: 1.1rem; }
+.prose-indigo p { margin: 0.75em 0; line-height: 1.7; color: var(--foreground); }
+.prose-indigo ul, .prose-indigo ol { margin: 0.75em 0 0.75em 1.5em; }
+.prose-indigo ul { list-style: disc; }
+.prose-indigo ol { list-style: decimal; }
+.prose-indigo li { margin: 0.3em 0; line-height: 1.6; }
+.prose-indigo strong { color: var(--accent); font-weight: 600; }
+.prose-indigo em { font-style: italic; }
+.prose-indigo hr { border: 0; border-top: 1px solid var(--border); margin: 2em 0; }
+.prose-indigo blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 1em;
+  color: var(--muted);
+  margin: 1em 0;
+}
+.prose-indigo code {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  background: #18181b;
+  padding: 0.1em 0.35em;
+  border-radius: 0.25rem;
+  font-size: 0.9em;
+}
+.prose-indigo pre {
+  background: #18181b;
+  padding: 1em;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin: 1em 0;
+}
+.prose-indigo pre code { background: transparent; padding: 0; }
+.prose-indigo table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+}
+.prose-indigo th, .prose-indigo td {
+  border: 1px solid var(--border);
+  padding: 0.5em 0.75em;
+  text-align: left;
+}
+.prose-indigo th { background: #18181b; font-weight: 600; }
+.prose-indigo a { color: #a5b4fc; text-decoration: underline; }
