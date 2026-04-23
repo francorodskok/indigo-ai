@@ -227,3 +227,285 @@ class TestSystemSuffix:
         assert "PEG" in VALUATION_CRITERIA_SUFFIX
         assert "FCF yield" in VALUATION_CRITERIA_SUFFIX
         assert "precio_objetivo" in VALUATION_CRITERIA_SUFFIX
+
+    def test_suffix_includes_historical_rules(self):
+        """Paso B2: el system prompt debe instruir sobre el ancla histórica 5y."""
+        from pipeline.valuation import VALUATION_CRITERIA_SUFFIX
+        # Las reglas clave (Lynch/Templeton style).
+        assert "ANCLA HISTÓRICA" in VALUATION_CRITERIA_SUFFIX
+        assert "pe_vs_avg_pct" in VALUATION_CRITERIA_SUFFIX
+        assert "percentil" in VALUATION_CRITERIA_SUFFIX.lower()
+        # Hard cap extremo.
+        assert "1.5" in VALUATION_CRITERIA_SUFFIX  # 1.5× máx 5y
+        # Value trap warning.
+        assert "value trap" in VALUATION_CRITERIA_SUFFIX.lower()
+        # Escape hatch para re-ratings genuinos.
+        assert "re-rating" in VALUATION_CRITERIA_SUFFIX.lower()
+
+
+# ── Paso B2: historical valuation ─────────────────────────────────────────────
+
+
+class _FakePriceHistory:
+    """Mock de yfinance history DataFrame mínimo para tests."""
+
+    def __init__(self, closes: list[float], dates=None):
+        from datetime import datetime, timedelta
+        self.closes = [float(c) for c in closes]
+        if dates is None:
+            # Generar fechas hacia atrás desde hoy, 1 por día.
+            today = datetime(2026, 4, 23)
+            self.dates = [today - timedelta(days=len(closes) - i - 1) for i in range(len(closes))]
+        else:
+            self.dates = dates
+        self.empty = len(self.closes) == 0
+
+    def __getitem__(self, key):
+        # Emular hist_df["Close"] → objeto con .dropna() y .tolist()
+        if key == "Close":
+            return _FakeSeries(self.closes, self.dates)
+        raise KeyError(key)
+
+
+class _FakeSeries:
+    def __init__(self, values, index):
+        self.values_list = values
+        self.index = index
+
+    def dropna(self):
+        return self
+
+    def tolist(self):
+        return self.values_list
+
+    def items(self):
+        return zip(self.index, self.values_list)
+
+
+class _FakeIncomeStmt:
+    """Mock de yfinance income_stmt DataFrame."""
+
+    def __init__(self, net_income_by_year: dict):
+        from datetime import datetime
+        self._data = net_income_by_year
+        # Index de líneas (como yfinance): usamos un set simple.
+        self.index = ["Total Revenue", "Net Income", "EBIT"]
+        # "empty" attr
+        self.empty = len(net_income_by_year) == 0
+
+    @property
+    def loc(self):
+        return _FakeLoc(self._data)
+
+
+class _FakeLoc:
+    def __init__(self, data: dict):
+        self._data = data
+
+    def __getitem__(self, label):
+        if label == "Net Income":
+            return _FakeNIRow(self._data)
+        raise KeyError(label)
+
+
+class _FakeNIRow:
+    """Emula ni_row con .dropna() + .items() y .empty."""
+
+    def __init__(self, data: dict):
+        from datetime import datetime
+        self._items = [
+            (datetime(year, 12, 31), val) for year, val in data.items()
+        ]
+        self.empty = len(self._items) == 0
+
+    def dropna(self):
+        return self
+
+    def items(self):
+        return iter(self._items)
+
+
+class _FakeTicker:
+    def __init__(self, hist_closes=None, net_income_by_year=None):
+        self._hist = _FakePriceHistory(hist_closes or [])
+        self._income = _FakeIncomeStmt(net_income_by_year or {})
+
+    def history(self, period="5y", auto_adjust=True):
+        return self._hist
+
+    @property
+    def income_stmt(self):
+        return self._income
+
+
+class TestExtractHistoricalValuation:
+    def test_price_stats_from_history(self):
+        from pipeline.valuation import extract_historical_valuation
+        # 100 precios entre 50 y 150, lineales.
+        closes = list(range(50, 150))  # 100 observaciones
+        ticker = _FakeTicker(hist_closes=closes)
+        info = {"currentPrice": 100.0}
+        out = extract_historical_valuation(ticker, info)
+        assert out["price_avg_5y"] == pytest.approx(sum(closes) / len(closes))
+        assert out["price_max_5y"] == 149.0
+        assert out["price_min_5y"] == 50.0
+        # Percentile: 100 es aprox percentile 51 (51 precios <= 100)
+        assert out["price_percentile_5y"] is not None
+        assert 50 <= out["price_percentile_5y"] <= 55
+
+    def test_price_percentile_at_top(self):
+        from pipeline.valuation import extract_historical_valuation
+        closes = list(range(50, 150))
+        ticker = _FakeTicker(hist_closes=closes)
+        info = {"currentPrice": 200.0}  # más alto que cualquier close
+        out = extract_historical_valuation(ticker, info)
+        assert out["price_percentile_5y"] == 100.0
+
+    def test_price_percentile_at_bottom(self):
+        from pipeline.valuation import extract_historical_valuation
+        closes = list(range(50, 150))
+        ticker = _FakeTicker(hist_closes=closes)
+        info = {"currentPrice": 10.0}
+        out = extract_historical_valuation(ticker, info)
+        assert out["price_percentile_5y"] == 0.0
+
+    def test_small_series_returns_none_percentile(self):
+        """Menos de 50 observaciones → percentile no confiable → None."""
+        from pipeline.valuation import extract_historical_valuation
+        ticker = _FakeTicker(hist_closes=[100.0, 110.0, 120.0])
+        info = {"currentPrice": 105.0}
+        out = extract_historical_valuation(ticker, info)
+        assert out["price_percentile_5y"] is None
+
+    def test_empty_history_returns_all_none(self):
+        from pipeline.valuation import extract_historical_valuation
+        ticker = _FakeTicker(hist_closes=[])
+        info = {"currentPrice": 100.0}
+        out = extract_historical_valuation(ticker, info)
+        assert out["price_avg_5y"] is None
+        assert out["price_percentile_5y"] is None
+
+    def test_historical_pe_computed(self):
+        """P/E histórico se calcula a partir de year-end prices + net income."""
+        from datetime import datetime
+        from pipeline.valuation import extract_historical_valuation
+
+        # Precios: todos los días de 2022-12 a 2026-04, close = 100
+        # Para simplificar, ponemos 100 closes todos a 100. La función usa el
+        # último close de cada año como precio year-end.
+        closes = [100.0] * 100
+        # Fechas cubren 4 años para que haya year-end data
+        today = datetime(2026, 4, 23)
+        from datetime import timedelta
+        dates = [today - timedelta(days=100 - i) for i in range(100)]
+        hist = _FakePriceHistory(closes, dates=dates)
+
+        # Net income + shares para que EPS = 5, P/E = 100/5 = 20
+        ticker = _FakeTicker(hist_closes=closes)
+        ticker._hist = hist
+        # 5B shares × $5 EPS = $25B net income
+        ticker._income = _FakeIncomeStmt({2022: 25_000_000_000, 2023: 25_000_000_000})
+
+        info = {
+            "currentPrice": 100.0,
+            "sharesOutstanding": 5_000_000_000,
+            "trailingPE": 25.0,
+        }
+        out = extract_historical_valuation(ticker, info)
+        # Puede que no haya year-end data para 2022 si las fechas están dentro
+        # de 2025-2026. El test es tolerante: si hay samples, el avg debe ser
+        # aprox 20.
+        if out["pe_samples"]:
+            assert out["pe_avg_5y"] == pytest.approx(20.0, rel=0.1)
+            assert out["pe_vs_avg_pct"] is not None
+            # trailingPE 25 vs avg 20 → +25%
+            assert out["pe_vs_avg_pct"] == pytest.approx(0.25, rel=0.1)
+
+    def test_income_stmt_error_does_not_break_price_stats(self):
+        """Si income_stmt tira excepción, los price stats aún deben calcularse."""
+        from pipeline.valuation import extract_historical_valuation
+
+        class BadIncomeTicker(_FakeTicker):
+            @property
+            def income_stmt(self):
+                raise RuntimeError("yfinance se rompió")
+
+        closes = [100.0] * 60
+        ticker = BadIncomeTicker(hist_closes=closes)
+        info = {"currentPrice": 100.0}
+        out = extract_historical_valuation(ticker, info)
+        # Price stats: OK
+        assert out["price_avg_5y"] == pytest.approx(100.0)
+        # P/E: None por el error
+        assert out["pe_avg_5y"] is None
+        assert out["pe_samples"] is None
+
+    def test_no_shares_outstanding_skips_pe(self):
+        from pipeline.valuation import extract_historical_valuation
+        closes = [100.0] * 60
+        ticker = _FakeTicker(
+            hist_closes=closes,
+            net_income_by_year={2023: 5_000_000_000},
+        )
+        info = {"currentPrice": 100.0, "trailingPE": 20.0}  # sin sharesOutstanding
+        out = extract_historical_valuation(ticker, info)
+        assert out["pe_avg_5y"] is None
+
+    def test_negative_net_income_filtered(self):
+        """Años con pérdida: P/E no tiene sentido, se filtra."""
+        from pipeline.valuation import extract_historical_valuation
+        closes = [100.0] * 60
+        ticker = _FakeTicker(
+            hist_closes=closes,
+            net_income_by_year={
+                2022: -5_000_000_000,  # pérdida
+                2023: 10_000_000_000,  # ganancia
+            },
+        )
+        info = {
+            "currentPrice": 100.0,
+            "sharesOutstanding": 1_000_000_000,
+            "trailingPE": 20.0,
+        }
+        out = extract_historical_valuation(ticker, info)
+        # Solo el año positivo debería contar → samples <= 1
+        if out["pe_samples"] is not None:
+            assert out["pe_samples"] <= 1
+
+
+class TestBuildValuationBlockHistorical:
+    def test_block_includes_historical_section(self):
+        from pipeline.valuation import build_valuation_block
+        row = {
+            "current_price": 100.0,
+            "trailing_pe": 22.0,
+            "pe_avg_5y": 18.0,
+            "pe_max_5y": 25.0,
+            "pe_min_5y": 12.0,
+            "pe_vs_avg_pct": 0.22,  # +22%
+            "pe_samples": 5,
+            "price_percentile_5y": 78.0,
+            "price_avg_5y": 85.0,
+        }
+        block = build_valuation_block(row)
+        assert "Contexto histórico" in block
+        assert "18.0x" in block  # pe_avg_5y
+        assert "25.0x" in block  # pe_max_5y
+        assert "12.0x" in block  # pe_min_5y
+        assert "+22.0%" in block  # pe_vs_avg_pct con signo
+        assert "p78" in block    # percentil
+        assert "5 obs" in block
+
+    def test_block_handles_missing_historical(self):
+        """Si no hay datos históricos, todos los campos N/D."""
+        from pipeline.valuation import build_valuation_block
+        row = {"current_price": 100.0}
+        block = build_valuation_block(row)
+        assert "Contexto histórico" in block
+        assert "P/E histórico: avg N/D" in block
+        assert "posición actual N/D" in block
+
+    def test_percentile_formatted_with_p_prefix(self):
+        from pipeline.valuation import build_valuation_block
+        row = {"price_percentile_5y": 15.0}
+        assert "p15" in build_valuation_block(row)

@@ -33,7 +33,7 @@ from pipeline.config import (
     FILTER_MIN_ROIC_PCT,
     FILTER_TARGET_CANDIDATES,
 )
-from pipeline.valuation import extract_valuation_fields
+from pipeline.valuation import extract_historical_valuation, extract_valuation_fields
 
 DATA_DIR = ROOT / "pipeline" / "data"
 OUTPUTS_DIR = ROOT / "pipeline" / "outputs"
@@ -209,6 +209,21 @@ def fetch_fundamentals(ticker: str) -> dict | None:
         # Permite análisis estilo Lynch/Graham/Klarman en el prompt del analyst.
         valuation = extract_valuation_fields(info)
 
+        # Valuación histórica 5y (Paso B2): P/E promedio/max/min + percentil de
+        # precio vs rango 5y. Ancla "¿está barato/caro vs su propia historia?".
+        # Wrapper try/except porque income_stmt de yfinance es flaky — fallback
+        # a None en todos los campos si falla, sin tirar el row entero.
+        try:
+            hist_valuation = extract_historical_valuation(t, info)
+        except Exception as e:
+            log.debug(f"{ticker}: historical valuation error — {e}")
+            hist_valuation = {
+                "price_avg_5y": None, "price_max_5y": None, "price_min_5y": None,
+                "price_percentile_5y": None,
+                "pe_avg_5y": None, "pe_max_5y": None, "pe_min_5y": None,
+                "pe_vs_avg_pct": None, "pe_samples": None,
+            }
+
         return {
             "ticker": ticker,
             "market_cap": market_cap,
@@ -221,6 +236,7 @@ def fetch_fundamentals(ticker: str) -> dict | None:
             "industry": info.get("industry", ""),
             "name": info.get("shortName", ticker),
             **valuation,
+            **hist_valuation,
         }
 
     except Exception as e:

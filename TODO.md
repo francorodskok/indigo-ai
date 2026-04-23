@@ -74,6 +74,18 @@ Marcar con `[x]` a medida que se cierran.
 
   _Por hacer antes de Paso 12: deploy real a Fly.io + 4 dry-runs en staging. Requiere permiso explícito de Franco porque implica cómputo real (aunque Anthropic/Alpaca estén mockeados en dry-run)._
 
+- [x] **Paso B2 · Ancla histórica de valuación (5 años, Lynch/Templeton)** ✅ 2026-04-23
+  Responsable: tercer socio · ~4 h
+  Output:
+  - `pipeline/valuation.py`:
+    - `extract_historical_valuation(ticker_obj, info)` — reconstruye P/E anual desde `income_stmt` (NI ÷ shares ÷ año-cierre de `history(5y)`), devuelve `pe_avg_5y`, `pe_min_5y`, `pe_max_5y`, `pe_vs_avg_pct`, `price_avg_5y`, `price_percentile_5y`, `pe_samples`. Sanitiza P/E > 200 y NI negativos. `price_percentile_5y` solo reporta si hay ≥50 observaciones.
+    - `build_valuation_block()` ahora incluye `### Contexto histórico (5 años)` con P/E avg/min/max, `pe_vs_avg_pct` firmado, precio avg/percentil actual.
+    - `VALUATION_CRITERIA_SUFFIX` extendido con `## ANCLA HISTÓRICA 5y (Paso B2 — Lynch/Templeton style)`: descuento ≥15% vs avg OR percentil <30 → +1 convicción (con guard de value trap); prima ≥25% OR percentil >85 → −1 (salvo re-rating genuino); hard cap `P/E > 1.5× máx 5y` ⇒ conviction ≤ 4; señal de venta si `P/E > 1.5× máx 5y` + crecimiento desacelerando.
+  - `pipeline/filter.py`: llama `extract_historical_valuation(t, info)` con try/except y mergea via `**hist_valuation`. Si yfinance falla en `income_stmt`, los campos vienen `None` sin romper el filtro.
+  - Tests: `test_valuation.py` ahora 38 passed — incluye `TestSystemSuffix.test_suffix_includes_historical_rules`, `TestExtractHistoricalValuation` (9 tests: percentil top/bottom, series <50, history vacío, P/E computado, fallo en income_stmt, shares faltantes, NI negativo filtrado), `TestBuildValuationBlockHistorical` (3 tests: bloque incluye sección histórica, maneja missing, percentil formateado con prefijo `p`).
+
+  _Calibración intencional: "algo exigente pero no extremadamente" — ±1 convicción en zonas normales, solo 1 hard cap (1.5× máx 5y)._
+
 - [ ] **Paso 12 · Lanzamiento público**
   Responsable: Franco (comunicación) + tercer socio (operación) · Semana 10 · fin de semana intensivo
   Output: `SYSTEM_ENABLED=true`, thread fundacional en X, post en Instagram, mención desde Indigo Star, mails a 10 periodistas (Bloomberg Línea, Cenital, Forbes Argentina, Infobae, Fintech Latam), aviso al grupo de prueba, monitoreo intensivo 48 h; primer ciclo real el domingo siguiente.

@@ -147,6 +147,149 @@ def extract_valuation_fields(info: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# ── Paso B2: valuación histórica (5y) ─────────────────────────────────────────
+#
+# Objetivo: darle al analyst contexto "¿está barato/caro vs su propio historial?".
+# Dos señales complementarias:
+#   1. Price percentile 5y — siempre disponible, yfinance nunca falla con history.
+#   2. P/E histórico (avg/max/min 5y) — cuando hay income statement disponible.
+#
+# No extrema la exigencia: ajustes de convicción ±1 en zonas normales, solo
+# hard-cap (convicción <= 4) en casos extremos (P/E actual > 1.5× máx 5y).
+
+_HIST_PE_MAX_SANE = 200.0   # mismo umbral que _PE_MAX_SANE: filtro outliers
+
+
+def _percentile_in_series(value: float, series: list[float]) -> float | None:
+    """Retorna el percentil (0–100) de `value` dentro de `series`.
+    None si la serie es chica (< 50 observaciones)."""
+    if not series or len(series) < 50:
+        return None
+    below = sum(1 for x in series if x <= value)
+    return 100.0 * below / len(series)
+
+
+def _year_end_prices_from_history(hist_df: Any) -> dict[int, float]:
+    """Dado un DataFrame de yfinance history (index = fechas, col 'Close'),
+    retorna {year: last_close_of_year}."""
+    out: dict[int, float] = {}
+    try:
+        if hist_df is None or hist_df.empty:
+            return out
+        # hist_df tiene columna 'Close'
+        closes = hist_df["Close"].dropna()
+        for date_idx, price in closes.items():
+            year = date_idx.year
+            # El último close del año gana (iteración natural del índice)
+            out[year] = float(price)
+    except Exception:
+        pass
+    return out
+
+
+def extract_historical_valuation(ticker_obj: Any, info: dict[str, Any]) -> dict[str, Any]:
+    """
+    Extrae estadísticas históricas de valuación (5y) desde un `yf.Ticker`.
+
+    Retorna dict con keys:
+      price_avg_5y, price_max_5y, price_min_5y, price_percentile_5y,
+      pe_avg_5y, pe_max_5y, pe_min_5y, pe_vs_avg_pct, pe_samples
+
+    Todos los valores son float o None. Robusto a fallas de yfinance:
+    si algo no viene, esa key queda en None y las demás siguen computándose.
+
+    Args:
+        ticker_obj: yfinance.Ticker (para pull de history y income_stmt)
+        info: dict ya obtenido de ticker_obj.info (evita re-pull)
+    """
+    result = {
+        "price_avg_5y": None,
+        "price_max_5y": None,
+        "price_min_5y": None,
+        "price_percentile_5y": None,
+        "pe_avg_5y": None,
+        "pe_max_5y": None,
+        "pe_min_5y": None,
+        "pe_vs_avg_pct": None,
+        "pe_samples": None,
+    }
+
+    # ── 1. Price history 5y (siempre confiable en yfinance) ───────────────────
+    hist = None
+    try:
+        hist = ticker_obj.history(period="5y", auto_adjust=True)
+    except Exception:
+        hist = None
+
+    current_price = _clean_positive(
+        info.get("currentPrice")
+        or info.get("regularMarketPrice")
+        or info.get("previousClose")
+    )
+
+    if hist is not None and not getattr(hist, "empty", True):
+        try:
+            closes = [float(x) for x in hist["Close"].dropna().tolist() if x > 0]
+            if closes:
+                result["price_avg_5y"] = sum(closes) / len(closes)
+                result["price_max_5y"] = max(closes)
+                result["price_min_5y"] = min(closes)
+                if current_price is not None:
+                    pct = _percentile_in_series(current_price, closes)
+                    result["price_percentile_5y"] = pct
+        except Exception:
+            pass
+
+    # ── 2. P/E histórico anual (puede fallar — yfinance income_stmt es flaky) ─
+    try:
+        inc = getattr(ticker_obj, "income_stmt", None)
+        shares = _clean_positive(info.get("sharesOutstanding"))
+        if inc is not None and not inc.empty and shares and hist is not None:
+            # Buscar línea de net income
+            ni_row = None
+            for label in ["Net Income", "Net Income Common Stockholders",
+                          "Net Income From Continuing Operation Net Minority Interest"]:
+                if label in inc.index:
+                    ni_row = inc.loc[label].dropna()
+                    break
+
+            if ni_row is not None and not ni_row.empty:
+                year_end_prices = _year_end_prices_from_history(hist)
+                pes: list[float] = []
+
+                for date_col, net_income_val in ni_row.items():
+                    try:
+                        year = date_col.year if hasattr(date_col, "year") else None
+                        ni = float(net_income_val)
+                        if not year or ni <= 0 or year not in year_end_prices:
+                            continue
+                        eps = ni / shares
+                        if eps <= 0:
+                            continue
+                        pe = year_end_prices[year] / eps
+                        if 0 < pe <= _HIST_PE_MAX_SANE:
+                            pes.append(pe)
+                    except (TypeError, ValueError, AttributeError):
+                        continue
+
+                if pes:
+                    pe_avg = sum(pes) / len(pes)
+                    result["pe_avg_5y"] = pe_avg
+                    result["pe_max_5y"] = max(pes)
+                    result["pe_min_5y"] = min(pes)
+                    result["pe_samples"] = len(pes)
+
+                    # Ratio P/E actual vs promedio histórico
+                    current_pe = _clean_positive(info.get("trailingPE"), _PE_MAX_SANE)
+                    if current_pe and pe_avg > 0:
+                        result["pe_vs_avg_pct"] = (current_pe / pe_avg) - 1.0
+    except Exception:
+        # Cualquier fallo acá no debería romper el resto del análisis.
+        pass
+
+    return result
+
+
 # ── Formateo para el prompt del analyst ───────────────────────────────────────
 
 def _fmt_price(val: float | None) -> str:
@@ -169,15 +312,22 @@ def _fmt_peg(val: float | None) -> str:
     return f"{val:.2f}" if val else "N/D"
 
 
+def _fmt_percentile(val: float | None) -> str:
+    """Formatea un percentil 0-100 con sufijo 'p'."""
+    if val is None:
+        return "N/D"
+    return f"p{val:.0f}"
+
+
 def build_valuation_block(row: dict[str, Any]) -> str:
     """
     Formatea los campos de valuación como un bloque de texto para inyectar en
     el prompt del analyst.
 
     Los campos se leen de `row` con las mismas keys que produce
-    extract_valuation_fields. Si faltan (ej: CSV antiguo sin los campos),
-    devuelve bloque con todos los valores como N/D — el modelo lo ve pero
-    sabe que no tiene datos.
+    extract_valuation_fields + extract_historical_valuation. Si faltan
+    (ej: CSV antiguo sin los campos), devuelve bloque con todos los valores
+    como N/D — el modelo lo ve pero sabe que no tiene datos.
     """
     price = _fmt_price(row.get("current_price"))
     fwd_pe = _fmt_multiple(row.get("forward_pe"))
@@ -192,6 +342,16 @@ def build_valuation_block(row: dict[str, Any]) -> str:
     low = _fmt_price(row.get("fifty_two_week_low"))
     off_high = _fmt_pct(row.get("pct_off_52w_high"), sign=True)
 
+    # ── Paso B2: contexto histórico ───────────────────────────────────────────
+    pe_avg_5y = _fmt_multiple(row.get("pe_avg_5y"))
+    pe_max_5y = _fmt_multiple(row.get("pe_max_5y"))
+    pe_min_5y = _fmt_multiple(row.get("pe_min_5y"))
+    pe_vs_avg = _fmt_pct(row.get("pe_vs_avg_pct"), sign=True)
+    pe_samples = row.get("pe_samples")
+    pe_samples_str = f"{pe_samples} obs" if pe_samples else "N/D"
+    price_pctile = _fmt_percentile(row.get("price_percentile_5y"))
+    price_avg_5y = _fmt_price(row.get("price_avg_5y"))
+
     return f"""## Valuación y mercado
 Precio actual: {price}
 P/E forward: {fwd_pe} | P/E trailing: {trail_pe}
@@ -199,7 +359,12 @@ EV/EBITDA: {ev_ebitda} | P/B: {pb}
 FCF yield: {fcf_y}
 PEG (forward): {peg}
 Beta: {beta} | Dividend yield: {div}
-52w rango: {low} – {high} ({off_high} del máximo)"""
+52w rango: {low} – {high} ({off_high} del máximo)
+
+### Contexto histórico (5 años)
+P/E histórico: avg {pe_avg_5y} | min {pe_min_5y} | max {pe_max_5y} ({pe_samples_str})
+P/E actual vs promedio 5y: {pe_vs_avg}
+Precio 5y: promedio {price_avg_5y} | posición actual {price_pctile}"""
 
 
 # ── Suffix para el system prompt del analyst ──────────────────────────────────
@@ -219,7 +384,7 @@ Criterios de convicción refinados:
         (PEG > 2 Y FCF yield < 3%, O fundamentales deteriorados)
 
 Reglas duras:
-  - Si PEG > 2, FCF yield < 3% y P/E forward > 35 simultáneamente: convicción ≤ 4.
+  - Si PEG > 2, FCF yield < 3% y P/E forward > 35 simultáneamente: convicción <= 4.
   - Si no hay datos ("N/D" en múltiplos críticos): bajar convicción 2 puntos por
     incertidumbre o explicar en la tesis por qué igual tenés convicción alta.
   - El precio_objetivo NO puede ser un número random. Derivalo de:
@@ -228,4 +393,45 @@ Reglas duras:
     (c) DCF simple con growth explícito.
   - En la tesis, mencioná el ancla (ej: "FCF yield 6.5% y PEG 1.1 justifican
     precio objetivo $X, que implica +22% desde $Y actual").
+
+## ANCLA HISTÓRICA 5y (Paso B2 — Lynch/Templeton style)
+
+El bloque "Contexto histórico (5 años)" muestra cómo cotiza HOY vs su propio
+historial. Pregunta central de value: "¿paga lo que siempre pagó, o está
+caro/barato vs sí mismo?". Nivel de exigencia: moderado — ajustes de ±1
+en zonas normales, solo hard cap en extremos.
+
+Ajustes de convicción históricos (moderados, ±1):
+  - Descuento histórico (zona de compra):
+    · P/E actual vs promedio 5y < -15% (pe_vs_avg_pct <= -0.15)
+      O precio 5y en percentil < 30
+      -> +1 convicción SI la calidad del negocio sigue intacta (ROIC,
+        márgenes, crecimiento no se deterioraron). Si se deterioraron,
+        NO sumes — está barato por una razón (value trap).
+
+  - Prima histórica (zona de precaución):
+    · P/E actual vs promedio 5y > +25% (pe_vs_avg_pct >= 0.25)
+      O precio 5y en percentil > 85
+      -> -1 convicción, EXCEPTO si hay re-rating genuino justificado
+        (aceleración de crecimiento > 20%, expansión sostenida de
+        márgenes, pivote estratégico exitoso). En ese caso mantené la
+        convicción y explicitá el motivo del re-rating en la tesis.
+
+Regla dura histórica (hard cap):
+  - Si P/E actual > 1.5× el máximo de los últimos 5 años: convicción <= 4.
+    Zona donde rara vez se gana dinero comprando. Única excepción: el
+    negocio está genuinamente transformado (ej: pivote a software con
+    márgenes dramáticamente distintos) Y podés argumentarlo con números
+    concretos — no con promesas.
+
+  - Si faltan datos históricos ("N/D" en pe_avg_5y Y price_percentile_5y
+    simultáneamente): no ajustes la convicción por esta vía. Apoyate solo
+    en los múltiplos forward y mencioná la falta de contexto histórico
+    en la tesis.
+
+Señal de venta (para posiciones existentes en la cartera):
+  - Si una posición actual tiene P/E > 1.5× máximo 5y Y el crecimiento
+    se está desacelerando: proponé un precio_objetivo por debajo del
+    precio actual. El constructor lo interpretará como señal para
+    trim/exit (ver acciones de rebalanceo).
 """.strip()
