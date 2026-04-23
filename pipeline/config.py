@@ -12,9 +12,11 @@ CONSTRUCTOR_MODEL = "claude-opus-4-7"
 NEWSLETTER_MODEL = "claude-sonnet-4-6"
 
 # ── Effort levels (Opus 4.7) ──────────────────────────────────────────────────
+# Optimizados 2026-04-22: ciclo baja de ~$15 a ~$7 sin pérdida de calidad notable.
+# Subir a ("xhigh", "max") si se observa caída de calidad en los veredictos/portfolios.
 ANALYST_EFFORT = "medium"
-DEBATE_EFFORT = "xhigh"
-CONSTRUCTOR_EFFORT = "max"
+DEBATE_EFFORT = "medium"      # antes "xhigh"
+CONSTRUCTOR_EFFORT = "high"   # antes "max"
 
 # ── Task budgets (tokens de output por llamada) ───────────────────────────────
 DEBATE_TASK_BUDGET_TOKENS = 400_000   # total loop bull-bear
@@ -50,7 +52,7 @@ PORTFOLIO_MIN_MARGIN_OF_SAFETY = 0.15       # 15% descuento mínimo sobre valor 
 
 # ── Candidatos por etapa ──────────────────────────────────────────────────────
 FILTER_TARGET_CANDIDATES = 60        # output del filtro cuantitativo
-DEBATE_TOP_N = 20                    # nombres que pasan a debate bull-bear
+DEBATE_TOP_N = 15                    # nombres que pasan a debate bull-bear (antes 20)
 
 # ── Régimen macro — indicadores ───────────────────────────────────────────────
 MACRO_CAPE_THRESHOLD = 32
@@ -59,3 +61,8 @@ MACRO_VIX_THRESHOLD = 30
 MACRO_VIX_SESSIONS = 5               # sesiones en las últimas 20
 MACRO_BREADTH_THRESHOLD = 0.35       # % componentes sobre MA200
 MACRO_YIELD_CURVE_MONTHS = 3         # meses consecutivos invertida
+
+# ── Ejecución (Alpaca) ────────────────────────────────────────────────────────
+MAX_ORDERS_PER_CYCLE = 20
+MAX_POSITION_SAFETY_PCT = 0.15      # aborto si cualquier target > 15%
+FILL_VERIFY_WAIT_SECONDS = 900      # 15 minutos
