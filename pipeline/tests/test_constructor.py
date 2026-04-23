@@ -14,7 +14,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from pipeline.constructor import (
+    CONSTRUCTOR_SUFFIX,
     _build_dry_run_portfolio,
+    _extract_decisions_map,
     _extract_sector_map,
     build_constructor_prompt,
     parse_portfolio,
@@ -666,6 +668,16 @@ class TestBuildDryRunPortfolio:
 class TestExtractSectorMap:
     """Tests para la extracción del mapa ticker->sector del debate."""
 
+    @pytest.fixture(autouse=True)
+    def _isolate_outputs_dir(self, tmp_path, monkeypatch):
+        """
+        Aísla OUTPUTS_DIR para que el fallback de _extract_sector_map
+        (que lee del analysis_*.json más reciente) no contamine los tests
+        con archivos reales del proyecto.
+        """
+        import pipeline.constructor as ctor
+        monkeypatch.setattr(ctor, "OUTPUTS_DIR", tmp_path)
+
     def test_extracts_all_sectors(self):
         """Extrae el sector de todos los tickers del debate."""
         debate = make_debate_json()
@@ -853,6 +865,259 @@ class TestStateIntegration:
         if "AAPL" in by_ticker:
             assert by_ticker["AAPL"]["action"] == "trim"
             assert by_ticker["AAPL"]["previous_weight"] == 0.09
+
+
+# ── TestNoInvertirVeto (fix del bug: no_invertir nunca puede tener peso) ─────
+
+
+class TestNoInvertirVeto:
+    """
+    Verifica las 3 capas de defensa contra el bug observado:
+    'acciones que el debate marcó no_invertir igual aparecen con 8% en el portfolio'.
+
+    Capa 1: system suffix con regla explícita.
+    Capa 2: prompt separa candidatos (comprar/posicion_pequeña) de excluidos.
+    Capa 3: validate_portfolio rechaza holdings con decision=no_invertir.
+    """
+
+    # ── Capa 1: system suffix ─────────────────────────────────────────────────
+
+    def test_suffix_mentions_no_invertir_rule(self):
+        """El system suffix debe documentar la regla dura sobre no_invertir."""
+        assert "no_invertir" in CONSTRUCTOR_SUFFIX
+        # Debe indicar que no puede aparecer en holdings
+        assert "holdings" in CONSTRUCTOR_SUFFIX.lower()
+        # Debe dirigir a exits si es posición previa
+        assert "exits" in CONSTRUCTOR_SUFFIX.lower()
+
+    def test_suffix_mentions_posicion_pequena_allowed(self):
+        """El suffix debe aclarar que posicion_pequeña SÍ puede ir en holdings."""
+        assert "posicion_pequeña" in CONSTRUCTOR_SUFFIX
+
+    # ── Capa 2: prompt ────────────────────────────────────────────────────────
+
+    def test_prompt_splits_candidates_and_excluded(self):
+        """El prompt separa veredictos en CANDIDATOS y EXCLUIDOS."""
+        debate = make_debate_json()  # SAMPLE_TICKERS tiene 1 no_invertir (AMT)
+        prompt = build_constructor_prompt(debate)
+        assert "CANDIDATOS" in prompt
+        assert "EXCLUIDOS" in prompt
+        # El bloque EXCLUIDOS debe ir después del bloque CANDIDATOS
+        assert prompt.index("CANDIDATOS") < prompt.index("EXCLUIDOS")
+
+    def test_prompt_no_invertir_goes_to_excluded_section(self):
+        """AMT (no_invertir en SAMPLE_TICKERS) aparece SOLO en la sección EXCLUIDOS."""
+        debate = make_debate_json()
+        prompt = build_constructor_prompt(debate)
+        excluded_start = prompt.index("EXCLUIDOS")
+        amt_pos = prompt.index("AMT")
+        # AMT debe aparecer después del header EXCLUIDOS, no antes
+        assert amt_pos > excluded_start, (
+            "AMT (decision=no_invertir) aparece antes del bloque EXCLUIDOS; "
+            "el modelo podría confundirlo con un candidato."
+        )
+
+    def test_prompt_omits_excluded_section_when_no_no_invertir(self):
+        """Si todos los tickers son comprar/posicion_pequeña, no hay sección EXCLUIDOS."""
+        all_buy = [(t, s, c, p, "comprar") for t, s, c, p, _ in SAMPLE_TICKERS]
+        debate = make_debate_json(tickers_data=all_buy)
+        prompt = build_constructor_prompt(debate)
+        assert "EXCLUIDOS" not in prompt
+
+    def test_prompt_handles_all_no_invertir_edge_case(self):
+        """Si el debate completo fue no_invertir, la sección CANDIDATOS anuncia vacío."""
+        all_veto = [(t, s, c, p, "no_invertir") for t, s, c, p, _ in SAMPLE_TICKERS[:3]]
+        debate = make_debate_json(tickers_data=all_veto)
+        prompt = build_constructor_prompt(debate)
+        assert "CANDIDATOS" in prompt
+        assert "EXCLUIDOS" in prompt
+        # Mensaje explícito de "no hay candidatos"
+        assert "No hay candidatos" in prompt
+
+    # ── Capa 3: validator ─────────────────────────────────────────────────────
+
+    def test_validate_rejects_no_invertir_in_holdings(self):
+        """validate_portfolio falla si un holding tiene decision=no_invertir."""
+        # Usamos SAMPLE_TICKERS que tiene AMT como no_invertir
+        debate = make_debate_json()
+        decisions = _extract_decisions_map(debate)
+        sector_map = _extract_sector_map(debate)
+        debate_tickers = {d["ticker"] for d in debate["debates"]}
+
+        # Armar un portfolio que INCLUYE AMT (no_invertir) con 8% — el bug original
+        tickers_with_veto = [
+            ("NVDA", "Information Technology"), ("MSFT", "Information Technology"),
+            ("AAPL", "Information Technology"), ("AMZN", "Consumer Discretionary"),
+            ("UNH", "Health Care"), ("JNJ", "Health Care"),
+            ("JPM", "Financials"), ("GS", "Financials"), ("BRK", "Financials"),
+            ("CAT", "Industrials"), ("XOM", "Energy"),
+            ("AMT", "Real Estate"),  # <-- vetado, pero con 8%
+        ]
+        n = len(tickers_with_veto)
+        cash = 0.05
+        weight = round((1.0 - cash) / n, 6)
+        weights = [weight] * n
+        weights[-1] = round(1.0 - cash - sum(weights[:-1]), 6)
+        holdings = [
+            {"ticker": t, "weight": weights[i], "rationale": "x", "conviction": 7}
+            for i, (t, _) in enumerate(tickers_with_veto)
+        ]
+        portfolio = {"holdings": holdings, "cash_weight": cash}
+
+        with pytest.raises(ValueError, match=r"no_invertir"):
+            validate_portfolio(portfolio, sector_map, debate_tickers, decisions)
+
+    def test_validate_accepts_posicion_pequena_in_holdings(self):
+        """posicion_pequeña es válida en holdings (solo no_invertir queda vetado)."""
+        # NEE en SAMPLE_TICKERS es posicion_pequeña — debe aceptarse
+        debate = make_debate_json()
+        decisions = _extract_decisions_map(debate)
+        sector_map = _extract_sector_map(debate)
+        debate_tickers = {d["ticker"] for d in debate["debates"]}
+
+        tickers = [
+            ("NVDA", "Information Technology"), ("MSFT", "Information Technology"),
+            ("AAPL", "Information Technology"), ("AMZN", "Consumer Discretionary"),
+            ("UNH", "Health Care"), ("JNJ", "Health Care"),
+            ("JPM", "Financials"), ("GS", "Financials"), ("BRK", "Financials"),
+            ("CAT", "Industrials"), ("XOM", "Energy"),
+            ("NEE", "Utilities"),  # <-- posicion_pequeña, debe pasar
+        ]
+        n = len(tickers)
+        cash = 0.05
+        weight = round((1.0 - cash) / n, 6)
+        weights = [weight] * n
+        weights[-1] = round(1.0 - cash - sum(weights[:-1]), 6)
+        holdings = [
+            {"ticker": t, "weight": weights[i], "rationale": "x", "conviction": 7}
+            for i, (t, _) in enumerate(tickers)
+        ]
+        portfolio = {"holdings": holdings, "cash_weight": cash}
+
+        # No debe lanzar
+        validate_portfolio(portfolio, sector_map, debate_tickers, decisions)
+
+    def test_validate_without_decisions_map_skips_check(self):
+        """Compatibilidad hacia atrás: si no se pasa debate_decisions, la #8 se omite."""
+        debate = make_debate_json()
+        sector_map = _extract_sector_map(debate)
+        debate_tickers = {d["ticker"] for d in debate["debates"]}
+
+        # Armar portfolio con AMT (no_invertir) — si no pasamos decisions, debe pasar
+        tickers = [
+            ("NVDA", "Information Technology"), ("MSFT", "Information Technology"),
+            ("AAPL", "Information Technology"), ("AMZN", "Consumer Discretionary"),
+            ("UNH", "Health Care"), ("JNJ", "Health Care"),
+            ("JPM", "Financials"), ("GS", "Financials"), ("BRK", "Financials"),
+            ("CAT", "Industrials"), ("XOM", "Energy"),
+            ("AMT", "Real Estate"),
+        ]
+        n = len(tickers)
+        cash = 0.05
+        weight = round((1.0 - cash) / n, 6)
+        weights = [weight] * n
+        weights[-1] = round(1.0 - cash - sum(weights[:-1]), 6)
+        holdings = [
+            {"ticker": t, "weight": weights[i], "rationale": "x", "conviction": 7}
+            for i, (t, _) in enumerate(tickers)
+        ]
+        portfolio = {"holdings": holdings, "cash_weight": cash}
+
+        # Sin decisions → validación #8 omitida → pasa
+        validate_portfolio(portfolio, sector_map, debate_tickers)
+        validate_portfolio(portfolio, sector_map, debate_tickers, None)
+
+    def test_validate_error_mentions_vetoed_tickers_and_weights(self):
+        """El error lista los tickers vetados y sus pesos para diagnóstico."""
+        debate = make_debate_json()
+        decisions = _extract_decisions_map(debate)
+        sector_map = _extract_sector_map(debate)
+        debate_tickers = {d["ticker"] for d in debate["debates"]}
+
+        tickers = [
+            ("NVDA", "Information Technology"), ("MSFT", "Information Technology"),
+            ("AAPL", "Information Technology"), ("AMZN", "Consumer Discretionary"),
+            ("UNH", "Health Care"), ("JNJ", "Health Care"),
+            ("JPM", "Financials"), ("GS", "Financials"), ("BRK", "Financials"),
+            ("CAT", "Industrials"), ("XOM", "Energy"),
+            ("AMT", "Real Estate"),
+        ]
+        n = len(tickers)
+        cash = 0.05
+        weight = round((1.0 - cash) / n, 6)
+        weights = [weight] * n
+        weights[-1] = round(1.0 - cash - sum(weights[:-1]), 6)
+        holdings = [
+            {"ticker": t, "weight": weights[i], "rationale": "x", "conviction": 7}
+            for i, (t, _) in enumerate(tickers)
+        ]
+        portfolio = {"holdings": holdings, "cash_weight": cash}
+
+        with pytest.raises(ValueError) as exc_info:
+            validate_portfolio(portfolio, sector_map, debate_tickers, decisions)
+        msg = str(exc_info.value)
+        assert "AMT" in msg
+        # El peso debe aparecer en formato porcentual
+        assert "%" in msg
+
+
+# ── TestExtractDecisionsMap ──────────────────────────────────────────────────
+
+
+class TestExtractDecisionsMap:
+    """Tests del helper que extrae el mapa ticker->decision del debate."""
+
+    def test_extracts_all_decisions(self):
+        """Cada ticker del SAMPLE_TICKERS tiene su decision mapeada."""
+        debate = make_debate_json()
+        decisions = _extract_decisions_map(debate)
+        for ticker, _, _, _, expected_decision in SAMPLE_TICKERS:
+            assert decisions.get(ticker) == expected_decision
+
+    def test_empty_debates_returns_empty(self):
+        """Debate vacío → mapa vacío."""
+        assert _extract_decisions_map({"debates": []}) == {}
+
+    def test_missing_verdict_excluded(self):
+        """Ticker sin verdict no entra al mapa (no lo trata como no_invertir)."""
+        debate = {
+            "debates": [
+                {"ticker": "NVDA"},  # sin verdict
+                {"ticker": "MSFT", "verdict": {"decision": "comprar"}},
+                {"ticker": "AAPL", "verdict": {}},  # verdict sin decision
+            ]
+        }
+        decisions = _extract_decisions_map(debate)
+        assert "NVDA" not in decisions
+        assert "AAPL" not in decisions
+        assert decisions.get("MSFT") == "comprar"
+
+
+# ── TestDryRunRespectsNoInvertir ─────────────────────────────────────────────
+
+
+class TestDryRunRespectsNoInvertir:
+    """El dry_run también debe respetar la regla — simula el comportamiento real."""
+
+    def test_dry_run_excludes_no_invertir_tickers(self, tmp_path, monkeypatch):
+        """AMT (no_invertir) no debe aparecer en los holdings del dry_run."""
+        import pipeline.constructor as ctor
+        import pipeline.state as state_mod
+
+        debate = make_debate_json()
+        debate_path = tmp_path / "debate_2026-04-23.json"
+        debate_path.write_text(json.dumps(debate), encoding="utf-8")
+
+        fake_state = tmp_path / "current_holdings.json"
+        monkeypatch.setattr(state_mod, "HOLDINGS_FILE", fake_state)
+        monkeypatch.setattr(ctor, "OUTPUTS_DIR", tmp_path)
+        monkeypatch.setattr(ctor, "_find_latest_debate", lambda: debate_path)
+
+        result_path = ctor.run(dry_run=True)
+        data = json.loads(result_path.read_text(encoding="utf-8"))
+
+        holding_tickers = {h["ticker"] for h in data["holdings"]}
+        assert "AMT" not in holding_tickers
 
 
 # ── Test de integración (skipped por defecto) ─────────────────────────────────

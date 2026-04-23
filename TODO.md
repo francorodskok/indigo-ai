@@ -86,6 +86,19 @@ Marcar con `[x]` a medida que se cierran.
 
   _Calibración intencional: "algo exigente pero no extremadamente" — ±1 convicción en zonas normales, solo 1 hard cap (1.5× máx 5y)._
 
+- [x] **Fix · Veto `no_invertir` del debate era ignorado por el constructor** ✅ 2026-04-23
+  Responsable: tercer socio · ~2 h
+  Bug observado por Franco: "hay acciones que el debate pone no hacer ejecución y sin embargo les asigna el 8%".
+  Causa raíz: el constructor (Paso 8) recibía todos los veredictos del debate mezclados y sin regla dura sobre el campo `decision`. Ni el prompt, ni el system suffix, ni el validador chequeaban que `decision != "no_invertir"`. Si a Opus le gustaba la convicción ajustada de un ticker vetado, lo metía igual.
+  Fix con 3 capas (defensa en profundidad):
+  - **Capa 1 — System suffix**: regla explícita en `CONSTRUCTOR_SUFFIX` documentando que ningún ticker `no_invertir` puede ir en `holdings`; si era posición previa, debe aparecer en `exits`. `posicion_pequeña` sí permitido pero con peso ~3-5%.
+  - **Capa 2 — Prompt**: `build_constructor_prompt` parte los veredictos en "VEREDICTOS DEL DEBATE — CANDIDATOS" (comprar/posicion_pequeña) y "VEREDICTOS DEL DEBATE — EXCLUIDOS" (no_invertir). Los excluidos siguen visibles para justificar exits si son posición actual.
+  - **Capa 3 — Validador duro**: `validate_portfolio` recibe `debate_decisions: dict[ticker,decision]` opcional. Si algún holding tiene `decision=no_invertir` → `ValueError` con detalle de tickers + pesos vetados. Failsafe final aunque el modelo ignore las capas 1 y 2.
+  - Dry_run también filtra `no_invertir` para simular el comportamiento real.
+  - Nuevo helper `_extract_decisions_map(debate_data)` paralelo a `_extract_sector_map`.
+  Tests: `test_constructor.py` ahora 59 passed (+14: 11 de `TestNoInvertirVeto`, 3 de `TestExtractDecisionsMap`, 1 de `TestDryRunRespectsNoInvertir`, más un fixture de aislamiento que arregló 2 tests pre-existentes de `TestExtractSectorMap` que leían del `outputs/` real del proyecto).
+  Firma de `validate_portfolio` retrocompatible: el 4to arg es opcional con default `None`.
+
 - [ ] **Paso 12 · Lanzamiento público**
   Responsable: Franco (comunicación) + tercer socio (operación) · Semana 10 · fin de semana intensivo
   Output: `SYSTEM_ENABLED=true`, thread fundacional en X, post en Instagram, mención desde Indigo Star, mails a 10 periodistas (Bloomberg Línea, Cenital, Forbes Argentina, Infobae, Fintech Latam), aviso al grupo de prueba, monitoreo intensivo 48 h; primer ciclo real el domingo siguiente.

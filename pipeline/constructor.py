@@ -79,6 +79,8 @@ Restricciones DURAS que debés respetar:
 - sum(holdings weights) + cash_weight = 1.0 (exactamente)
 - cash_weight entre 0% y 15%
 - No más del 30% en un mismo sector
+- NINGÚN ticker con decision="no_invertir" puede aparecer en "holdings". El debate ya sentenció que NO se invierte. Si ese ticker es posición del ciclo anterior, debe ir obligatoriamente a "exits" con reason que cite el veredicto. Esta regla no tiene excepciones — el validador rechaza el portfolio entero si se viola.
+- Los tickers con decision="posicion_pequeña" sí pueden ir en "holdings", pero con weight cercano al mínimo (3-5%), nunca con peso grande.
 
 Reglas de rebalanceo (si hay CARTERA ACTUAL):
 1. Una posición con conviction >= 6 en el ciclo previo debe mantenerse (hold o add) salvo evidencia fuerte de tesis rota o valuación por encima de 1.3× price target original.
@@ -116,6 +118,32 @@ def _load_debate(debate_path: Path) -> dict:
     return json.loads(text)
 
 
+def _format_debate_line(i: int, debate: dict) -> str:
+    """Formatea una línea de veredicto para el prompt del constructor."""
+    ticker = debate.get("ticker", "???")
+    verdict = debate.get("verdict", {})
+    conviction = verdict.get("conviccion_ajustada", "N/A")
+    price_target = verdict.get("precio_objetivo_ajustado", "N/A")
+    decision = verdict.get("decision", "N/A")
+    razon = verdict.get("razon", "Sin razón disponible.")
+    sector = debate.get("sector", "N/A")
+    tesis = debate.get("tesis", "")
+
+    price_str = (
+        f"${price_target:,.0f}" if isinstance(price_target, (int, float)) else str(price_target)
+    )
+
+    line = (
+        f"{i}. {ticker} | conviction={conviction} | precio_objetivo={price_str} | "
+        f"decision={decision}\n"
+    )
+    if tesis:
+        line += f"   Tesis: {tesis}\n"
+    line += f"   Veredicto: {razon}\n"
+    line += f"   Sector: {sector}\n"
+    return line
+
+
 def build_constructor_prompt(debate_data: dict, current_state: dict | None = None) -> str:
     """
     Construye el prompt de usuario para el constructor.
@@ -128,8 +156,14 @@ def build_constructor_prompt(debate_data: dict, current_state: dict | None = Non
             se devuelve estado vacío y no se agrega bloque al prompt.
 
     El prompt queda:
-        [CARTERA ACTUAL con reglas de rebalanceo]  ← solo si hay holdings previos
-        [VEREDICTOS DEL DEBATE ordenados por convicción ajustada]
+        [CARTERA ACTUAL con reglas de rebalanceo]    ← solo si hay holdings previos
+        [VEREDICTOS DEL DEBATE — CANDIDATOS]         ← decision ∈ {comprar, posicion_pequeña}
+        [VEREDICTOS DEL DEBATE — EXCLUIDOS]          ← decision = no_invertir (solo si hay)
+
+    La separación evita que el modelo incluya tickers con decision="no_invertir"
+    en holdings (bug observado en producción: convicción decente pero veto del
+    debate → el modelo los metía con ~8% igual). Los excluidos siguen visibles
+    porque si alguno es posición actual, debe ir obligatoriamente a "exits".
     """
     if current_state is None:
         current_state = load_current_holdings()
@@ -138,10 +172,20 @@ def build_constructor_prompt(debate_data: dict, current_state: dict | None = Non
 
     debates: list[dict] = debate_data.get("debates", [])
 
-    # Ordenar por conviccion_ajustada desc (el debate ya viene ordenado, pero lo
-    # re-ordenamos para garantizar el orden correcto independientemente del input)
-    sorted_debates = sorted(
-        debates,
+    # Partir en candidatos vs excluidos según decision del debate
+    candidates: list[dict] = []
+    excluded: list[dict] = []
+    for d in debates:
+        decision = (d.get("verdict", {}) or {}).get("decision", "")
+        if decision == "no_invertir":
+            excluded.append(d)
+        else:
+            candidates.append(d)
+
+    candidates.sort(
+        key=lambda x: -(x.get("verdict", {}).get("conviccion_ajustada", 0)),
+    )
+    excluded.sort(
         key=lambda x: -(x.get("verdict", {}).get("conviccion_ajustada", 0)),
     )
 
@@ -149,37 +193,49 @@ def build_constructor_prompt(debate_data: dict, current_state: dict | None = Non
     if holdings_block:
         lines.append(holdings_block)
         lines.append("")
-    lines.append("VEREDICTOS DEL DEBATE (ordenados por convicción ajustada):\n")
 
-    for i, debate in enumerate(sorted_debates, start=1):
-        ticker = debate.get("ticker", "???")
-        verdict = debate.get("verdict", {})
-        conviction = verdict.get("conviccion_ajustada", "N/A")
-        price_target = verdict.get("precio_objetivo_ajustado", "N/A")
-        decision = verdict.get("decision", "N/A")
-        razon = verdict.get("razon", "Sin razón disponible.")
+    # ── Sección de candidatos (pueden ir en holdings) ─────────────────────────
+    lines.append(
+        "VEREDICTOS DEL DEBATE — CANDIDATOS "
+        "(decision ∈ {comprar, posicion_pequeña}, ordenados por convicción ajustada):\n"
+    )
+    if candidates:
+        for i, debate in enumerate(candidates, start=1):
+            lines.append(_format_debate_line(i, debate))
+    else:
+        lines.append("(No hay candidatos — todos los tickers fueron excluidos por el debate.)\n")
 
-        # Buscar sector en el ticker original (embebido en el debate si existe)
-        sector = debate.get("sector", "N/A")
-        # Algunos formatos guardan la tesis original
-        tesis = debate.get("tesis", "")
-
-        price_str = (
-            f"${price_target:,.0f}" if isinstance(price_target, (int, float)) else str(price_target)
+    # ── Sección de excluidos (NO pueden ir en holdings) ───────────────────────
+    if excluded:
+        lines.append("")
+        lines.append(
+            "VEREDICTOS DEL DEBATE — EXCLUIDOS "
+            "(decision=no_invertir, PROHIBIDO incluir en holdings; "
+            "si es posición actual debe ir a exits con la razón del veredicto):\n"
         )
-
-        line = (
-            f"{i}. {ticker} | conviction={conviction} | precio_objetivo={price_str} | "
-            f"decision={decision}\n"
-        )
-        if tesis:
-            line += f"   Tesis: {tesis}\n"
-        line += f"   Veredicto: {razon}\n"
-        line += f"   Sector: {sector}\n"
-
-        lines.append(line)
+        for i, debate in enumerate(excluded, start=1):
+            lines.append(_format_debate_line(i, debate))
 
     return "\n".join(lines)
+
+
+def _extract_decisions_map(debate_data: dict) -> dict[str, str]:
+    """
+    Construye un mapa ticker -> decision desde el JSON de debate.
+    Valores esperados de decision: "comprar" | "no_invertir" | "posicion_pequeña".
+    Tickers sin verdict quedan fuera del mapa (el validador los trata como desconocidos,
+    no como "no_invertir", para no rechazar por dato ausente).
+    """
+    decisions: dict[str, str] = {}
+    for debate in debate_data.get("debates", []):
+        ticker = debate.get("ticker", "")
+        if not ticker:
+            continue
+        verdict = debate.get("verdict") or {}
+        decision = verdict.get("decision", "")
+        if decision:
+            decisions[ticker] = decision
+    return decisions
 
 
 def _extract_sector_map(debate_data: dict) -> dict[str, str]:
@@ -256,14 +312,26 @@ def parse_portfolio(content: str) -> dict:
     )
 
 
-def validate_portfolio(portfolio: dict, sector_map: dict[str, str], debate_tickers: set[str]) -> None:
+def validate_portfolio(
+    portfolio: dict,
+    sector_map: dict[str, str],
+    debate_tickers: set[str],
+    debate_decisions: dict[str, str] | None = None,
+) -> None:
     """
     Aplica todas las validaciones duras sobre el portfolio.
 
     Args:
-        portfolio:      dict con holdings, cash_weight, etc.
-        sector_map:     mapa ticker -> sector (del debate)
-        debate_tickers: set de tickers presentes en el debate
+        portfolio:         dict con holdings, cash_weight, etc.
+        sector_map:        mapa ticker -> sector (del debate)
+        debate_tickers:    set de tickers presentes en el debate
+        debate_decisions:  opcional — mapa ticker -> decision del debate
+                           ("comprar"|"no_invertir"|"posicion_pequeña"). Si se
+                           provee, se valida que NINGÚN holding tenga
+                           decision="no_invertir" (regla dura, failsafe del
+                           bug observado: modelo asignando peso a tickers
+                           vetados por el debate). Si es None, esta
+                           validación se omite (compatibilidad hacia atrás).
 
     Raises:
         ValueError: con mensaje descriptivo si alguna validación falla.
@@ -335,6 +403,25 @@ def validate_portfolio(portfolio: dict, sector_map: dict[str, str], debate_ticke
                     f"Ticker {ticker} no existe en el debate. "
                     f"Tickers válidos: {sorted(debate_tickers)}"
                 )
+
+    # ── 8. Ningún holding con decision="no_invertir" (failsafe del bug) ──────
+    # El debate ya sentenció que NO se invierte en ese ticker. Si el modelo
+    # lo incluyó igual (porque la convicción ajustada le pareció atractiva),
+    # rechazamos el portfolio entero aquí — mejor fallar un ciclo que violar
+    # el veredicto del debate.
+    if debate_decisions:
+        vetoed: list[tuple[str, float]] = []
+        for h in holdings:
+            ticker = h.get("ticker", "")
+            if debate_decisions.get(ticker) == "no_invertir":
+                vetoed.append((ticker, h.get("weight", 0.0)))
+        if vetoed:
+            detail = ", ".join(f"{t} ({w:.1%})" for t, w in vetoed)
+            raise ValueError(
+                f"{len(vetoed)} holding(s) con decision='no_invertir' en el debate: "
+                f"{detail}. El debate vetó esos nombres — no pueden aparecer en "
+                f"holdings. Si son posiciones del ciclo anterior, van en 'exits'."
+            )
 
 
 def _build_dry_run_portfolio(debate_tickers: list[str], sector_map: dict[str, str] | None = None) -> dict:
@@ -426,8 +513,9 @@ def run(dry_run: bool = False) -> Path:
     debate_data = _load_debate(debate_path)
     debates_list: list[dict] = debate_data.get("debates", [])
 
-    # Extraer mapa sector y set de tickers válidos del debate
+    # Extraer mapa sector, decisiones, y set de tickers válidos del debate
     sector_map = _extract_sector_map(debate_data)
+    debate_decisions = _extract_decisions_map(debate_data)
     debate_tickers: set[str] = {d.get("ticker", "") for d in debates_list if d.get("ticker")}
 
     # Cargar estado de la cartera actual (memoria entre ciclos).
@@ -444,7 +532,9 @@ def run(dry_run: bool = False) -> Path:
 
     if dry_run:
         log.info("DRY RUN activado — generando portfolio sintético.")
-        # Ordenar tickers por conviccion_ajustada desc para consistencia
+        # Ordenar tickers por conviccion_ajustada desc para consistencia.
+        # Excluir los "no_invertir": el dry_run debe respetar las mismas
+        # reglas duras que el pipeline real (la validación #8 los rechazaría).
         ordered_tickers = [
             d.get("ticker", "")
             for d in sorted(
@@ -452,6 +542,7 @@ def run(dry_run: bool = False) -> Path:
                 key=lambda x: -(x.get("verdict", {}).get("conviccion_ajustada", 0)),
             )
             if d.get("ticker")
+            and (d.get("verdict", {}) or {}).get("decision") != "no_invertir"
         ]
         portfolio = _build_dry_run_portfolio(ordered_tickers, sector_map=sector_map)
         model_used = CONSTRUCTOR_MODEL
@@ -482,7 +573,7 @@ def run(dry_run: bool = False) -> Path:
 
     # ── Validaciones duras ────────────────────────────────────────────────────
     log.info("Aplicando validaciones duras al portfolio.")
-    validate_portfolio(portfolio, sector_map, debate_tickers)
+    validate_portfolio(portfolio, sector_map, debate_tickers, debate_decisions)
     log.info("Portfolio validado correctamente.")
 
     # ── Construir output ──────────────────────────────────────────────────────
