@@ -101,6 +101,8 @@ pipeline/outputs/
 pipeline/data/cache/
 pipeline/data/*.json
 pipeline/state/*.json
+pipeline/state/*.flag
+pipeline/state/KILL_SWITCH*
 
 # Corpus crudo (PDFs/HTML del canon) — se normaliza a /philosophy/canon/*.md
 raw/

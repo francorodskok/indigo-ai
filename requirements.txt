@@ -1,0 +1,17 @@
+# Indigo AI — Python 3.11 dependencies
+# Regenerated from imports on 2026-04-23.
+
+# Core API clients
+anthropic>=0.40.0
+alpaca-py>=0.33.0
+
+# Data
+pandas>=2.2.0
+yfinance>=0.2.50
+
+# Utilities
+python-dotenv>=1.0.0
+
+# Dev / test (instalados solo en dev, no en imagen prod)
+# pytest>=8.0.0
+# pytest-mock>=3.12.0

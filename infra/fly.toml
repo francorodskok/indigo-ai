@@ -1,0 +1,54 @@
+# fly.toml — Indigo AI pipeline (scheduled machine, no HTTP)
+#
+# Deploy:
+#   fly launch --no-deploy          # solo una vez, crea la app
+#   fly volumes create indigo_data --region ord --size 1
+#   fly secrets set ANTHROPIC_API_KEY=sk-ant-... \
+#                   ALPACA_API_KEY=... \
+#                   ALPACA_API_SECRET=... \
+#                   SYSTEM_ENABLED=false \
+#                   INDIGO_DRY_RUN=true
+#   fly deploy
+#
+# Manual trigger (sin esperar cron):
+#   fly machines run . --schedule no --command "python -m pipeline.orchestrate --force --dry-run"
+#
+# Activar producción (luego de validar varios dry-runs):
+#   fly secrets set SYSTEM_ENABLED=true INDIGO_DRY_RUN=false
+#
+# Halt de emergencia:
+#   fly secrets set SYSTEM_ENABLED=false
+#   # o bien, desde otro machine:
+#   fly ssh console -C "touch /data/state/KILL_SWITCH.flag"
+
+app = "indigo-ai-pipeline"
+primary_region = "ord"  # Chicago — cerca de Alpaca servers en US East
+
+[build]
+  # Deploy desde la raíz del repo con: fly deploy -c infra/fly.toml
+  # El Dockerfile vive en la raíz porque necesita COPY pipeline/ philosophy/.
+  dockerfile = "../Dockerfile"
+
+[env]
+  INDIGO_DATA_DIR = "/data"
+  INDIGO_STATE_DIR = "/data/state"
+  PYTHONUNBUFFERED = "1"
+  # SYSTEM_ENABLED y ANTHROPIC_API_KEY viven en fly secrets, NO acá.
+
+[mounts]
+  source = "indigo_data"
+  destination = "/data"
+
+# Scheduled machine: corre todos los días a las 11:00 UTC (07:00 ET pre-market).
+# El orchestrator chequea internamente si tocó ciclo (>=20 días) y si no, skipea.
+#
+# Fly soporta schedules: hourly, daily, weekly, monthly. Usamos daily + check
+# interno, que es más robusto que tratar de expresar "cada 20 días" (imposible
+# en cron standard).
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+  schedule = "daily"
+
+# Sin [[services]] — este app NO expone HTTP. Es puramente cron.
+# Fly detecta la ausencia y no asigna IP.

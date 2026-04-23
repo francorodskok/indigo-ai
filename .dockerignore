@@ -1,0 +1,42 @@
+# No copiar al contexto de Docker — reduce upload size y evita leaks.
+
+.git
+.gitignore
+.gitattributes
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Dashboard — se deploya separado a Vercel
+dashboard/
+node_modules/
+
+# Tests y cache
+pipeline/tests/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# Outputs locales — se llenan en runtime via volumen persistente
+pipeline/outputs/
+pipeline/state/*.json
+pipeline/state/*.flag
+pipeline/data/
+
+# Docs y raw data (demasiado grande)
+docs/
+raw/
+*.docx
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+
+# Builds previas
+build/
+dist/
+*.egg-info/

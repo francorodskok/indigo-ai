@@ -59,9 +59,20 @@ Marcar con `[x]` a medida que se cierran.
   _Data layer: `src/lib/data.ts` lee JSON/JSONL/MD desde `../pipeline/outputs/` y `../philosophy/`. Maneja `NaN` inválido con preprocesamiento. Nunca tira, retorna null/[] si falta el archivo. TODO en el código: swap a Neon cuando haya datos reales._
   _`npm run build` limpio, sin warnings. 4 rutas prerenderizadas estáticas. Smoke test OK (HTTP 200 en las 4). Falta deploy a Vercel y conectar dominio._
 
-- [ ] **Paso 11 · Armar los cronjobs y dry runs**
+- [x] **Paso 11 · Armar los cronjobs y dry runs** ✅ 2026-04-23 (código + infra lista; faltan dry-runs en staging real)
   Responsable: tercer socio · Semanas 7–8 · ~12 h
-  Output: en Fly.io — cronjob de rebalanceo **cada 20 días calendario** (noche previa → pipeline completa; next market open en NY → ejecución), cronjob de publicación (al día siguiente del rebalanceo → thread X en draft), cronjob de monitoreo horario durante horas de mercado, kill switch `SYSTEM_ENABLED`. 4 ciclos completos en staging sin bugs (≈ 80 días de dry-run, o se comprime la cadencia solo en staging para testear más rápido).
+  Output:
+  - `pipeline/killswitch.py` — 3 capas (`SYSTEM_ENABLED` env, `KILL_SWITCH.flag`, budget mensual USD 300). Gate consolidado `can_run_cycle()`. 17 tests.
+  - `pipeline/orchestrate.py` — driver diario: chequea cadencia `>=20 días` y corre filter→analyst→debate→constructor→executor con timing y captura de excepciones. 13 tests. Flags `--force`, `--dry-run`, `--check-only`. Siempre exit 0 (evita retry loop de Fly).
+  - `Dockerfile` (raíz) multi-stage Python 3.11-slim, user no-root, tini para señales.
+  - `.dockerignore` — excluye dashboard, tests, docs, raw, secrets.
+  - `infra/fly.toml` — scheduled machine daily 11:00 UTC, volumen persistente `/data` (1 GB), primary region ORD.
+  - `infra/entrypoint.sh` — linkea `/data/state` y `/data/outputs` al volumen antes de arrancar.
+  - `infra/README.md` — playbook de deploy, rollout gradual en 4 semanas, comandos de kill switch y trigger manual.
+  - `requirements.txt` — deps prod (anthropic, alpaca-py, pandas, yfinance, python-dotenv).
+  - ADR: `docs/decisions/2026-04-23-paso-11-deploy-flyio.md`.
+
+  _Por hacer antes de Paso 12: deploy real a Fly.io + 4 dry-runs en staging. Requiere permiso explícito de Franco porque implica cómputo real (aunque Anthropic/Alpaca estén mockeados en dry-run)._
 
 - [ ] **Paso 12 · Lanzamiento público**
   Responsable: Franco (comunicación) + tercer socio (operación) · Semana 10 · fin de semana intensivo
