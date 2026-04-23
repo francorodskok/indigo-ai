@@ -33,6 +33,7 @@ from pipeline.config import (
     FILTER_MIN_ROIC_PCT,
     FILTER_TARGET_CANDIDATES,
 )
+from pipeline.valuation import extract_valuation_fields
 
 DATA_DIR = ROOT / "pipeline" / "data"
 OUTPUTS_DIR = ROOT / "pipeline" / "outputs"
@@ -203,6 +204,11 @@ def fetch_fundamentals(ticker: str) -> dict | None:
         except Exception:
             pass
 
+        # Múltiplos de valuación (Paso B): current_price, forward_pe, peg_ratio,
+        # fcf_yield, ev_to_ebitda, beta, 52w range, pct_off_52w_high, etc.
+        # Permite análisis estilo Lynch/Graham/Klarman en el prompt del analyst.
+        valuation = extract_valuation_fields(info)
+
         return {
             "ticker": ticker,
             "market_cap": market_cap,
@@ -214,6 +220,7 @@ def fetch_fundamentals(ticker: str) -> dict | None:
             "sector": info.get("sector", ""),
             "industry": info.get("industry", ""),
             "name": info.get("shortName", ticker),
+            **valuation,
         }
 
     except Exception as e:

@@ -87,6 +87,10 @@ export async function getLatestPortfolio(): Promise<PortfolioFile | null> {
       macro_concerns: parsed.macro_concerns,
       validated: parsed.validated,
       model: parsed.model,
+      // cross-cycle memory (Paso D)
+      cycle_id: parsed.cycle_id,
+      previous_cycle_id: parsed.previous_cycle_id,
+      exits: parsed.exits,
       _filePath: full,
       _dateISO: extractDateISO(chosen),
     };

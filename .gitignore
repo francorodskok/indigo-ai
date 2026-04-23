@@ -23,8 +23,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -99,6 +99,8 @@ lerna-debug.log*
 # ─────────────────────────────────────────────
 pipeline/outputs/
 pipeline/data/cache/
+pipeline/data/*.json
+pipeline/state/*.json
 
 # Corpus crudo (PDFs/HTML del canon) — se normaliza a /philosophy/canon/*.md
 raw/

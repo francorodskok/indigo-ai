@@ -693,6 +693,168 @@ class TestExtractSectorMap:
         assert sector_map.get("MSFT") == SECTOR_IT
 
 
+# ── TestStateIntegration (Paso D: memoria entre ciclos) ──────────────────────
+
+class TestStateIntegration:
+    """
+    Verifica que el constructor consume correctamente el estado previo
+    (pipeline/state) y lo propaga al prompt + output.
+    """
+
+    def _make_prev_state(self, tickers_weights):
+        """Genera un dict de estado con holdings del ciclo previo."""
+        return {
+            "cycle_id": "2026-04-01",
+            "cash_pct": 0.10,
+            "holdings": [
+                {
+                    "ticker": t,
+                    "weight": w,
+                    "avg_cost": 100.0,
+                    "entry_date": "2026-01-15",
+                    "entry_cycle_id": "2026-01-15",
+                    "conviction_at_entry": 8,
+                    "price_target_at_entry": 130.0,
+                }
+                for t, w in tickers_weights
+            ],
+            "history": [],
+        }
+
+    def test_prompt_omits_block_when_no_state(self):
+        """Sin holdings previos (primer ciclo), el prompt NO incluye CARTERA ACTUAL."""
+        debate = make_debate_json()
+        empty_state = {"holdings": [], "history": [], "cycle_id": None, "cash_pct": 0.0}
+        prompt = build_constructor_prompt(debate, current_state=empty_state)
+        assert "CARTERA ACTUAL" not in prompt
+        assert "VEREDICTOS DEL DEBATE" in prompt
+
+    def test_prompt_includes_block_when_state_present(self):
+        """Con holdings previos, el prompt los inyecta antes de los veredictos."""
+        debate = make_debate_json()
+        prev = self._make_prev_state([("NVDA", 0.08), ("MSFT", 0.07)])
+        prompt = build_constructor_prompt(debate, current_state=prev)
+        assert "CARTERA ACTUAL" in prompt
+        # Los tickers previos deben aparecer en el bloque
+        assert "NVDA" in prompt
+        assert "MSFT" in prompt
+        # Orden: el bloque de cartera ANTES de los veredictos
+        assert prompt.index("CARTERA ACTUAL") < prompt.index("VEREDICTOS DEL DEBATE")
+
+    def test_prompt_includes_rebalance_rules(self):
+        """El bloque debe recordar las reglas de hold/trim/add/exit."""
+        debate = make_debate_json()
+        prev = self._make_prev_state([("NVDA", 0.08)])
+        prompt = build_constructor_prompt(debate, current_state=prev)
+        # Las 5 acciones posibles deben estar mencionadas
+        for action in ("hold", "trim", "add", "new", "exit"):
+            assert action in prompt.lower(), f"action '{action}' falta en el prompt"
+
+    def test_dry_run_output_includes_cycle_id_and_exits(self, tmp_path, monkeypatch):
+        """El portfolio output del dry_run debe incluir cycle_id y exits."""
+        import pipeline.constructor as ctor
+        import pipeline.state as state_mod
+
+        # Crear debate
+        debate = make_debate_json()
+        debate_path = tmp_path / "debate_2026-04-22.json"
+        debate_path.write_text(json.dumps(debate), encoding="utf-8")
+
+        # Mockear el state path para que no toque archivos reales del usuario
+        fake_state = tmp_path / "current_holdings.json"
+        monkeypatch.setattr(state_mod, "HOLDINGS_FILE", fake_state)
+
+        monkeypatch.setattr(ctor, "OUTPUTS_DIR", tmp_path)
+        monkeypatch.setattr(ctor, "_find_latest_debate", lambda: debate_path)
+
+        result_path = ctor.run(dry_run=True)
+        data = json.loads(result_path.read_text(encoding="utf-8"))
+
+        assert "cycle_id" in data
+        assert "exits" in data
+        assert isinstance(data["exits"], list)
+        assert "previous_cycle_id" in data  # None en primer ciclo
+
+    def test_dry_run_holdings_get_action_field(self, tmp_path, monkeypatch):
+        """
+        Cada holding del portfolio debe tener 'action' y 'previous_weight'
+        después del fallback defensivo del constructor.
+        """
+        import pipeline.constructor as ctor
+        import pipeline.state as state_mod
+
+        debate = make_debate_json()
+        debate_path = tmp_path / "debate_2026-04-22.json"
+        debate_path.write_text(json.dumps(debate), encoding="utf-8")
+
+        fake_state = tmp_path / "current_holdings.json"
+        monkeypatch.setattr(state_mod, "HOLDINGS_FILE", fake_state)
+
+        monkeypatch.setattr(ctor, "OUTPUTS_DIR", tmp_path)
+        monkeypatch.setattr(ctor, "_find_latest_debate", lambda: debate_path)
+
+        result_path = ctor.run(dry_run=True)
+        data = json.loads(result_path.read_text(encoding="utf-8"))
+
+        for h in data["holdings"]:
+            assert "action" in h, f"Holding {h.get('ticker')} sin 'action'"
+            assert "previous_weight" in h, f"Holding {h.get('ticker')} sin 'previous_weight'"
+            # Primer ciclo: todos los holdings deberían ser 'new'
+            assert h["action"] == "new"
+            assert h["previous_weight"] == 0.0
+
+    def test_holdings_with_prev_state_classify_actions(self, tmp_path, monkeypatch):
+        """
+        Si hay state previo, los holdings deben classificarse correctamente:
+        mismo peso → 'hold', mayor → 'add', menor → 'trim'.
+        """
+        import pipeline.constructor as ctor
+        import pipeline.state as state_mod
+
+        debate = make_debate_json()
+        debate_path = tmp_path / "debate_2026-04-22.json"
+        debate_path.write_text(json.dumps(debate), encoding="utf-8")
+
+        # State previo con 3 de los tickers del debate
+        prev_state = {
+            "cycle_id": "2026-04-01",
+            "cash_pct": 0.10,
+            "holdings": [
+                # NVDA con 0.0625 (mismo que dry_run => hold)
+                {"ticker": "NVDA", "weight": 0.0625, "avg_cost": 100, "entry_date": "2026-01-15", "entry_cycle_id": "2026-01-15"},
+                # MSFT con 0.05 (dry_run genera 0.0625 => add)
+                {"ticker": "MSFT", "weight": 0.05, "avg_cost": 100, "entry_date": "2026-01-15", "entry_cycle_id": "2026-01-15"},
+                # AAPL con 0.09 (dry_run genera 0.0625 => trim)
+                {"ticker": "AAPL", "weight": 0.09, "avg_cost": 100, "entry_date": "2026-01-15", "entry_cycle_id": "2026-01-15"},
+            ],
+            "history": [],
+        }
+        fake_state = tmp_path / "current_holdings.json"
+        fake_state.write_text(json.dumps(prev_state), encoding="utf-8")
+        monkeypatch.setattr(state_mod, "HOLDINGS_FILE", fake_state)
+
+        monkeypatch.setattr(ctor, "OUTPUTS_DIR", tmp_path)
+        monkeypatch.setattr(ctor, "_find_latest_debate", lambda: debate_path)
+
+        result_path = ctor.run(dry_run=True)
+        data = json.loads(result_path.read_text(encoding="utf-8"))
+
+        by_ticker = {h["ticker"]: h for h in data["holdings"]}
+
+        # NVDA debería existir con action hold (peso ~0.0625)
+        if "NVDA" in by_ticker:
+            assert by_ticker["NVDA"]["action"] == "hold"
+            assert by_ticker["NVDA"]["previous_weight"] == 0.0625
+        # MSFT debería ser 'add' (0.05 → 0.0625)
+        if "MSFT" in by_ticker:
+            assert by_ticker["MSFT"]["action"] == "add"
+            assert by_ticker["MSFT"]["previous_weight"] == 0.05
+        # AAPL debería ser 'trim' (0.09 → 0.0625)
+        if "AAPL" in by_ticker:
+            assert by_ticker["AAPL"]["action"] == "trim"
+            assert by_ticker["AAPL"]["previous_weight"] == 0.09
+
+
 # ── Test de integración (skipped por defecto) ─────────────────────────────────
 
 @pytest.mark.integration

@@ -212,7 +212,7 @@ precio_objetivo y convicción, no los ignores.
 
 Criterios de convicción refinados:
   8-10: Negocio excepcional + valuación razonable
-        (PEG < 1.5 O FCF yield > 5% O descuento ≥ 15% vs fair value estimado)
+        (PEG < 1.5 O FCF yield > 5% O descuento >= 15% vs fair value estimado)
   5-7:  Buen negocio pero precio pleno
         (PEG 1.5-2.0 O FCF yield 3-5%)
   1-4:  No cumple estándares o caro

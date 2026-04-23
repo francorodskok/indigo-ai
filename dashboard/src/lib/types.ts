@@ -35,15 +35,26 @@ export type AnalysisFile = {
   _dateISO: string; // YYYY-MM-DD
 };
 
+export type HoldingAction = "hold" | "trim" | "add" | "new" | "exit";
+
 export type PortfolioHolding = {
   ticker: string;
   weight: number;        // 0..1 — campo real del constructor.py
   rationale?: string;
   conviction?: number;
+  // cross-cycle memory (Paso D)
+  action?: HoldingAction;
+  previous_weight?: number | null;
   // aliases por si cambia el schema
   name?: string;
   peso?: number;
   precio_objetivo?: number | null;
+};
+
+export type PortfolioExit = {
+  ticker: string;
+  previous_weight?: number | null;
+  reason?: string;
 };
 
 export type PortfolioFile = {
@@ -54,6 +65,10 @@ export type PortfolioFile = {
   macro_concerns?: string[];
   validated?: boolean;
   model?: string;
+  // cross-cycle memory (Paso D)
+  cycle_id?: string;
+  previous_cycle_id?: string | null;
+  exits?: PortfolioExit[];
   _filePath: string;
   _dateISO: string;
 };

@@ -33,6 +33,7 @@ from pipeline.config import (
     MAX_ORDERS_PER_CYCLE,
     MAX_POSITION_SAFETY_PCT,
 )
+from pipeline.state import save_holdings, sync_from_alpaca
 
 log = logging.getLogger(__name__)
 
@@ -512,6 +513,28 @@ def run(
         log.info(
             f"Fills: {len(result['filled'])} filled, {len(result['unfilled'])} unfilled"
         )
+
+    # 9. Sincronizar memoria entre ciclos (Paso D).
+    # Fuente de verdad = Alpaca (qué posiciones quedaron, con qué avg_cost);
+    # el portfolio JSON aporta metadata (conviction, price_target, rationale).
+    try:
+        client = get_trading_client()
+        positions = client.get_all_positions()
+        equity = float(client.get_account().equity)
+        updated_state = sync_from_alpaca(
+            alpaca_positions=positions,
+            account_equity=equity,
+            portfolio_snapshot=portfolio,
+        )
+        save_holdings(updated_state)
+        log.info(
+            f"Memoria entre ciclos sincronizada: "
+            f"{len(updated_state['holdings'])} posiciones, "
+            f"{len(updated_state['history'])} eventos en historial."
+        )
+    except Exception as e:
+        # No abortar el ciclo si la memoria falla — el executor ya hizo su trabajo.
+        log.error(f"Error sincronizando memoria entre ciclos: {e}")
 
     return orders_path
 

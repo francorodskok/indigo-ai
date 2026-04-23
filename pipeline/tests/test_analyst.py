@@ -76,6 +76,50 @@ class TestBuildAnalystPrompt:
         prompt = build_analyst_prompt(make_ticker_row(net_debt_ebitda=-0.38))
         assert "-0.38x" in prompt
 
+    def test_includes_valuation_block(self):
+        """Paso B: el prompt debe incluir múltiplos para anclaje cuantitativo."""
+        from pipeline.analyst import build_analyst_prompt
+        row = make_ticker_row(
+            current_price=487.20,
+            forward_pe=32.5,
+            peg_ratio=2.1,
+            fcf_yield=0.031,
+            ev_to_ebitda=24.0,
+            beta=1.15,
+            fifty_two_week_high=520.0,
+            fifty_two_week_low=385.0,
+            pct_off_52w_high=-0.063,
+        )
+        prompt = build_analyst_prompt(row)
+        assert "## Valuación y mercado" in prompt
+        assert "$487.20" in prompt
+        assert "32.5x" in prompt       # forward_pe
+        assert "2.10" in prompt        # peg_ratio
+        assert "3.1%" in prompt        # fcf_yield
+        assert "24.0x" in prompt       # ev_to_ebitda
+        assert "1.15" in prompt        # beta
+        assert "-6.3%" in prompt       # pct_off_52w_high
+
+    def test_missing_valuation_fields_show_nd(self):
+        """Si yfinance no devuelve múltiplos, el bloque los muestra como N/D."""
+        from pipeline.analyst import build_analyst_prompt
+        # row sin ningún campo de valuation
+        prompt = build_analyst_prompt(make_ticker_row())
+        assert "## Valuación y mercado" in prompt
+        assert "P/E forward: N/D" in prompt
+        assert "FCF yield: N/D" in prompt
+        # El modelo debe ser instruido de manejar N/D
+        assert "N/D" in prompt
+
+    def test_system_suffix_includes_valuation_criteria(self):
+        """El system prompt incluye las reglas duras de PEG/FCF yield."""
+        from pipeline.analyst import ANALYST_SYSTEM_SUFFIX
+        assert "PEG" in ANALYST_SYSTEM_SUFFIX
+        assert "FCF yield" in ANALYST_SYSTEM_SUFFIX
+        # Debe tener tanto el formato JSON como el criterio de valuación
+        assert "precio_objetivo" in ANALYST_SYSTEM_SUFFIX
+        assert "conviccion" in ANALYST_SYSTEM_SUFFIX
+
 
 # ── TestParseThesis ───────────────────────────────────────────────────────────
 

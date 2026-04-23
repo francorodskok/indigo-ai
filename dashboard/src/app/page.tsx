@@ -3,7 +3,7 @@ import {
   getLatestDebate,
   getLatestPortfolio,
 } from "@/lib/data";
-import type { Analysis, Debate, DebateVerdict } from "@/lib/types";
+import type { Analysis, Debate, DebateVerdict, HoldingAction } from "@/lib/types";
 
 export const revalidate = 3600;
 
@@ -55,6 +55,46 @@ function parseRiesgos(raw: unknown): string[] {
     }
   }
   return [];
+}
+
+function actionBadge(a: HoldingAction | undefined): { label: string; className: string } | null {
+  if (!a) return null;
+  switch (a) {
+    case "hold":
+      return {
+        label: "HOLD",
+        className: "border-[color:var(--border)] text-[color:var(--muted)] bg-[color:var(--border)]/20",
+      };
+    case "trim":
+      return {
+        label: "TRIM",
+        className: "border-amber-400/40 text-amber-300 bg-amber-400/10",
+      };
+    case "add":
+      return {
+        label: "ADD",
+        className: "border-sky-400/40 text-sky-300 bg-sky-400/10",
+      };
+    case "new":
+      return {
+        label: "NEW",
+        className: "border-emerald-400/40 text-emerald-300 bg-emerald-400/10",
+      };
+    case "exit":
+      return {
+        label: "EXIT",
+        className: "border-rose-400/40 text-rose-300 bg-rose-400/10",
+      };
+    default:
+      return null;
+  }
+}
+
+function weightDelta(curr: number | null | undefined, prev: number | null | undefined): string | null {
+  if (curr == null || prev == null || Number.isNaN(curr) || Number.isNaN(prev)) return null;
+  const d = (curr - prev) * 100;
+  if (Math.abs(d) < 0.05) return null;
+  return (d > 0 ? "+" : "") + d.toFixed(1) + "pp";
 }
 
 function decisionLabel(d: string | undefined): { label: string; color: string } {
@@ -116,7 +156,9 @@ export default async function HomePage() {
                 <tr>
                   <th className="text-left px-4 py-2">Ticker</th>
                   <th className="text-left px-4 py-2">Sector</th>
+                  <th className="text-left px-4 py-2">Acción</th>
                   <th className="text-right px-4 py-2">Peso</th>
+                  <th className="text-right px-4 py-2">Δ vs prev.</th>
                   <th className="text-right px-4 py-2">Convicción</th>
                   <th className="text-right px-4 py-2">Precio obj.</th>
                 </tr>
@@ -124,6 +166,8 @@ export default async function HomePage() {
               <tbody>
                 {sortedHoldings.map((h) => {
                   const a = analysisByTicker.get(h.ticker);
+                  const badge = actionBadge(h.action);
+                  const delta = weightDelta(h.weight, h.previous_weight);
                   return (
                     <tr key={h.ticker} className="border-t border-[color:var(--border)]">
                       <td className="px-4 py-2 mono font-semibold">
@@ -134,7 +178,21 @@ export default async function HomePage() {
                       <td className="px-4 py-2 text-[color:var(--muted)] text-xs">
                         {a?.sector ?? "—"}
                       </td>
+                      <td className="px-4 py-2">
+                        {badge ? (
+                          <span
+                            className={`inline-block border rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wider mono ${badge.className}`}
+                          >
+                            {badge.label}
+                          </span>
+                        ) : (
+                          <span className="text-[color:var(--muted)] text-xs">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-2 text-right mono">{formatPct(h.weight)}</td>
+                      <td className="px-4 py-2 text-right mono text-xs text-[color:var(--muted)]">
+                        {delta ?? "—"}
+                      </td>
                       <td className="px-4 py-2 text-right mono">
                         {h.conviction != null ? `${h.conviction}/10` : "—"}
                       </td>
@@ -148,10 +206,11 @@ export default async function HomePage() {
                   <tr className="border-t border-[color:var(--border)] bg-[color:var(--border)]/20">
                     <td className="px-4 py-2 mono font-semibold text-[color:var(--muted)]">CASH</td>
                     <td />
+                    <td />
                     <td className="px-4 py-2 text-right mono text-[color:var(--muted)]">
                       {formatPct(portfolio.cash_weight)}
                     </td>
-                    <td colSpan={2} />
+                    <td colSpan={3} />
                   </tr>
                 )}
               </tbody>
@@ -175,13 +234,42 @@ export default async function HomePage() {
 
         {/* Macro concerns */}
         {portfolio?.macro_concerns && portfolio.macro_concerns.length > 0 && (
-          <div className="border border-[color:var(--border)] rounded-lg p-4 text-sm text-[color:var(--foreground)]/85 leading-relaxed">
+          <div className="border border-[color:var(--border)] rounded-lg p-4 text-sm text-[color:var(--foreground)]/85 leading-relaxed mb-4">
             <span className="font-semibold text-xs uppercase tracking-wider text-[color:var(--muted)] block mb-2">
               Macro concerns
             </span>
             <ul className="space-y-1 list-disc list-inside">
               {portfolio.macro_concerns.map((c, i) => (
                 <li key={i}>{c}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Exits de este ciclo (Paso D — memoria entre ciclos) */}
+        {portfolio?.exits && portfolio.exits.length > 0 && (
+          <div className="border border-rose-400/30 bg-rose-400/5 rounded-lg p-4 text-sm">
+            <span className="font-semibold text-xs uppercase tracking-wider text-rose-400 block mb-2">
+              Exits de este ciclo
+            </span>
+            <ul className="space-y-2">
+              {portfolio.exits.map((e) => (
+                <li
+                  key={e.ticker}
+                  className="flex flex-wrap items-baseline gap-3 text-[color:var(--foreground)]/85"
+                >
+                  <span className="mono font-semibold">{e.ticker}</span>
+                  {e.previous_weight != null && (
+                    <span className="text-xs text-[color:var(--muted)] mono">
+                      peso previo {formatPct(e.previous_weight)}
+                    </span>
+                  )}
+                  {e.reason && (
+                    <span className="text-xs text-[color:var(--foreground)]/75 leading-relaxed">
+                      · {e.reason}
+                    </span>
+                  )}
+                </li>
               ))}
             </ul>
           </div>

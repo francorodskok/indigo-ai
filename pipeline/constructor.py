@@ -28,6 +28,7 @@ from pipeline.config import (
     PORTFOLIO_MIN_POSITION_PCT,
     PORTFOLIO_MIN_POSITIONS,
 )
+from pipeline.state import format_holdings_block, load_current_holdings
 
 log = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ OUTPUTS_DIR = Path(__file__).parent / "outputs"
 CONSTRUCTOR_SUFFIX = """\
 Sos el constructor del portfolio de Indigo AI. Recibís los veredictos del debate bull/bear de los mejores candidatos del S&P 500.
 
-Tu tarea: construir el portfolio óptimo aplicando estrictamente la filosofía de inversión.
+Si se te provee el bloque "CARTERA ACTUAL", es porque ya hay una cartera viva del ciclo anterior. Tu tarea NO es armar una cartera desde cero ignorando el pasado: es decidir, para cada posición existente y cada candidato nuevo, qué acción tomar para llegar a la cartera óptima del ciclo entrante.
 
 Respondé SOLO con este JSON, sin texto adicional:
 {
@@ -46,14 +47,30 @@ Respondé SOLO con este JSON, sin texto adicional:
     {
       "ticker": "NVDA",
       "weight": 0.08,
-      "rationale": "2-3 oraciones de por qué esta posición y este peso",
+      "previous_weight": 0.07,
+      "action": "add",
+      "rationale": "2-3 oraciones de por qué esta posición y este peso. Si la posición viene del ciclo anterior, explicá por qué se mantiene/ajusta. Si es nueva, por qué entra y qué desplaza.",
       "conviction": 9
     }
   ],
+  "exits": [
+    {
+      "ticker": "META",
+      "previous_weight": 0.08,
+      "reason": "valuación estirada (P/E forward 28 vs media 22) + nuevo nombre con mejor margen de seguridad la desplaza"
+    }
+  ],
   "cash_weight": 0.05,
-  "decision_summary": "párrafo de 3-4 oraciones sobre la tesis del portfolio completo",
+  "decision_summary": "párrafo de 3-4 oraciones sobre la tesis del portfolio completo y qué cambió vs el ciclo anterior",
   "macro_concerns": ["concern 1", "concern 2"]
 }
+
+Valores permitidos para "action":
+  "hold"  = mantener con el mismo peso que el ciclo anterior (previous_weight == weight)
+  "trim"  = reducir peso (previous_weight > weight)
+  "add"   = subir peso (previous_weight < weight)
+  "new"   = incorporar por primera vez (previous_weight ausente o 0)
+  "exit"  = NO aparece en holdings, aparece en la lista "exits"
 
 Restricciones DURAS que debés respetar:
 - Entre 12 y 15 holdings
@@ -61,7 +78,14 @@ Restricciones DURAS que debés respetar:
 - Ninguna posición < 3% del portfolio
 - sum(holdings weights) + cash_weight = 1.0 (exactamente)
 - cash_weight entre 0% y 15%
-- No más del 30% en un mismo sector\
+- No más del 30% en un mismo sector
+
+Reglas de rebalanceo (si hay CARTERA ACTUAL):
+1. Una posición con conviction >= 6 en el ciclo previo debe mantenerse (hold o add) salvo evidencia fuerte de tesis rota o valuación por encima de 1.3× price target original.
+2. Si una posición supera 1.3× price target original: preferir "trim" parcial antes de "exit" total.
+3. Si una posición cayó >= 25% desde entry sin deterioro fundamental: considerar "add" hasta el cap de 10%.
+4. NO incorporar un nombre nuevo si eso implica hacer "exit" de una posición con conviction >= 7, salvo que el nuevo tenga conviction >= 8 Y margen de seguridad >= 20%.
+5. Si NO hay CARTERA ACTUAL (primer ciclo), todos los holdings son "new" y "exits" queda vacío.\
 """
 
 # Tolerancia de redondeo para la suma de pesos
@@ -92,12 +116,26 @@ def _load_debate(debate_path: Path) -> dict:
     return json.loads(text)
 
 
-def build_constructor_prompt(debate_data: dict) -> str:
+def build_constructor_prompt(debate_data: dict, current_state: dict | None = None) -> str:
     """
     Construye el prompt de usuario para el constructor.
-    Incluye todos los veredictos del debate en formato compacto,
-    ordenados por conviccion_ajustada desc.
+
+    Args:
+        debate_data: JSON del debate bull-bear con veredictos por ticker.
+        current_state: estado de la cartera actual (output de
+            pipeline.state.load_current_holdings). Si None, el loader se
+            llama internamente; si el archivo no existe (primer ciclo),
+            se devuelve estado vacío y no se agrega bloque al prompt.
+
+    El prompt queda:
+        [CARTERA ACTUAL con reglas de rebalanceo]  ← solo si hay holdings previos
+        [VEREDICTOS DEL DEBATE ordenados por convicción ajustada]
     """
+    if current_state is None:
+        current_state = load_current_holdings()
+
+    holdings_block = format_holdings_block(current_state)
+
     debates: list[dict] = debate_data.get("debates", [])
 
     # Ordenar por conviccion_ajustada desc (el debate ya viene ordenado, pero lo
@@ -107,7 +145,11 @@ def build_constructor_prompt(debate_data: dict) -> str:
         key=lambda x: -(x.get("verdict", {}).get("conviccion_ajustada", 0)),
     )
 
-    lines = ["VEREDICTOS DEL DEBATE (ordenados por convicción ajustada):\n"]
+    lines: list[str] = []
+    if holdings_block:
+        lines.append(holdings_block)
+        lines.append("")
+    lines.append("VEREDICTOS DEL DEBATE (ordenados por convicción ajustada):\n")
 
     for i, debate in enumerate(sorted_debates, start=1):
         ticker = debate.get("ticker", "???")
@@ -388,6 +430,18 @@ def run(dry_run: bool = False) -> Path:
     sector_map = _extract_sector_map(debate_data)
     debate_tickers: set[str] = {d.get("ticker", "") for d in debates_list if d.get("ticker")}
 
+    # Cargar estado de la cartera actual (memoria entre ciclos).
+    # Si es el primer ciclo, devuelve estado vacío y el prompt no agrega bloque.
+    current_state = load_current_holdings()
+    prev_holdings = current_state.get("holdings", [])
+    if prev_holdings:
+        log.info(
+            f"Cartera previa encontrada: {len(prev_holdings)} posiciones del ciclo "
+            f"{current_state.get('cycle_id')} — aplicando reglas de rebalanceo."
+        )
+    else:
+        log.info("Sin cartera previa — primer ciclo, todos los holdings serán 'new'.")
+
     if dry_run:
         log.info("DRY RUN activado — generando portfolio sintético.")
         # Ordenar tickers por conviccion_ajustada desc para consistencia
@@ -403,7 +457,7 @@ def run(dry_run: bool = False) -> Path:
         model_used = CONSTRUCTOR_MODEL
         cost_usd = 0.0
     else:
-        prompt = build_constructor_prompt(debate_data)
+        prompt = build_constructor_prompt(debate_data, current_state=current_state)
         log.info(
             f"Llamando al constructor ({CONSTRUCTOR_MODEL}, effort={CONSTRUCTOR_EFFORT}, "
             f"budget={CONSTRUCTOR_TASK_BUDGET_TOKENS} tokens)."
@@ -433,13 +487,38 @@ def run(dry_run: bool = False) -> Path:
 
     # ── Construir output ──────────────────────────────────────────────────────
     holdings = portfolio.get("holdings", [])
+    exits = portfolio.get("exits", [])
     total_invested_pct = sum(h.get("weight", 0.0) for h in holdings)
 
+    # Enriquecer holdings con previous_weight/action derivados del state
+    # si el modelo no los completó (fallback defensivo).
+    prev_by_ticker = {h["ticker"]: h for h in prev_holdings}
+    for h in holdings:
+        ticker = h.get("ticker", "")
+        prev = prev_by_ticker.get(ticker)
+        if "previous_weight" not in h:
+            h["previous_weight"] = (prev or {}).get("weight", 0.0)
+        if "action" not in h:
+            pw = h["previous_weight"] or 0.0
+            w = h.get("weight", 0.0)
+            if pw == 0.0:
+                h["action"] = "new"
+            elif abs(w - pw) < 0.005:
+                h["action"] = "hold"
+            elif w > pw:
+                h["action"] = "add"
+            else:
+                h["action"] = "trim"
+
+    cycle_id = date.today().isoformat()
     output = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "cycle_id": cycle_id,
+        "previous_cycle_id": current_state.get("cycle_id"),
         "debate_source": str(debate_path),
         "model": model_used,
         "holdings": holdings,
+        "exits": exits,
         "cash_weight": portfolio.get("cash_weight", 0.0),
         "decision_summary": portfolio.get("decision_summary", ""),
         "macro_concerns": portfolio.get("macro_concerns", []),

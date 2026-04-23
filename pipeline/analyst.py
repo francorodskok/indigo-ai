@@ -30,14 +30,18 @@ import pandas as pd
 
 from pipeline.claude_client import call_agent, get_client, get_philosophy
 from pipeline.config import ANALYST_EFFORT, ANALYST_MODEL
+from pipeline.valuation import VALUATION_CRITERIA_SUFFIX, build_valuation_block
 
 log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).parent.parent
 OUTPUTS = ROOT / "pipeline" / "outputs"
 
-# Prompt del sistema específico del rol analista (se concatena a la filosofía)
-ANALYST_SYSTEM_SUFFIX = """
+# Prompt del sistema específico del rol analista (se concatena a la filosofía).
+# Se divide en BASE + criterio de valuación (del módulo valuation) para que el
+# analista ancle precio_objetivo y convicción en múltiplos reales en vez de
+# intuición.
+_ANALYST_SYSTEM_SUFFIX_BASE = """
 ## ROL: ANALISTA DE INVERSIONES
 
 Sos el analista de Indigo AI. Tu tarea es evaluar empresas del S&P 500 aplicando
@@ -47,19 +51,16 @@ Para cada empresa que recibas debés producir una tesis de inversión en JSON co
 formato exacto, sin texto adicional:
 
 {
-  "tesis": "<párrafo de 3-4 oraciones que explique el moat, la calidad del negocio y la valuación>",
+  "tesis": "<párrafo de 3-4 oraciones que explique el moat, la calidad del negocio y la valuación, citando al menos un múltiplo concreto del bloque de Valuación>",
   "riesgos": ["<riesgo 1>", "<riesgo 2>", "<riesgo 3>"],
   "precio_objetivo": <número en USD, sin comillas>,
   "conviccion": <entero del 1 al 10>
 }
 
-Criterios de convicción:
-  8-10: Negocio excepcional, moat claro, valuación atractiva → comprar con convicción
-  5-7:  Buen negocio pero valuación ajustada o incertidumbre moderada → posición pequeña
-  1-4:  No cumple los estándares o el precio es demasiado alto → no invertir
-
 Respondé SOLO con el JSON. Nada antes ni después.
 """.strip()
+
+ANALYST_SYSTEM_SUFFIX = f"{_ANALYST_SYSTEM_SUFFIX_BASE}\n\n{VALUATION_CRITERIA_SUFFIX}"
 
 
 def _fmt_number(val, suffix="") -> str:
@@ -97,17 +98,25 @@ def build_analyst_prompt(row: dict) -> str:
     op_margin = row.get("op_margin_3y_positive")
     op_margin_str = "positivo 3 años consecutivos" if op_margin else "mixto"
 
+    valuation_block = build_valuation_block(row)
+
     return f"""Empresa: {name} ({ticker})
 Sector: {sector}
 Industria: {industry}
 Market Cap: {market_cap}
 Volumen promedio diario: {avg_vol}
+
+## Calidad del negocio
 Revenue CAGR 3 años: {rev_cagr_str}
 Margen operativo: {op_margin_str}
 ROIC estimado: {roic_str}
 Deuda neta / EBITDA: {net_debt_str}
 
-Generá la tesis de inversión en el formato JSON indicado."""
+{valuation_block}
+
+Generá la tesis de inversión en el formato JSON indicado. Si algún múltiplo
+clave aparece como "N/D", mencionalo en riesgos o bajá la convicción en
+consecuencia."""
 
 
 def _load_latest_filtered_csv() -> pd.DataFrame:
