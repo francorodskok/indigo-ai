@@ -103,6 +103,7 @@ pipeline/data/*.json
 pipeline/state/*.json
 pipeline/state/*.flag
 pipeline/state/KILL_SWITCH*
+pipeline/state/last_postmortem.json
 
 # Corpus crudo (PDFs/HTML del canon) — se normaliza a /philosophy/canon/*.md
 raw/

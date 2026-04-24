@@ -66,3 +66,13 @@ MACRO_YIELD_CURVE_MONTHS = 3         # meses consecutivos invertida
 MAX_ORDERS_PER_CYCLE = 20
 MAX_POSITION_SAFETY_PCT = 0.15      # aborto si cualquier target > 15%
 FILL_VERIFY_WAIT_SECONDS = 900      # 15 minutos
+
+# ── Post-mortem (aprendizaje autónomo, ADR 2026-04-23) ───────────────────────
+POSTMORTEM_INTERVAL_DAYS = 90              # cadencia mínima entre post-mortems
+POSTMORTEM_LOOKBACK_DAYS = 90              # analiza el portfolio de hace N días
+POSTMORTEM_LOOKBACK_WINDOW_DAYS = 7        # ±ventana para matchear portfolio existente
+POSTMORTEM_LESSONS_TOP_N = 3               # lecciones más recientes inyectadas al suffix
+POSTMORTEM_BENCHMARK = "SPY"               # proxy del S&P 500 para calcular alpha
+POSTMORTEM_MODEL = "claude-opus-4-7"       # profundidad para reflexión estratégica
+POSTMORTEM_EFFORT = "high"                 # no "max" — costo vs beneficio
+POSTMORTEM_MAX_TOKENS = 8_000              # output narrativo del MD
