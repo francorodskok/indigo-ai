@@ -622,6 +622,28 @@ def render_recent_lessons(
     return "\n".join(parts)
 
 
+def augment_suffix(
+    base_suffix: str,
+    n: int | None = None,
+    lessons_dir: Path | None = None,
+) -> str:
+    """
+    Concatena las lecciones recientes DESPUÉS del base_suffix.
+
+    Punto de integración para analyst / constructor / debate: la filosofía
+    cacheada va primero, luego el suffix estable del rol, y las lecciones
+    al final. Cambia solo el tail — el prefijo con la filosofía preserva
+    el cache hit (ADR 2026-04-23).
+
+    Si no hay lecciones (primer run, dir vacío), devuelve base_suffix sin
+    cambios. El caller puede usarla siempre, sin checkear.
+    """
+    lessons = render_recent_lessons(n=n, lessons_dir=lessons_dir)
+    if not lessons:
+        return base_suffix
+    return f"{base_suffix}\n\n{lessons}"
+
+
 # ── Construcción del prompt del post-mortem ──────────────────────────────────
 
 
@@ -988,6 +1010,9 @@ def run(
                 system_suffix=POSTMORTEM_SUFFIX,
                 dry_run=False,
                 max_tokens=POSTMORTEM_MAX_TOKENS,
+                # Las lecciones previas ya van inyectadas en el user_input
+                # (build_prompt). No duplicarlas en el system_suffix.
+                inject_lessons=False,
             )
             lesson_md = response.get("content", "")
         except Exception as e:

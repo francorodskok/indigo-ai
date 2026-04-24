@@ -194,9 +194,13 @@ def run_analyst_batch(df: pd.DataFrame) -> list[str]:
     Envía los tickers en chunks al Batch API (evita request bodies de >10MB).
     Retorna lista de batch_ids para hacer polling después.
     """
+    from pipeline.postmortem import augment_suffix
+
     client = get_client()
     philosophy = get_philosophy()
-    system_prompt = f"{philosophy}\n\n---\n\n{ANALYST_SYSTEM_SUFFIX}"
+    # Lecciones recientes al final del suffix — preserva cache del corpus.
+    suffix_with_lessons = augment_suffix(ANALYST_SYSTEM_SUFFIX)
+    system_prompt = f"{philosophy}\n\n---\n\n{suffix_with_lessons}"
 
     all_requests = _build_batch_requests(df, system_prompt)
     chunks = [

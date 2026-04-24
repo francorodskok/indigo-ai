@@ -219,35 +219,77 @@ def run(
         log.warning(f"BLOQUEADO por kill switch: {reason}")
         return 0
 
-    # Gate 2: cadencia (salvo force)
+    # Gate 2: cadencia del ciclo (salvo force)
+    cycle_due = True
     if not force:
-        due, cadence_reason = is_cycle_due()
-        if not due:
+        cycle_due, cadence_reason = is_cycle_due()
+        if not cycle_due:
             log.info(f"No toca ciclo hoy: {cadence_reason}")
-            return 0
-        log.info(f"Toca ciclo: {cadence_reason}")
+        else:
+            log.info(f"Toca ciclo: {cadence_reason}")
 
     if check_only:
-        log.info("check-only: todas las gates pasan, pero no corro pipeline.")
+        # En check-only también reportamos si toca post-mortem.
+        _report_postmortem_status()
+        log.info("check-only: todas las gates pasan, pero no corro nada.")
         return 0
 
-    # Go.
-    started = datetime.now(timezone.utc)
-    results = run_pipeline(dry_run=dry_run)
-    elapsed = (datetime.now(timezone.utc) - started).total_seconds()
+    # ── Ciclo regular ─────────────────────────────────────────────────────────
+    if cycle_due:
+        started = datetime.now(timezone.utc)
+        results = run_pipeline(dry_run=dry_run)
+        elapsed = (datetime.now(timezone.utc) - started).total_seconds()
 
-    # Summary.
-    all_ok = all(r.ok for r in results)
-    log.info(
-        f"Pipeline terminada en {elapsed:.1f}s — "
-        f"{'OK' if all_ok else 'CON ERRORES'} "
-        f"({sum(r.ok for r in results)}/{len(results)} etapas OK)"
-    )
-    for r in results:
-        log.info(f"  · {r.to_dict()}")
+        all_ok = all(r.ok for r in results)
+        log.info(
+            f"Pipeline terminada en {elapsed:.1f}s — "
+            f"{'OK' if all_ok else 'CON ERRORES'} "
+            f"({sum(r.ok for r in results)}/{len(results)} etapas OK)"
+        )
+        for r in results:
+            log.info(f"  · {r.to_dict()}")
+
+    # ── Post-mortem (cadencia independiente, 90d) ────────────────────────────
+    # Convive con el ciclo: si ambos toca, corren los dos el mismo día.
+    # Si solo toca post-mortem (y no el ciclo), igual corre.
+    _maybe_run_postmortem(dry_run=dry_run)
 
     # Exit 0 siempre para no trigger retry loop de Fly.
     return 0
+
+
+def _report_postmortem_status() -> None:
+    """Logea si toca post-mortem hoy (usado por check-only)."""
+    try:
+        from pipeline import postmortem
+        due, reason = postmortem.is_due()
+        log.info(f"Post-mortem — due={due}, razón: {reason}")
+    except Exception as e:
+        log.error(f"_report_postmortem_status falló: {e}")
+
+
+def _maybe_run_postmortem(dry_run: bool = False) -> None:
+    """
+    Corre el post-mortem si su cadencia de 90d lo indica. Es un stage
+    independiente del ciclo — no bloquea y no raise. Nunca debe romper
+    el exit code del orchestrator.
+    """
+    try:
+        from pipeline import postmortem
+        due, reason = postmortem.is_due()
+        if not due:
+            log.info(f"Post-mortem skip: {reason}")
+            return
+        log.info(f"Post-mortem toca: {reason}")
+        result = postmortem.run(dry_run=dry_run)
+        log.info(
+            f"Post-mortem terminado — status={result.status}, "
+            f"lesson={result.lesson_path}, notes={result.notes}"
+        )
+    except Exception as e:
+        # Importante: nunca abortar por el post-mortem. Es un módulo aditivo.
+        log.error(f"Post-mortem crasheó inesperadamente (no bloqueante): {e}")
+        log.debug(traceback.format_exc())
 
 
 def _parse_args() -> argparse.Namespace:

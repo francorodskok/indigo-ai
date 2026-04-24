@@ -270,17 +270,22 @@ def call_agent(
     system_suffix: str = "",
     dry_run: bool = False,
     max_tokens: int = 16_000,
+    inject_lessons: bool = True,
 ) -> dict[str, Any]:
     """
     Llama a Claude con la filosofía cacheada como contexto permanente.
 
     Args:
-        role:         Identificador del agente ('analyst', 'bull', 'bear', 'constructor')
-        user_input:   Datos específicos de esta llamada (ticker, dossier, etc.)
-        model:        Modelo a usar. Default según role (Sonnet para analyst, Opus para el resto)
-        effort:       Nivel de thinking ('low', 'medium', 'high', 'xhigh', 'max')
+        role:          Identificador del agente ('analyst', 'bull', 'bear', 'constructor')
+        user_input:    Datos específicos de esta llamada (ticker, dossier, etc.)
+        model:         Modelo a usar. Default según role (Sonnet para analyst, Opus para el resto)
+        effort:        Nivel de thinking ('low', 'medium', 'high', 'xhigh', 'max')
         system_suffix: Texto adicional al system prompt (instrucciones específicas del rol)
-        dry_run:      Si True, devuelve estructura vacía sin llamar a la API
+        dry_run:       Si True, devuelve estructura vacía sin llamar a la API
+        inject_lessons: Si True, concatena las lecciones recientes del post-mortem
+                        DESPUÉS del system_suffix (preserva cache de la filosofía).
+                        El rol 'postmortem' debe pasarlo en False — inyecta lecciones
+                        dentro del user_input para evitar doble conteo. Default True.
 
     Returns:
         dict con 'content' (str), 'model', 'usage', 'cost_usd'
@@ -290,6 +295,13 @@ def call_agent(
         model = ANALYST_MODEL if role == "analyst" else DEBATE_MODEL
     if effort is None:
         effort = ANALYST_EFFORT if role == "analyst" else DEBATE_EFFORT
+
+    # Inyectar lecciones recientes al final del suffix del rol.
+    # Crítico: va DESPUÉS del suffix base, NUNCA antes del corpus filosófico
+    # cacheado. Import lazy para evitar circular imports.
+    if inject_lessons and system_suffix:
+        from pipeline.postmortem import augment_suffix
+        system_suffix = augment_suffix(system_suffix)
 
     if dry_run:
         log.info(f"[DRY RUN] call_agent role={role} model={model} effort={effort}")

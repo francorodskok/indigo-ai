@@ -125,6 +125,53 @@ class TestDryRun:
             assert result["content"] == "[DRY RUN]"
 
 
+class TestInjectLessons:
+    """
+    call_agent concatena las lecciones al suffix cuando inject_lessons=True.
+    Verifica el punto de integración del post-mortem (ADR 2026-04-23).
+    """
+
+    def test_inject_lessons_default_true_calls_augment_suffix(self, monkeypatch):
+        """Por default, el suffix se pasa por augment_suffix (preservando cache)."""
+        from pipeline import claude_client, postmortem
+        spy = []
+        monkeypatch.setattr(
+            postmortem, "augment_suffix",
+            lambda s, **kw: spy.append(s) or f"{s}\n\n[LESSONS]",
+        )
+        claude_client.call_agent(
+            "analyst", "input", system_suffix="SUFFIX", dry_run=True,
+        )
+        assert spy == ["SUFFIX"]
+
+    def test_inject_lessons_false_skips_augment(self, monkeypatch):
+        """Cuando inject_lessons=False, augment_suffix NO se llama."""
+        from pipeline import claude_client, postmortem
+        spy = []
+        monkeypatch.setattr(
+            postmortem, "augment_suffix",
+            lambda s, **kw: spy.append(s) or s,
+        )
+        claude_client.call_agent(
+            "postmortem", "input",
+            system_suffix="PM_SUFFIX", dry_run=True, inject_lessons=False,
+        )
+        assert spy == []  # nunca se llamó
+
+    def test_empty_suffix_skips_augment(self, monkeypatch):
+        """Sin suffix base, no hay a qué concatenar — augment_suffix no se llama."""
+        from pipeline import claude_client, postmortem
+        spy = []
+        monkeypatch.setattr(
+            postmortem, "augment_suffix",
+            lambda s, **kw: spy.append(s) or s,
+        )
+        claude_client.call_agent(
+            "analyst", "input", system_suffix="", dry_run=True,
+        )
+        assert spy == []
+
+
 class TestBudgetCheck:
     def test_budget_check_passes_when_no_log(self, tmp_path, monkeypatch):
         import pipeline.claude_client as cc

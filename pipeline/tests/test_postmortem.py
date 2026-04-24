@@ -730,6 +730,39 @@ class TestRenderRecentLessons:
         assert "LECCIONES RECIENTES" in result
 
 
+# ── TestAugmentSuffix ────────────────────────────────────────────────────────
+
+
+class TestAugmentSuffix:
+    def test_empty_lessons_returns_base_unchanged(self, _isolate_lessons_dir):
+        """Sin lecciones → devuelve el suffix base intacto (no adds whitespace)."""
+        result = postmortem.augment_suffix("BASE SUFFIX")
+        assert result == "BASE SUFFIX"
+
+    def test_with_lessons_appends_after_base(self, _isolate_lessons_dir):
+        """Lecciones presentes → se concatenan DESPUÉS del suffix base."""
+        (_isolate_lessons_dir / "lesson_2026-07-21.md").write_text(
+            "LESSON CONTENT", encoding="utf-8"
+        )
+        result = postmortem.augment_suffix("BASE SUFFIX")
+        # La base va primero (crítico para preservar cache)
+        assert result.startswith("BASE SUFFIX")
+        # Las lecciones van después
+        assert "LESSON CONTENT" in result
+        assert result.index("BASE SUFFIX") < result.index("LESSON CONTENT")
+
+    def test_respects_n_parameter(self, _isolate_lessons_dir):
+        """El arg n se propaga a render_recent_lessons."""
+        for d in ["2026-01-23", "2026-04-22", "2026-07-21"]:
+            (_isolate_lessons_dir / f"lesson_{d}.md").write_text(
+                f"CONTENT_{d}", encoding="utf-8"
+            )
+        result = postmortem.augment_suffix("BASE", n=1)
+        # Solo la más reciente
+        assert "CONTENT_2026-07-21" in result
+        assert "CONTENT_2026-04-22" not in result
+
+
 # ── TestBuildPrompt ──────────────────────────────────────────────────────────
 
 
@@ -1096,8 +1129,11 @@ class TestRun:
         assert result.status == "success"
         # Verificamos que se le pasaron los argumentos correctos al agent
         assert captured["role"] == "postmortem"
-        assert "POSTMORTEM" in captured["system_suffix"] or "retrospectivo" in captured["system_suffix"]
+        assert "retrospectivo" in captured["system_suffix"]
         assert captured["dry_run"] is False
+        # Crítico: postmortem NO debe reinyectar lecciones en system_suffix —
+        # las lecciones ya van dentro del user_input via build_prompt.
+        assert captured["inject_lessons"] is False
 
     def test_dry_run_lesson_is_valid_schema(self):
         """El stub de dry_run pasa parse_lesson_md sin error."""

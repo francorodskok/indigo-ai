@@ -19,6 +19,20 @@ def clean_env(tmp_path, monkeypatch):
     return tmp_path
 
 
+@pytest.fixture(autouse=True)
+def _stub_postmortem_calls(monkeypatch):
+    """
+    Los tests de orchestrate no deben tocar yfinance ni los outputs reales
+    via el stage de post-mortem. Stubeamos ambas funciones a no-op. Los
+    tests específicos de integración (TestPostmortemIntegration) las
+    sobrescriben con sus propios spies.
+    """
+    from pipeline import orchestrate
+    monkeypatch.setattr(orchestrate, "_maybe_run_postmortem", lambda **kw: None)
+    monkeypatch.setattr(orchestrate, "_report_postmortem_status", lambda: None)
+    yield
+
+
 # ── days_since_last_cycle / is_cycle_due ──────────────────────────────────────
 
 class TestCycleEligibility:
@@ -191,3 +205,137 @@ class TestStageResult:
         assert r.ok is False
         assert "RuntimeError" in (r.error or "")
         assert r.seconds >= 0
+
+
+# ── TestPostmortemIntegration ─────────────────────────────────────────────────
+# Estos tests sobrescriben el stub global de _stub_postmortem_calls para
+# verificar que el stage de post-mortem se invoca en los escenarios correctos.
+
+
+class TestPostmortemIntegration:
+    def test_postmortem_invoked_when_cycle_runs(self, clean_env, monkeypatch):
+        """Cuando corre el ciclo, después se chequea post-mortem."""
+        from pipeline import orchestrate
+        monkeypatch.setenv("SYSTEM_ENABLED", "true")
+        monkeypatch.setattr(
+            orchestrate, "load_current_holdings",
+            lambda path=None: {"updated_at": None},
+        )
+        monkeypatch.setattr(orchestrate, "run_pipeline", lambda **kw: [])
+
+        pm_calls = []
+        monkeypatch.setattr(
+            orchestrate, "_maybe_run_postmortem",
+            lambda **kw: pm_calls.append(kw) or None,
+        )
+        orchestrate.run()
+        assert len(pm_calls) == 1
+
+    def test_postmortem_invoked_even_when_cycle_not_due(
+        self, clean_env, monkeypatch
+    ):
+        """Cadencia del post-mortem es independiente de la del ciclo."""
+        from pipeline import orchestrate
+        monkeypatch.setenv("SYSTEM_ENABLED", "true")
+        recent = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+        monkeypatch.setattr(
+            orchestrate, "load_current_holdings",
+            lambda path=None: {"updated_at": recent},
+        )
+        ran_pipeline = {"ran": False}
+        monkeypatch.setattr(
+            orchestrate, "run_pipeline",
+            lambda **kw: (ran_pipeline.update(ran=True), [])[1],
+        )
+        pm_calls = []
+        monkeypatch.setattr(
+            orchestrate, "_maybe_run_postmortem",
+            lambda **kw: pm_calls.append(kw) or None,
+        )
+        orchestrate.run()
+        # El ciclo NO corrió (hace 3d < 20d)
+        assert ran_pipeline["ran"] is False
+        # Pero el post-mortem SÍ se chequeó
+        assert len(pm_calls) == 1
+
+    def test_postmortem_blocked_by_kill_switch(self, clean_env, monkeypatch):
+        """Si el kill switch bloquea, el post-mortem tampoco se chequea."""
+        from pipeline import orchestrate
+        monkeypatch.setenv("SYSTEM_ENABLED", "false")
+        pm_calls = []
+        monkeypatch.setattr(
+            orchestrate, "_maybe_run_postmortem",
+            lambda **kw: pm_calls.append(kw) or None,
+        )
+        orchestrate.run()
+        assert len(pm_calls) == 0
+
+    def test_postmortem_receives_dry_run_flag(self, clean_env, monkeypatch):
+        """INDIGO_DRY_RUN=true se propaga al post-mortem."""
+        from pipeline import orchestrate
+        monkeypatch.setenv("SYSTEM_ENABLED", "true")
+        monkeypatch.setenv("INDIGO_DRY_RUN", "true")
+        monkeypatch.setattr(
+            orchestrate, "load_current_holdings",
+            lambda path=None: {"updated_at": None},
+        )
+        monkeypatch.setattr(orchestrate, "run_pipeline", lambda **kw: [])
+        pm_calls = []
+        monkeypatch.setattr(
+            orchestrate, "_maybe_run_postmortem",
+            lambda **kw: pm_calls.append(kw) or None,
+        )
+        orchestrate.run()
+        assert pm_calls[0].get("dry_run") is True
+
+    def test_check_only_reports_postmortem_without_running(
+        self, clean_env, monkeypatch
+    ):
+        """check-only debe reportar status sin invocar run."""
+        from pipeline import orchestrate
+        monkeypatch.setenv("SYSTEM_ENABLED", "true")
+        monkeypatch.setattr(
+            orchestrate, "load_current_holdings",
+            lambda path=None: {"updated_at": None},
+        )
+        reported = []
+        pm_ran = []
+        monkeypatch.setattr(
+            orchestrate, "_report_postmortem_status",
+            lambda: reported.append(True) or None,
+        )
+        monkeypatch.setattr(
+            orchestrate, "_maybe_run_postmortem",
+            lambda **kw: pm_ran.append(True) or None,
+        )
+        orchestrate.run(check_only=True)
+        assert reported == [True]
+        assert pm_ran == []  # no se ejecutó
+
+    def test_maybe_run_postmortem_never_raises(self, clean_env, monkeypatch):
+        """Si postmortem.run() explota, el orchestrator no debe romper."""
+        from pipeline import orchestrate, postmortem
+
+        def boom(**kwargs):
+            raise RuntimeError("yfinance rate limit")
+
+        monkeypatch.setattr(postmortem, "run", boom)
+        monkeypatch.setattr(postmortem, "is_due", lambda today=None: (True, "forced"))
+        # _maybe_run_postmortem debe swallowear la excepción
+        orchestrate._maybe_run_postmortem(dry_run=True)  # no raise
+
+    def test_maybe_run_postmortem_skips_when_not_due(
+        self, clean_env, monkeypatch
+    ):
+        """Si is_due()==False, no se llama a run()."""
+        from pipeline import orchestrate, postmortem
+        monkeypatch.setattr(
+            postmortem, "is_due", lambda today=None: (False, "reciente")
+        )
+        run_called = []
+        monkeypatch.setattr(
+            postmortem, "run",
+            lambda **kw: run_called.append(kw) or None,
+        )
+        orchestrate._maybe_run_postmortem(dry_run=False)
+        assert run_called == []
