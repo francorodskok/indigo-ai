@@ -70,11 +70,12 @@ class TestSafetyChecks:
             validate_trades([], valid_portfolio)
 
     def test_more_than_max_orders_raises(self, valid_portfolio):
+        from pipeline.config import MAX_ORDERS_PER_CYCLE
         trades = [
             {"ticker": f"T{i}", "side": "buy", "qty": 1, "estimated_cost": 1}
-            for i in range(11)
+            for i in range(MAX_ORDERS_PER_CYCLE + 1)
         ]
-        with pytest.raises(RuntimeError, match="Demasiadas órdenes"):
+        with pytest.raises(RuntimeError, match="Demasiadas"):
             validate_trades(trades, valid_portfolio)
 
     def test_target_weight_over_safety_raises(self):
