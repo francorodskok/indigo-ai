@@ -74,6 +74,52 @@ class TestLoadPhilosophy:
             "revisar que el loader distribuya budget equitativamente."
         )
 
+    def test_munger_and_lynch_essentials_present(self):
+        """
+        Regresión ADR 2026-04-24 (expansión de corpus): Munger y Lynch fueron
+        agregados vía distillation curada en `canon/compressed/*_essentials.md`.
+        Este test asegura que ambos autores están cargados con peso operacional
+        (no solo menciones cruzadas desde los archivos de Buffett o Marks).
+        """
+        from pipeline.claude_client import _load_philosophy
+        text = _load_philosophy()
+        # Verificar presencia con umbral de menciones razonable — los essentials
+        # de cada autor contienen 25-50 menciones del propio nombre como mínimo.
+        munger_mentions = text.count("Munger")
+        lynch_mentions = text.count("Lynch")
+        assert munger_mentions >= 20, (
+            f"Munger solo aparece {munger_mentions} veces — revisar que "
+            "canon/compressed/munger_essentials.md se esté cargando."
+        )
+        assert lynch_mentions >= 20, (
+            f"Lynch solo aparece {lynch_mentions} veces — revisar que "
+            "canon/compressed/lynch_essentials.md se esté cargando."
+        )
+        # Además verificar que conceptos operacionales centrales de cada autor
+        # efectivamente quedaron en el corpus (evita que un archivo vacío pase el test).
+        assert "PEG" in text, "Falta PEG ratio (núcleo del framework Lynch)."
+        assert "lattice" in text.lower() or "enrejado" in text.lower(), (
+            "Falta el concepto de latticework / enrejado de modelos mentales (Munger)."
+        )
+
+    def test_compressed_takes_priority_over_canon_raw(self):
+        """
+        Cuando existe `compressed/<autor>_essentials.md` con contenido real,
+        el loader debe ignorar el `canon/<autor>_*.md` crudo del mismo autor.
+        Evita duplicar ese autor y desbalancear el presupuesto.
+        """
+        from pipeline.claude_client import _load_philosophy
+        text = _load_philosophy()
+        # munger_almanack.md es un stub con **PENDIENTE**; munger_essentials.md
+        # es el real. Solo debería aparecer el header del essentials.
+        assert "MUNGER_ALMANACK" not in text, (
+            "El canon raw munger_almanack.md se cargó; debería ser saltado "
+            "porque existe compressed/munger_essentials.md."
+        )
+        assert "MUNGER_ESSENTIALS" in text, (
+            "El compressed/munger_essentials.md no entró al corpus."
+        )
+
     def test_total_size_within_limit(self):
         from pipeline.claude_client import _load_philosophy, MAX_PHILOSOPHY_CHARS
         text = _load_philosophy()
