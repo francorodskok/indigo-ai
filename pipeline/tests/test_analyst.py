@@ -156,6 +156,150 @@ class TestParseThesis:
         assert "_missing_fields" in result
 
 
+# ── TestSelfCritique ──────────────────────────────────────────────────────────
+
+class TestSelfCritique:
+    """
+    Tests del self-critique loop: el analyst genera draft → critica → versión
+    final. Debe respetar la regla "si hay critica material, conviccion baja".
+    """
+
+    def test_parses_full_critique_schema(self):
+        from pipeline.analyst import _parse_thesis
+        raw = json.dumps({
+            "tesis_draft": "Borrador entusiasta.",
+            "conviccion_pre_critica": 9,
+            "critica": [
+                "Asumí switching costs sin que ningún múltiplo lo soporte.",
+                "Ignoré que el FCF yield está en 1.5%, debajo del bond.",
+                "Sesgo de halo del sector tech.",
+            ],
+            "tesis": "Versión re-calibrada con FCF yield mencionado.",
+            "riesgos": ["r1", "r2", "r3"],
+            "precio_objetivo": 400,
+            "conviccion": 7,
+        })
+        result = _parse_thesis(raw, "MSFT")
+        assert result["tesis_draft"] == "Borrador entusiasta."
+        assert result["conviccion_pre_critica"] == 9
+        assert len(result["critica"]) == 3
+        assert result["conviccion"] == 7
+        # No se forzó nada — el modelo cumplió la regla
+        assert "_critique_violation" not in result
+
+    def test_legacy_schema_without_critica_still_works(self):
+        """JSON viejo (sin tesis_draft/critica) debe parsear sin errores."""
+        from pipeline.analyst import _parse_thesis
+        raw = json.dumps({
+            "tesis": "ok",
+            "riesgos": ["r1", "r2", "r3"],
+            "precio_objetivo": 100,
+            "conviccion": 5,
+        })
+        result = _parse_thesis(raw, "X")
+        assert result["conviccion"] == 5
+        assert "tesis_draft" not in result
+        assert "_critique_violation" not in result
+
+    def test_forces_conviccion_down_when_critica_material_but_post_did_not_decrease(self):
+        """
+        Si critica encontró algo material pero conviccion >= conviccion_pre_critica,
+        el parser fuerza -1 y marca _critique_violation.
+        """
+        from pipeline.analyst import _parse_thesis
+        raw = json.dumps({
+            "tesis_draft": "draft",
+            "conviccion_pre_critica": 8,
+            "critica": [
+                "Asumí moat sin evidencia en los múltiplos.",
+                "Ignoré bear case de comoditización.",
+                "ninguno material",
+            ],
+            "tesis": "final",
+            "riesgos": ["r1", "r2", "r3"],
+            "precio_objetivo": 100,
+            "conviccion": 8,  # ← no bajó, debe forzarse a 7
+        })
+        result = _parse_thesis(raw, "FAIL")
+        assert result["conviccion"] == 7
+        assert "_critique_violation" in result
+
+    def test_does_not_force_when_critica_is_all_ninguno_material(self):
+        """Si todas las críticas son 'ninguno material', conviccion puede mantenerse."""
+        from pipeline.analyst import _parse_thesis
+        raw = json.dumps({
+            "tesis_draft": "draft",
+            "conviccion_pre_critica": 9,
+            "critica": ["ninguno material", "ninguno material", "ninguno material"],
+            "tesis": "final",
+            "riesgos": ["r1", "r2", "r3"],
+            "precio_objetivo": 100,
+            "conviccion": 9,
+        })
+        result = _parse_thesis(raw, "OK")
+        assert result["conviccion"] == 9
+        assert "_critique_violation" not in result
+
+    def test_does_not_force_when_post_already_lower(self):
+        """Si conviccion ya bajó, no se ajusta nada más."""
+        from pipeline.analyst import _parse_thesis
+        raw = json.dumps({
+            "tesis_draft": "draft",
+            "conviccion_pre_critica": 9,
+            "critica": [
+                "Supuesto sin validar.",
+                "Bear case ignorado.",
+                "Sesgo de anclaje.",
+            ],
+            "tesis": "final",
+            "riesgos": ["r1", "r2", "r3"],
+            "precio_objetivo": 100,
+            "conviccion": 6,  # bajó 3 puntos, OK
+        })
+        result = _parse_thesis(raw, "OK")
+        assert result["conviccion"] == 6
+        assert "_critique_violation" not in result
+
+    def test_save_results_persists_critique_fields(self, tmp_path, monkeypatch):
+        """Los campos del self-critique deben quedar en el JSON guardado."""
+        import pipeline.analyst as a
+        monkeypatch.setattr(a, "OUTPUTS", tmp_path)
+
+        df = make_df()
+        results = [{
+            "ticker": "MSFT",
+            "thesis": {
+                "tesis_draft": "draft",
+                "conviccion_pre_critica": 8,
+                "critica": ["c1", "c2", "c3"],
+                "tesis": "final",
+                "riesgos": ["r1", "r2", "r3"],
+                "precio_objetivo": 450,
+                "conviccion": 7,
+            },
+            "cost_usd": 0.05,
+            "usage": None,
+        }]
+        out = a.save_results(df, results, "2026-04-22")
+        data = json.loads(out.read_text(encoding="utf-8"))
+        entry = data["analyses"][0]
+        assert entry["tesis_draft"] == "draft"
+        assert entry["conviccion_pre_critica"] == 8
+        assert entry["critica"] == ["c1", "c2", "c3"]
+
+    def test_system_suffix_includes_three_phase_structure(self):
+        """El system prompt explícitamente describe las 3 fases."""
+        from pipeline.analyst import ANALYST_SYSTEM_SUFFIX
+        # Las tres fases nombradas
+        assert "Fase 1" in ANALYST_SYSTEM_SUFFIX
+        assert "Fase 2" in ANALYST_SYSTEM_SUFFIX
+        assert "Fase 3" in ANALYST_SYSTEM_SUFFIX
+        # Campos del schema nuevo presentes
+        assert "tesis_draft" in ANALYST_SYSTEM_SUFFIX
+        assert "conviccion_pre_critica" in ANALYST_SYSTEM_SUFFIX
+        assert "critica" in ANALYST_SYSTEM_SUFFIX
+
+
 # ── TestDryRun ────────────────────────────────────────────────────────────────
 
 class TestDryRunSequential:

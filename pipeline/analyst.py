@@ -47,14 +47,46 @@ _ANALYST_SYSTEM_SUFFIX_BASE = """
 Sos el analista de Indigo AI. Tu tarea es evaluar empresas del S&P 500 aplicando
 estrictamente la filosofía de inversión definida en la CONSTITUCIÓN y el CANON.
 
-Para cada empresa que recibas debés producir una tesis de inversión en JSON con este
-formato exacto, sin texto adicional:
+Trabajás en TRES FASES dentro de la misma respuesta:
+
+### Fase 1 — Borrador
+Producís una primera tesis (`tesis_draft`) con tu convicción inicial
+(`conviccion_pre_critica`). Sé honesto: si te entusiasmás, escribilo.
+
+### Fase 2 — Auto-crítica
+Antes de fijar nada, te hacés tres preguntas sobre tu propio borrador y las
+contestás en el array `critica`:
+  1. ¿Qué supuesto del borrador NO está validado por los datos del prompt?
+     (ej. asumiste "switching costs altos" sin que ningún múltiplo lo soporte)
+  2. ¿Qué bear case material ignoraste o minimizaste?
+  3. ¿Hay algún sesgo de razonamiento — narrative fallacy, anclaje en
+     market cap, halo del sector — que el draft está cometiendo?
+
+Cada item del array es una frase concreta, no genérica. Si genuinamente no
+encontrás algo en alguna pregunta, escribí "ninguno material" pero esperá que
+sea raro: casi siempre hay al menos un supuesto blando.
+
+### Fase 3 — Tesis final re-calibrada
+Reescribís la tesis (`tesis`) corrigiendo lo que la crítica reveló y emitís
+`conviccion` final. **Regla dura:** si en `critica` aparece al menos un
+supuesto no validado o un bear case material, `conviccion` debe ser
+ESTRICTAMENTE MENOR que `conviccion_pre_critica` (al menos -1). Si los
+3 items son "ninguno material", podés mantener la convicción.
+
+### Formato de salida (JSON exacto, sin texto adicional)
 
 {
-  "tesis": "<párrafo de 3-4 oraciones que explique el moat, la calidad del negocio y la valuación, citando al menos un múltiplo concreto del bloque de Valuación>",
+  "tesis_draft": "<3-4 oraciones, primer borrador>",
+  "conviccion_pre_critica": <entero 1-10>,
+  "critica": [
+    "<respuesta a P1: supuesto no validado>",
+    "<respuesta a P2: bear case ignorado>",
+    "<respuesta a P3: sesgo de razonamiento>"
+  ],
+  "tesis": "<versión final re-calibrada, 3-4 oraciones, citando al menos un múltiplo concreto del bloque de Valuación>",
   "riesgos": ["<riesgo 1>", "<riesgo 2>", "<riesgo 3>"],
   "precio_objetivo": <número en USD, sin comillas>,
-  "conviccion": <entero del 1 al 10>
+  "conviccion": <entero 1-10>
 }
 
 Respondé SOLO con el JSON. Nada antes ni después.
@@ -132,10 +164,30 @@ def _load_latest_filtered_csv() -> pd.DataFrame:
     return pd.read_csv(path)
 
 
+def _critica_es_material(critica: list[str] | None) -> bool:
+    """
+    Determina si la auto-crítica encontró algo concreto o es solo "ninguno material".
+    Usado para validar que la convicción se ajustó a la baja cuando correspondía.
+    """
+    if not critica:
+        return False
+    for item in critica:
+        s = (item or "").strip().lower()
+        if not s:
+            continue
+        # Heurística: si todas las críticas dicen "ninguno material", "n/a", etc.
+        if any(token in s for token in ("ninguno material", "ninguna material", "n/a", "nada material", "sin observaciones")):
+            continue
+        return True
+    return False
+
+
 def _parse_thesis(raw: str, ticker: str) -> dict:
     """
     Extrae el JSON de la respuesta de Claude.
     Tolera que venga envuelto en markdown code fences.
+    Acepta tanto el schema nuevo (con tesis_draft / critica / conviccion_pre_critica)
+    como el legacy (solo tesis/riesgos/precio_objetivo/conviccion).
     """
     content = raw.strip()
     if "```" in content:
@@ -152,12 +204,32 @@ def _parse_thesis(raw: str, ticker: str) -> dict:
         log.warning(f"[{ticker}] JSON inválido: {e} — guardando raw")
         return {"_parse_error": str(e), "_raw": raw}
 
-    # Validaciones básicas
+    # Validaciones básicas — los campos finales siempre son requeridos
     required = {"tesis", "riesgos", "precio_objetivo", "conviccion"}
     missing = required - set(data.keys())
     if missing:
         log.warning(f"[{ticker}] Faltan campos: {missing}")
         data["_missing_fields"] = list(missing)
+
+    # Validación del self-critique loop (solo si el schema nuevo está presente)
+    pre = data.get("conviccion_pre_critica")
+    post = data.get("conviccion")
+    critica = data.get("critica")
+    if pre is not None and post is not None and isinstance(pre, int) and isinstance(post, int):
+        material = _critica_es_material(critica)
+        if material and post >= pre:
+            log.warning(
+                f"[{ticker}] critica encontró material pero conviccion no bajó "
+                f"(pre={pre}, post={post}). Forzando -1."
+            )
+            data["conviccion"] = max(1, pre - 1)
+            data["_critique_violation"] = "post>=pre con critica material; ajustado -1"
+        elif post > pre:
+            # Sin critica material pero subió convicción: sospechoso
+            log.warning(
+                f"[{ticker}] conviccion subió tras critica (pre={pre}, post={post}) — "
+                f"raro, dejando como vino"
+            )
 
     return data
 
@@ -375,6 +447,14 @@ def save_results(df: pd.DataFrame, results: list[dict], date_str: str) -> Path:
             "cost_usd": round(cost, 6),
             "usage": r.get("usage"),
         }
+        # Self-critique loop fields (schema nuevo). Sólo presentes si el modelo
+        # los devolvió — los preservamos para audit, postmortem y futura
+        # observación de la calibración.
+        for f in ("tesis_draft", "conviccion_pre_critica", "critica"):
+            if f in thesis:
+                entry[f] = thesis[f]
+        if "_critique_violation" in thesis:
+            entry["_critique_violation"] = thesis["_critique_violation"]
         if "_parse_error" in thesis:
             entry["_parse_error"] = thesis["_parse_error"]
         if "_error" in thesis:
@@ -442,6 +522,9 @@ def run(
                     "riesgos": a.get("riesgos", []),
                     "precio_objetivo": a.get("precio_objetivo"),
                     "conviccion": a.get("conviccion"),
+                    # Preservar campos del self-critique si estaban en el prev JSON
+                    **{k: a[k] for k in ("tesis_draft", "conviccion_pre_critica", "critica")
+                       if k in a},
                 },
                 "cost_usd": a.get("cost_usd", 0),
                 "usage": a.get("usage"),

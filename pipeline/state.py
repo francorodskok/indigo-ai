@@ -143,7 +143,7 @@ def _build_cycle_audit(
     snap: dict[str, Any] = {"cycle_id": cycle_id}
 
     if analysis_meta:
-        snap["analyst"] = {
+        analyst_block: dict[str, Any] = {
             "tesis": analysis_meta.get("tesis"),
             "riesgos": list(analysis_meta.get("riesgos") or []),
             "conviccion": analysis_meta.get("conviccion"),
@@ -151,6 +151,11 @@ def _build_cycle_audit(
             "sector": analysis_meta.get("sector"),
             "industry": analysis_meta.get("industry"),
         }
+        # Self-critique fields (schema nuevo) — sólo si están presentes
+        for f in ("tesis_draft", "conviccion_pre_critica", "critica"):
+            if f in analysis_meta and analysis_meta[f] is not None:
+                analyst_block[f] = analysis_meta[f]
+        snap["analyst"] = analyst_block
 
     if debate_meta:
         verdict = debate_meta.get("verdict") or {}
