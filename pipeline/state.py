@@ -104,6 +104,77 @@ def _index_portfolio_by_ticker(portfolio: dict[str, Any]) -> dict[str, dict]:
     return {h["ticker"]: h for h in portfolio.get("holdings", [])}
 
 
+def _index_analyses_by_ticker(analysis_data: dict[str, Any] | None) -> dict[str, dict]:
+    """
+    Indexa el output de analyst.run() por ticker.
+    El JSON tiene formato {"analyses": [{"ticker": ..., "tesis": ..., ...}, ...]}.
+    """
+    if not analysis_data:
+        return {}
+    rows = analysis_data.get("analyses") or analysis_data.get("results") or []
+    return {r["ticker"]: r for r in rows if r.get("ticker")}
+
+
+def _index_debates_by_ticker(debate_data: dict[str, Any] | None) -> dict[str, dict]:
+    """
+    Indexa el output de debate.run() por ticker.
+    El JSON tiene formato {"debates": [{"ticker": ..., "bull_argument": ..., "verdict": {...}}, ...]}.
+    """
+    if not debate_data:
+        return {}
+    rows = debate_data.get("debates") or debate_data.get("results") or []
+    return {r["ticker"]: r for r in rows if r.get("ticker")}
+
+
+def _build_cycle_audit(
+    ticker: str,
+    cycle_id: str,
+    portfolio_meta: dict | None,
+    analysis_meta: dict | None,
+    debate_meta: dict | None,
+) -> dict:
+    """
+    Construye el snapshot de auditoría completo de UN ciclo para UN ticker.
+    Captura el razonamiento entero (analyst → debate → constructor) que llevó
+    a tomar la posición. Diseñado para responder "¿por qué compramos X?".
+
+    Cualquier sub-bloque puede ser None si el dato no estuvo disponible.
+    """
+    snap: dict[str, Any] = {"cycle_id": cycle_id}
+
+    if analysis_meta:
+        snap["analyst"] = {
+            "tesis": analysis_meta.get("tesis"),
+            "riesgos": list(analysis_meta.get("riesgos") or []),
+            "conviccion": analysis_meta.get("conviccion"),
+            "precio_objetivo": analysis_meta.get("precio_objetivo"),
+            "sector": analysis_meta.get("sector"),
+            "industry": analysis_meta.get("industry"),
+        }
+
+    if debate_meta:
+        verdict = debate_meta.get("verdict") or {}
+        snap["debate"] = {
+            "bull_argument": debate_meta.get("bull_argument"),
+            "bear_argument": debate_meta.get("bear_argument"),
+            "verdict_decision": verdict.get("decision"),
+            "verdict_razon": verdict.get("razon"),
+            "conviccion_ajustada": verdict.get("conviccion_ajustada"),
+            "precio_objetivo_ajustado": verdict.get("precio_objetivo_ajustado"),
+        }
+
+    if portfolio_meta:
+        snap["constructor"] = {
+            "rationale": portfolio_meta.get("rationale"),
+            "conviction": portfolio_meta.get("conviction"),
+            "weight": portfolio_meta.get("weight"),
+            "price_target": portfolio_meta.get("price_target"),
+            "verdict_decision": portfolio_meta.get("verdict_decision"),
+        }
+
+    return snap
+
+
 def _preserve_entry_date(
     ticker: str,
     prev_holdings: list[dict],
@@ -122,11 +193,29 @@ def _preserve_entry_date(
     return today, current_cycle_id
 
 
+def _preserve_entry_audit(
+    ticker: str,
+    prev_holdings: list[dict],
+) -> dict | None:
+    """
+    Si el ticker ya estaba antes, preservar el `audit_snapshot.entry` original
+    (la tesis con la que se compró por primera vez). Para tickers nuevos
+    devuelve None y el caller arma la entry desde cero.
+    """
+    for h in prev_holdings:
+        if h["ticker"] == ticker:
+            existing = h.get("audit_snapshot") or {}
+            return existing.get("entry")
+    return None
+
+
 def sync_from_alpaca(
     alpaca_positions: list,
     account_equity: float,
     portfolio_snapshot: dict[str, Any],
     prev_state: dict[str, Any] | None = None,
+    analysis_data: dict[str, Any] | None = None,
+    debate_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Combina posiciones reales de Alpaca con metadata del portfolio recién construido.
@@ -140,6 +229,12 @@ def sync_from_alpaca(
             constructor (debe tener 'cycle_id' y 'holdings' con ticker,
             conviction, price_target, rationale, etc.).
         prev_state: estado previo (si None, se carga desde disco).
+        analysis_data: opcional. Output del analyst del mismo ciclo
+            (`outputs/analysis_*.json`). Si se provee, el `audit_snapshot`
+            captura la tesis original, riesgos y convicción del analyst.
+        debate_data: opcional. Output del debate del mismo ciclo
+            (`outputs/debate_*.json`). Si se provee, el `audit_snapshot`
+            captura bull, bear y veredicto completo.
 
     Returns:
         Nuevo dict de estado listo para save_holdings().
@@ -152,6 +247,8 @@ def sync_from_alpaca(
 
     cycle_id = portfolio_snapshot.get("cycle_id") or datetime.now(timezone.utc).date().isoformat()
     meta_by_ticker = _index_portfolio_by_ticker(portfolio_snapshot)
+    analysis_by_ticker = _index_analyses_by_ticker(analysis_data)
+    debate_by_ticker = _index_debates_by_ticker(debate_data)
 
     # Construir lista de holdings desde Alpaca (fuente de verdad).
     new_holdings = []
@@ -165,6 +262,21 @@ def sync_from_alpaca(
         meta = meta_by_ticker.get(ticker, {})
         entry_date, entry_cycle_id = _preserve_entry_date(ticker, prev_holdings, cycle_id)
 
+        # Audit snapshot — completo (analyst + debate + constructor) para este ciclo.
+        latest_audit = _build_cycle_audit(
+            ticker=ticker,
+            cycle_id=cycle_id,
+            portfolio_meta=meta,
+            analysis_meta=analysis_by_ticker.get(ticker),
+            debate_meta=debate_by_ticker.get(ticker),
+        )
+
+        # Entry audit: si la posición ya existía, preservar la tesis original
+        # con la que entró. Si es nueva en este ciclo, la entry == latest.
+        entry_audit = _preserve_entry_audit(ticker, prev_holdings)
+        if entry_audit is None:
+            entry_audit = latest_audit  # ticker nuevo
+
         new_holdings.append({
             "ticker": ticker,
             "weight": round(weight, 4),
@@ -176,8 +288,14 @@ def sync_from_alpaca(
             "last_cycle_id": cycle_id,
             "conviction_at_entry": meta.get("conviction"),
             "price_target_at_entry": meta.get("price_target"),
+            # Campos legacy (retrocompatibilidad — no romper código existente).
             "thesis_snapshot": (meta.get("rationale") or "")[:300],
             "bull_bear_verdict": meta.get("verdict_decision"),
+            # Audit trail completo (la fuente de verdad para "¿por qué compramos X?").
+            "audit_snapshot": {
+                "entry": entry_audit,
+                "latest": latest_audit,
+            },
         })
 
     # Detectar exits — tickers que estaban en prev pero ya no están.

@@ -104,6 +104,27 @@ def load_latest_portfolio(outputs_dir: Path | None = None) -> dict:
     return json.loads(latest.read_text(encoding="utf-8"))
 
 
+def _load_companion_output(stem: str, outputs_dir: Path | None = None) -> dict | None:
+    """
+    Lee el output más reciente de una etapa anterior para enriquecer el audit
+    trail. `stem` es 'analysis' o 'debate'. Devuelve None si no hay archivo.
+
+    No es bloqueante — si por algún motivo no existe el archivo (ej. primer
+    deploy donde un ciclo se ejecuta sin las etapas previas), el audit_snapshot
+    igual se construye, solo con menos campos.
+    """
+    base = outputs_dir if outputs_dir is not None else OUTPUTS_DIR
+    candidates = sorted(base.glob(f"{stem}_*.json"))
+    if not candidates:
+        return None
+    latest = candidates[-1]
+    try:
+        return json.loads(latest.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        log.warning(f"No se pudo leer {latest} para enriquecer audit: {e}")
+        return None
+
+
 # ── Estado actual de la cuenta ────────────────────────────────────────────────
 
 def fetch_current_state(client=None) -> dict:
@@ -517,20 +538,28 @@ def run(
     # 9. Sincronizar memoria entre ciclos (Paso D).
     # Fuente de verdad = Alpaca (qué posiciones quedaron, con qué avg_cost);
     # el portfolio JSON aporta metadata (conviction, price_target, rationale).
+    # Adicionalmente cargamos los outputs de analyst y debate del mismo ciclo
+    # para construir el audit trail completo (¿por qué compramos X?).
     try:
         client = get_trading_client()
         positions = client.get_all_positions()
         equity = float(client.get_account().equity)
+        analysis_data = _load_companion_output("analysis", base)
+        debate_data = _load_companion_output("debate", base)
         updated_state = sync_from_alpaca(
             alpaca_positions=positions,
             account_equity=equity,
             portfolio_snapshot=portfolio,
+            analysis_data=analysis_data,
+            debate_data=debate_data,
         )
         save_holdings(updated_state)
         log.info(
             f"Memoria entre ciclos sincronizada: "
             f"{len(updated_state['holdings'])} posiciones, "
-            f"{len(updated_state['history'])} eventos en historial."
+            f"{len(updated_state['history'])} eventos en historial. "
+            f"Audit trail: analyst={'ok' if analysis_data else 'missing'}, "
+            f"debate={'ok' if debate_data else 'missing'}."
         )
     except Exception as e:
         # No abortar el ciclo si la memoria falla — el executor ya hizo su trabajo.

@@ -261,6 +261,218 @@ class TestSyncFromAlpaca:
         assert result["holdings"][0]["weight"] == 0.0
 
 
+# ── Audit trail (ADR 2026-04-24) ─────────────────────────────────────────────
+
+@pytest.fixture
+def analysis_data():
+    """Output sintético de analyst.run() para testing del audit trail."""
+    return {
+        "generated_at": "2026-04-22T12:00:00+00:00",
+        "model": "claude-sonnet-4-6",
+        "analyses": [
+            {
+                "ticker": "CPRT",
+                "name": "Copart",
+                "sector": "Industrials",
+                "industry": "Specialty Business Services",
+                "tesis": "Duopoly capital-light con efectos de red bidireccionales y moat de densidad geográfica.",
+                "riesgos": ["regulación EV", "consolidación aseguradoras", "valuación estirada"],
+                "precio_objetivo": 62.0,
+                "conviccion": 8,
+            },
+            {
+                "ticker": "GRMN",
+                "name": "Garmin",
+                "sector": "Technology",
+                "industry": "Hardware",
+                "tesis": "Líder en aviación y marine con switching costs altos.",
+                "riesgos": ["Apple Watch en fitness", "single-digit growth 2024"],
+                "precio_objetivo": 220.0,
+                "conviccion": 7,
+            },
+        ],
+    }
+
+
+@pytest.fixture
+def debate_data():
+    """Output sintético de debate.run() para testing del audit trail."""
+    return {
+        "generated_at": "2026-04-22T13:00:00+00:00",
+        "debates": [
+            {
+                "ticker": "CPRT",
+                "bull_argument": "Bull pleno: duopoly con barreras estructurales, ROIC >20%, balance fortaleza extrema.",
+                "bear_argument": "Bear: valuación P/E ~30x, sin margen de seguridad explícito a precio actual.",
+                "verdict": {
+                    "decision": "comprar",
+                    "conviccion_ajustada": 8,
+                    "razon": "Margen de seguridad del ~15% validado, moat durable, balance fortaleza.",
+                    "precio_objetivo_ajustado": 62.0,
+                },
+            },
+            {
+                "ticker": "GRMN",
+                "bull_argument": "Bull: aviación tiene moat FAA, ROIC sostenido.",
+                "bear_argument": "Bear: fitness 35% revenue compite con Apple Watch.",
+                "verdict": {
+                    "decision": "no_invertir",
+                    "conviccion_ajustada": 7,
+                    "razon": "No existe margen de seguridad del 15% requerido por sección 4.3 a $265.",
+                    "precio_objetivo_ajustado": 220.0,
+                },
+            },
+        ],
+    }
+
+
+class TestAuditSnapshot:
+    def test_audit_includes_full_analyst_data(
+        self, portfolio_snapshot, analysis_data, debate_data,
+    ):
+        from pipeline.state import sync_from_alpaca
+        positions = [mock_position("CPRT", 8500.0, 48.20)]
+        result = sync_from_alpaca(
+            alpaca_positions=positions,
+            account_equity=100_000.0,
+            portfolio_snapshot=portfolio_snapshot,
+            prev_state={"holdings": [], "history": []},
+            analysis_data=analysis_data,
+            debate_data=debate_data,
+        )
+        h = result["holdings"][0]
+        audit = h["audit_snapshot"]
+        # Debe tener entry y latest
+        assert "entry" in audit
+        assert "latest" in audit
+        # Para ticker nuevo: entry == latest
+        assert audit["entry"] == audit["latest"]
+        # Analyst completo
+        analyst = audit["entry"]["analyst"]
+        assert "duopoly" in analyst["tesis"].lower()
+        assert len(analyst["riesgos"]) == 3
+        assert analyst["conviccion"] == 8
+        assert analyst["precio_objetivo"] == 62.0
+
+    def test_audit_includes_full_debate_data(
+        self, portfolio_snapshot, analysis_data, debate_data,
+    ):
+        from pipeline.state import sync_from_alpaca
+        positions = [mock_position("CPRT", 8500.0, 48.20)]
+        result = sync_from_alpaca(
+            alpaca_positions=positions,
+            account_equity=100_000.0,
+            portfolio_snapshot=portfolio_snapshot,
+            prev_state={"holdings": [], "history": []},
+            analysis_data=analysis_data,
+            debate_data=debate_data,
+        )
+        debate = result["holdings"][0]["audit_snapshot"]["entry"]["debate"]
+        assert "duopoly" in debate["bull_argument"]
+        assert "valuación" in debate["bear_argument"] or "valuacion" in debate["bear_argument"]
+        assert debate["verdict_decision"] == "comprar"
+        assert debate["conviccion_ajustada"] == 8
+
+    def test_audit_includes_constructor_data(
+        self, portfolio_snapshot, analysis_data, debate_data,
+    ):
+        from pipeline.state import sync_from_alpaca
+        positions = [mock_position("CPRT", 8500.0, 48.20)]
+        result = sync_from_alpaca(
+            alpaca_positions=positions,
+            account_equity=100_000.0,
+            portfolio_snapshot=portfolio_snapshot,
+            prev_state={"holdings": [], "history": []},
+            analysis_data=analysis_data,
+            debate_data=debate_data,
+        )
+        constructor = result["holdings"][0]["audit_snapshot"]["entry"]["constructor"]
+        assert constructor["conviction"] == 8
+        assert constructor["weight"] == 0.085
+        assert "duopoly" in constructor["rationale"]
+
+    def test_audit_works_without_analysis_or_debate(self, portfolio_snapshot):
+        """Si analysis/debate no están, el audit igual se construye con constructor."""
+        from pipeline.state import sync_from_alpaca
+        positions = [mock_position("CPRT", 8500.0, 48.20)]
+        result = sync_from_alpaca(
+            alpaca_positions=positions,
+            account_equity=100_000.0,
+            portfolio_snapshot=portfolio_snapshot,
+            prev_state={"holdings": [], "history": []},
+        )
+        audit = result["holdings"][0]["audit_snapshot"]
+        # Sin analysis ni debate, solo constructor
+        assert "constructor" in audit["entry"]
+        assert "analyst" not in audit["entry"]
+        assert "debate" not in audit["entry"]
+
+    def test_entry_audit_preserved_across_cycles(
+        self, portfolio_snapshot, analysis_data, debate_data,
+    ):
+        """
+        Si una posición sobrevive al ciclo siguiente, el audit_snapshot.entry
+        debe mantener la tesis original con la que se compró por primera vez.
+        """
+        from pipeline.state import sync_from_alpaca
+        # Estado previo: CPRT ya tiene un entry_audit
+        prev_entry_audit = {
+            "cycle_id": "2026-01-15",
+            "analyst": {"tesis": "TESIS ORIGINAL DEL CICLO 1", "conviccion": 7},
+            "constructor": {"rationale": "construcción original", "conviction": 7},
+        }
+        prev = {
+            "holdings": [{
+                "ticker": "CPRT",
+                "weight": 0.08,
+                "entry_date": "2026-01-15",
+                "entry_cycle_id": "2026-01-15",
+                "audit_snapshot": {
+                    "entry": prev_entry_audit,
+                    "latest": prev_entry_audit,
+                },
+            }],
+            "history": [],
+        }
+        positions = [mock_position("CPRT", 9000.0, 50.0)]
+        result = sync_from_alpaca(
+            alpaca_positions=positions,
+            account_equity=100_000.0,
+            portfolio_snapshot=portfolio_snapshot,
+            prev_state=prev,
+            analysis_data=analysis_data,
+            debate_data=debate_data,
+        )
+        audit = result["holdings"][0]["audit_snapshot"]
+        # Entry debe preservar la tesis original
+        assert audit["entry"]["analyst"]["tesis"] == "TESIS ORIGINAL DEL CICLO 1"
+        assert audit["entry"]["cycle_id"] == "2026-01-15"
+        # Latest debe tener la nueva tesis
+        assert "duopoly" in audit["latest"]["analyst"]["tesis"].lower()
+        assert audit["latest"]["cycle_id"] == "2026-04-22"
+
+    def test_legacy_fields_preserved_for_backward_compat(
+        self, portfolio_snapshot, analysis_data, debate_data,
+    ):
+        """thesis_snapshot truncado y bull_bear_verdict siguen escribiéndose."""
+        from pipeline.state import sync_from_alpaca
+        positions = [mock_position("CPRT", 8500.0, 48.20)]
+        result = sync_from_alpaca(
+            alpaca_positions=positions,
+            account_equity=100_000.0,
+            portfolio_snapshot=portfolio_snapshot,
+            prev_state={"holdings": [], "history": []},
+            analysis_data=analysis_data,
+            debate_data=debate_data,
+        )
+        h = result["holdings"][0]
+        # Legacy fields aún presentes
+        assert "thesis_snapshot" in h
+        assert "bull_bear_verdict" in h
+        assert h["bull_bear_verdict"] == "CONVICTION BUY"
+        assert "duopoly" in h["thesis_snapshot"]
+
+
 # ── formato del bloque del prompt ────────────────────────────────────────────
 
 class TestFormatHoldingsBlock:
