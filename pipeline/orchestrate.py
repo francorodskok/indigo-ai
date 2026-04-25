@@ -37,6 +37,8 @@ from pipeline.cycle_lock import CycleLockedError, cycle_lock
 from pipeline.killswitch import can_run_cycle
 from pipeline.state import load_current_holdings
 
+OUTPUTS_DIR = Path(__file__).parent / "outputs"
+
 log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).parent.parent
@@ -257,6 +259,11 @@ def run(
         for r in results:
             log.info(f"  · {r.to_dict()}")
 
+        # Dashboard + alertas (post-cycle, no bloqueantes)
+        cycle_id = date.today().isoformat()
+        _generate_dashboard_safely()
+        _maybe_send_alerts(results, cycle_id=cycle_id)
+
     # ── Post-mortem (cadencia independiente, 90d) ────────────────────────────
     # Convive con el ciclo: si ambos toca, corren los dos el mismo día.
     # Si solo toca post-mortem (y no el ciclo), igual corre.
@@ -264,6 +271,42 @@ def run(
 
     # Exit 0 siempre para no trigger retry loop de Fly.
     return 0
+
+
+def _generate_dashboard_safely() -> None:
+    """
+    Genera el dashboard HTML al final del ciclo. Nunca raise — el dashboard
+    es read-only sobre los outputs ya escritos.
+    """
+    try:
+        from pipeline.dashboard import generate_dashboard
+        path = generate_dashboard()
+        log.info(f"Dashboard regenerado: {path}")
+    except Exception as e:
+        log.error(f"Error generando dashboard (no bloqueante): {e}")
+
+
+def _maybe_send_alerts(results: list, *, cycle_id: str) -> None:
+    """
+    Lee el último execution_report y dispara email si hay stage failures
+    o drifts materiales. No bloquea — fallos de SMTP solo se loggean.
+    """
+    try:
+        from pipeline.alerts import maybe_alert_cycle
+        # Cargar el execution_report del ciclo si existe.
+        report_path = OUTPUTS_DIR / f"execution_report_{cycle_id}.json"
+        report = None
+        if report_path.exists():
+            try:
+                import json as _json
+                report = _json.loads(report_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as e:
+                log.warning(f"No se pudo leer {report_path}: {e}")
+        attempted = maybe_alert_cycle(results, report, cycle_id=cycle_id)
+        if attempted:
+            log.info("Alerta intentada (ver log SMTP arriba para resultado).")
+    except Exception as e:
+        log.error(f"Error evaluando alertas (no bloqueante): {e}")
 
 
 def _report_postmortem_status() -> None:
