@@ -57,15 +57,33 @@ export function EquityChart({ history }: Props) {
     );
   }
 
-  const indigoSeries = history.map((e) => e.equity_usd ?? null);
-  const spySeries = history.map((e) => e.spy_close ?? null);
-  const qqqSeries = history.map((e) => e.qqq_close ?? null);
+  // Truncar al primer día donde Indigo tiene equity > 0 — así las 3 series
+  // arrancan en 100 el mismo día y la comparación es apples-to-apples.
+  // Si Indigo no tiene equity en ningún día, mostramos SPY/QQQ desde el inicio
+  // (mejor algo que nada).
+  let firstIndigoIdx = history.findIndex(
+    (e) => e.equity_usd != null && e.equity_usd > 0,
+  );
+  if (firstIndigoIdx < 0) firstIndigoIdx = 0;
+  const window = history.slice(firstIndigoIdx);
+
+  if (window.length < 2) {
+    return (
+      <div className="border border-dashed border-[color:var(--border)] rounded-lg h-72 flex items-center justify-center text-sm text-[color:var(--muted)]">
+        Sólo {window.length} día con equity — necesitamos ≥2 para graficar.
+      </div>
+    );
+  }
+
+  const indigoSeries = window.map((e) => e.equity_usd ?? null);
+  const spySeries = window.map((e) => e.spy_close ?? null);
+  const qqqSeries = window.map((e) => e.qqq_close ?? null);
 
   const indigoRebased = rebaseTo100(indigoSeries);
   const spyRebased = rebaseTo100(spySeries);
   const qqqRebased = rebaseTo100(qqqSeries);
 
-  const data: ChartPoint[] = history.map((e, i) => ({
+  const data: ChartPoint[] = window.map((e, i) => ({
     date: e.date,
     indigo: indigoRebased[i],
     spy: spyRebased[i],

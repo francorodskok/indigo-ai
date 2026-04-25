@@ -71,6 +71,48 @@ export async function getLatestAnalysis(): Promise<AnalysisFile | null> {
   }
 }
 
+// Lista todos los archivos `portfolio_YYYY-MM-DD.json` (más recientes primero),
+// devolviendo el `_dateISO` y el `generated_at` de cada uno. Útil para la
+// página `/cycles` que muestra el historial entero. Lectura barata: una pasada
+// + parse de cada archivo (no son grandes — ~10-50KB c/u).
+export async function listPortfolioCycles(): Promise<PortfolioFile[]> {
+  const files = await listFiles(OUTPUTS_DIR);
+  const candidates = files
+    .filter((f) => f.startsWith("portfolio_") && f.endsWith(".json"))
+    .map((f) => {
+      const m = f.match(DATE_RE);
+      return m ? { file: f, date: m[1] } : null;
+    })
+    .filter((x): x is { file: string; date: string } => x !== null)
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
+
+  const out: PortfolioFile[] = [];
+  for (const c of candidates) {
+    const full = path.join(OUTPUTS_DIR, c.file);
+    try {
+      const raw = await fs.readFile(full, "utf8");
+      const parsed = safeJsonParse<Partial<PortfolioFile>>(raw);
+      out.push({
+        generated_at: parsed.generated_at ?? "",
+        holdings: parsed.holdings ?? [],
+        cash_weight: parsed.cash_weight,
+        decision_summary: parsed.decision_summary,
+        macro_concerns: parsed.macro_concerns,
+        validated: parsed.validated,
+        model: parsed.model,
+        cycle_id: parsed.cycle_id,
+        previous_cycle_id: parsed.previous_cycle_id,
+        exits: parsed.exits,
+        _filePath: full,
+        _dateISO: c.date,
+      });
+    } catch {
+      // Skip parse errors silently.
+    }
+  }
+  return out;
+}
+
 export async function getLatestPortfolio(): Promise<PortfolioFile | null> {
   const files = await listFiles(OUTPUTS_DIR);
   const chosen = pickLatestByDate(files, "portfolio_", ".json");
@@ -173,4 +215,59 @@ export async function getLatestOutputTimestamp(): Promise<string | null> {
   if (candidates.length === 0) return null;
   candidates.sort();
   return candidates[candidates.length - 1];
+}
+
+export type CostStats = {
+  total_usd: number;
+  by_role: Record<string, number>;     // { analyst: 12.34, bull: 5.67, ... }
+  by_model: Record<string, number>;    // { "claude-sonnet-4-6": ..., ... }
+  n_calls: number;
+  first_ts: string | null;
+  last_ts: string | null;
+};
+
+/**
+ * Suma el cost_log.jsonl entero. Útil para footer "total gastado en API".
+ * Cada línea: { ts, role, model, cost_usd, ... }.
+ */
+export async function getCostStats(): Promise<CostStats> {
+  const full = path.join(OUTPUTS_DIR, "cost_log.jsonl");
+  const stats: CostStats = {
+    total_usd: 0,
+    by_role: {},
+    by_model: {},
+    n_calls: 0,
+    first_ts: null,
+    last_ts: null,
+  };
+  let raw: string;
+  try {
+    raw = await fs.readFile(full, "utf8");
+  } catch {
+    return stats;
+  }
+  const lines = raw.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  for (const line of lines) {
+    try {
+      const sanitized = line.replace(/\bNaN\b/g, "null");
+      const e = JSON.parse(sanitized) as {
+        ts?: string;
+        role?: string;
+        model?: string;
+        cost_usd?: number;
+      };
+      const c = typeof e.cost_usd === "number" ? e.cost_usd : 0;
+      stats.total_usd += c;
+      if (e.role) stats.by_role[e.role] = (stats.by_role[e.role] ?? 0) + c;
+      if (e.model) stats.by_model[e.model] = (stats.by_model[e.model] ?? 0) + c;
+      stats.n_calls += 1;
+      if (e.ts) {
+        if (!stats.first_ts || e.ts < stats.first_ts) stats.first_ts = e.ts;
+        if (!stats.last_ts || e.ts > stats.last_ts) stats.last_ts = e.ts;
+      }
+    } catch {
+      // Skip malformed lines silently.
+    }
+  }
+  return stats;
 }

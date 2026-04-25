@@ -7,6 +7,7 @@ import { getNavHistory, spanInDays } from "@/lib/nav";
 import { computeSummary } from "@/lib/metrics";
 import { EquityChart } from "@/components/EquityChart";
 import { MetricCard } from "@/components/MetricCard";
+import { SectorBreakdown } from "@/components/SectorBreakdown";
 import type { Analysis, Debate, DebateVerdict, HoldingAction } from "@/lib/types";
 
 export const revalidate = 3600;
@@ -144,12 +145,24 @@ export default async function HomePage() {
     .slice()
     .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0));
 
-  // Métricas de portfolio — series alineadas (mismo length que navHistory).
-  const portfolioSeries = navHistory.map((e) => e.equity_usd ?? null);
-  const spySeries = navHistory.map((e) => e.spy_close ?? null);
-  const navSpan = spanInDays(navHistory);
+  // Map ticker → sector para el sector breakdown.
+  const sectorByTicker = new Map<string, string | undefined>();
+  for (const a of analysis?.analyses ?? []) {
+    sectorByTicker.set(a.ticker, a.sector);
+  }
+
+  // Métricas de portfolio — sólo computamos sobre el window donde Indigo tiene
+  // equity > 0 (mismo criterio que el chart). Si no hay equity en ningún día,
+  // las métricas no aplican.
+  const firstIndigoIdx = navHistory.findIndex(
+    (e) => e.equity_usd != null && e.equity_usd > 0,
+  );
+  const navWindow = firstIndigoIdx >= 0 ? navHistory.slice(firstIndigoIdx) : [];
+  const portfolioSeries = navWindow.map((e) => e.equity_usd ?? null);
+  const spySeries = navWindow.map((e) => e.spy_close ?? null);
+  const navSpan = spanInDays(navWindow);
   const summary = computeSummary(portfolioSeries, spySeries, navSpan);
-  const hasNavData = navHistory.length >= 2;
+  const hasNavData = navWindow.length >= 2;
   const lastNavEntry = navHistory.length > 0 ? navHistory[navHistory.length - 1] : null;
 
   return (
@@ -224,6 +237,18 @@ export default async function HomePage() {
         <h2 className="text-lg font-semibold mb-3">Curva de equity</h2>
         <EquityChart history={navHistory} />
       </section>
+
+      {/* Distribución por sector */}
+      {sortedHoldings.length > 0 && (
+        <section>
+          <h2 className="text-lg font-semibold mb-3">Distribución por sector</h2>
+          <SectorBreakdown
+            holdings={sortedHoldings}
+            sectorByTicker={sectorByTicker}
+            cashWeight={portfolio?.cash_weight}
+          />
+        </section>
+      )}
 
       {/* Tabla de pesos */}
       <section>

@@ -145,6 +145,58 @@ def _default_alpaca_equity_fetcher() -> float:
     return float(account.equity)
 
 
+def _default_alpaca_equity_history_fetcher(
+    start: date,
+    end: date,
+) -> dict[str, float]:
+    """
+    Fetcher histórico del equity desde Alpaca via `get_portfolio_history`.
+    Devuelve un dict {YYYY-MM-DD: equity_usd} para los días en [start, end].
+
+    Endpoint: /v2/account/portfolio/history (timeframe=1D).
+    Devuelve `{}` si Alpaca no tiene historia (cuenta nueva, etc.).
+    """
+    from pipeline.executor import get_trading_client
+
+    try:
+        from alpaca.trading.requests import GetPortfolioHistoryRequest
+    except ImportError as e:
+        log.error("alpaca-py no expone GetPortfolioHistoryRequest: %s", e)
+        return {}
+
+    client = get_trading_client()
+
+    req = GetPortfolioHistoryRequest(
+        date_start=start,
+        date_end=end,
+        timeframe="1D",
+        extended_hours=False,
+    )
+    try:
+        history = client.get_portfolio_history(req)
+    except Exception as e:
+        log.error("get_portfolio_history falló: %s", e)
+        return {}
+
+    timestamps = getattr(history, "timestamp", None) or []
+    equities = getattr(history, "equity", None) or []
+    if not timestamps or not equities:
+        log.warning("Alpaca portfolio_history vacío para %s..%s", start, end)
+        return {}
+
+    out: dict[str, float] = {}
+    for ts, eq in zip(timestamps, equities):
+        if eq is None or eq <= 0:
+            continue
+        # `ts` es unix epoch (seconds). Convertir a date UTC.
+        try:
+            d = datetime.fromtimestamp(int(ts), tz=timezone.utc).date()
+        except (TypeError, ValueError, OSError):
+            continue
+        out[d.isoformat()] = round(float(eq), 2)
+    return out
+
+
 def _default_benchmark_close_fetcher(ticker: str, target_date: date) -> float | None:
     """
     Fetcher real de un cierre de un benchmark. Para una fecha dada, devuelve
@@ -342,6 +394,81 @@ def backfill(
     return updated, skipped
 
 
+def backfill_from_alpaca(
+    start: date,
+    end: date | None = None,
+    *,
+    equity_history_fetcher: Callable[[date, date], dict[str, float]] | None = None,
+    benchmark_fetcher: Callable[[str, date], float | None] | None = None,
+    force: bool = False,
+    history_path: Path | None = None,
+) -> tuple[int, int]:
+    """
+    Backfill robusto: usa Alpaca portfolio_history para equity histórico real
+    (a diferencia de `backfill`, que sólo usa el equity actual para `end`).
+
+    Para cada día hábil en [start, end]:
+      - Si ya hay entry y `force=False`, salta.
+      - Si no, escribe entry con equity de Alpaca (si disponible) + benchmarks.
+        Días sin equity (ej. fin de semana, feriado) se escriben con
+        `equity_usd=null` pero los benchmarks (que tampoco existen) también.
+
+    Returns:
+        (fechas_actualizadas, fechas_saltadas)
+    """
+    if end is None:
+        end = datetime.now(timezone.utc).date()
+    if start > end:
+        raise ValueError(f"start ({start}) debe ser <= end ({end})")
+
+    eq_hist_fn = equity_history_fetcher or _default_alpaca_equity_history_fetcher
+    bm_fn = benchmark_fetcher or _default_benchmark_close_fetcher
+
+    log.info("backfill_from_alpaca: pidiendo portfolio history %s..%s", start, end)
+    equity_by_date = eq_hist_fn(start, end)
+    log.info("backfill_from_alpaca: %d días con equity de Alpaca", len(equity_by_date))
+
+    history = load_history(history_path)
+    by_date = {e["date"]: e for e in history}
+
+    updated = 0
+    skipped = 0
+
+    for d in _daterange(start, end):
+        # Saltar fines de semana — los benchmarks no operan.
+        if d.weekday() >= 5:
+            skipped += 1
+            continue
+
+        key = d.isoformat()
+        if key in by_date and not force:
+            skipped += 1
+            continue
+
+        entry: dict[str, Any] = {"date": key}
+        if key in equity_by_date:
+            entry["equity_usd"] = equity_by_date[key]
+        elif key in by_date and "equity_usd" in by_date[key]:
+            # Force=True pero Alpaca no devolvió ese día — preservar el existente.
+            entry["equity_usd"] = by_date[key]["equity_usd"]
+
+        for ticker in BENCHMARK_TICKERS:
+            try:
+                close = bm_fn(ticker, d)
+            except Exception as e:
+                log.warning("[backfill %s] %s falló: %s", d, ticker, e)
+                close = None
+            entry[f"{ticker.lower()}_close"] = round(float(close), 4) if close is not None else None
+
+        by_date[key] = entry
+        updated += 1
+
+    new_history = list(by_date.values())
+    _write_history(new_history, history_path)
+    log.info("backfill_from_alpaca: %d actualizadas, %d saltadas", updated, skipped)
+    return updated, skipped
+
+
 # ── CLI entry point ──────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -359,13 +486,25 @@ if __name__ == "__main__":
         help="Rellenar benchmarks desde esta fecha hasta hoy (no toca equity histórico).",
     )
     parser.add_argument(
+        "--backfill-from-alpaca",
+        metavar="YYYY-MM-DD",
+        help="Backfill usando portfolio_history de Alpaca (equity histórico real).",
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="(con --backfill) Sobrescribe entries existentes.",
     )
     args = parser.parse_args()
 
-    if args.backfill:
+    if args.backfill_from_alpaca:
+        try:
+            start_d = datetime.strptime(args.backfill_from_alpaca, "%Y-%m-%d").date()
+        except ValueError:
+            parser.error(f"--backfill-from-alpaca debe ser YYYY-MM-DD, recibido: {args.backfill_from_alpaca}")
+        u, s = backfill_from_alpaca(start_d, force=args.force)
+        print(f"Backfill (Alpaca): {u} entries actualizadas, {s} saltadas.")
+    elif args.backfill:
         try:
             start_d = datetime.strptime(args.backfill, "%Y-%m-%d").date()
         except ValueError:
