@@ -1,28 +1,54 @@
 """
 debate.py — Paso 7: debate bull-bear para los TOP N tickers por convicción.
 
+Default: **modo batch** (Sonnet 4.6 + Anthropic Message Batches API, 50% off).
+ADR 2026-04-25: migramos Opus 4.7 → Sonnet 4.6 + Batch para reducir costo ~70%
+sin pérdida de calidad observable. La estructura es de dos fases secuenciales:
+
+  Fase 1 — Bull + Bear (un solo batch, 30 requests para 15 tickers)
+  Fase 2 — Síntesis (un solo batch, 15 requests con bull+bear ya como input)
+
+Cada fase hace polling hasta que el batch termina (~10-30 min). El orchestrator
+está diseñado para correr desatendido; la latencia adicional es aceptable.
+
+Modos disponibles:
+  python -m pipeline.debate                     # batch real (default)
+  python -m pipeline.debate --dry-run           # sin API, estructura mock
+  python -m pipeline.debate --sequential        # síncrono (debug, costo ~2× batch)
+  python -m pipeline.debate --top-n N           # cuántos tickers debatir
+
 Flujo:
   1. Lee el JSON de análisis más reciente de pipeline/outputs/
   2. Toma los TOP N tickers por campo `conviccion`
-  3. Para cada ticker: llama a Claude en paralelo (bull + bear) usando ThreadPoolExecutor
-  4. Luego llama a Claude una vez más (analyst) para sintetizar el veredicto
-  5. Guarda pipeline/outputs/debate_YYYY-MM-DD.json ordenado por conviccion_ajustada desc
+  3. Default: corre las dos fases batch.
+     Sequential: bull+bear paralelo (ThreadPool) + síntesis secuencial por ticker.
+  4. Guarda pipeline/outputs/debate_YYYY-MM-DD.json ordenado por
+     conviccion_ajustada desc.
 
-Regla dura: ningún valor hardcodeado — todo viene de config.py o las constantes de este módulo.
+Regla dura: ningún valor hardcodeado — todo viene de config.py o las constantes
+de este módulo.
 """
 
 import json
 import logging
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from pipeline.claude_client import call_agent
+import anthropic
+
+from pipeline.claude_client import (
+    _estimate_cost,  # helper interno: convierte Usage → USD
+    call_agent,
+    get_client,
+    get_philosophy,
+)
 from pipeline.config import (
-    ANALYST_MODEL,
     ANALYST_EFFORT,
+    ANALYST_MODEL,
     DEBATE_EFFORT,
     DEBATE_MODEL,
     DEBATE_TOP_N,
@@ -34,10 +60,20 @@ log = logging.getLogger(__name__)
 
 OUTPUTS_DIR = Path(__file__).parent / "outputs"
 
-# ThreadPoolExecutor workers para bull+bear en paralelo
+# ThreadPoolExecutor workers para bull+bear en paralelo (modo sequential)
 DEBATE_WORKERS = 4
 
-# System suffix para cada rol
+# Cuántos requests por batch HTTP. Cada request lleva ~800k chars de filosofía
+# en system. 15 requests ≈ 12MB. Mantenemos 5/batch para bull+bear (30 reqs total
+# en 6 batches), igual que en analyst.py, para evitar 502s.
+BATCH_CHUNK_SIZE = 5
+
+# Tokens máximos del output por request (bull/bear ~300 palabras → ~700 tokens;
+# síntesis JSON ~ 200 tokens). Damos holgura.
+DEBATE_BATCH_MAX_TOKENS = 1_500
+SYNTHESIS_BATCH_MAX_TOKENS = 800
+
+# System suffix para cada rol — los mismos para batch y sequential.
 BULL_SUFFIX = (
     "Sos el abogado del diablo optimista. Argumentá con datos concretos por qué esta empresa "
     "merece ser comprada. Sé específico sobre el moat, el crecimiento y la valuación. "
@@ -53,6 +89,7 @@ ANALYST_SUFFIX = (
     'sin texto adicional: {"decision": "comprar"|"no_invertir"|"posicion_pequeña", '
     '"conviccion_ajustada": <1-10>, "razon": "<párrafo>", "precio_objetivo_ajustado": <número>}'
 )
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -102,15 +139,6 @@ def build_debate_prompt(ticker_data: dict) -> str:
 
     riesgos_str = "\n".join(f"  - {r}" for r in riesgos) if riesgos else "  - No especificados"
 
-    prompt = (
-        f"TICKER: {ticker} ({name})\n"
-        f"SECTOR: {sector}\n"
-        f"MARKET CAP: {market_cap:,.0f} USD\n" if isinstance(market_cap, (int, float)) else
-        f"TICKER: {ticker} ({name})\n"
-        f"SECTOR: {sector}\n"
-        f"MARKET CAP: {market_cap}\n"
-    )
-    # Re-build cleanly to avoid the conditional expression issue
     market_cap_str = (
         f"{market_cap:,.0f} USD" if isinstance(market_cap, (int, float)) else str(market_cap)
     )
@@ -136,7 +164,6 @@ def _parse_verdict(content: str) -> dict:
     Extrae el JSON del veredicto desde el contenido de la respuesta del analista.
     Tolera texto extra antes/después del JSON.
     """
-    # Buscar JSON en el contenido
     match = re.search(r'\{[^{}]*"decision"[^{}]*\}', content, re.DOTALL)
     if match:
         try:
@@ -144,14 +171,12 @@ def _parse_verdict(content: str) -> dict:
         except json.JSONDecodeError:
             pass
 
-    # Fallback: intentar parsear el contenido completo
     stripped = content.strip()
     try:
         return json.loads(stripped)
     except json.JSONDecodeError:
         pass
 
-    # Si todo falla, retornar estructura vacía con defaults
     log.warning("No se pudo parsear el veredicto del analista. Usando defaults.")
     return {
         "decision": "no_invertir",
@@ -161,19 +186,22 @@ def _parse_verdict(content: str) -> dict:
     }
 
 
+# ── Modo sequential (debug + dry_run) ─────────────────────────────────────────
+
+
 def _debate_one_ticker(ticker_data: dict, dry_run: bool) -> dict:
     """
-    Ejecuta el debate completo para un único ticker:
+    Ejecuta el debate completo para un único ticker en modo síncrono.
       1. Bull + bear en paralelo (ThreadPoolExecutor local)
       2. Síntesis secuencial con analyst
     Retorna el dict con todos los campos del debate.
+
+    Sólo se usa en --sequential y --dry-run. El path por defecto es batch.
     """
     ticker = ticker_data.get("ticker", "UNKNOWN")
     prompt = build_debate_prompt(ticker_data)
 
     total_cost = 0.0
-
-    # ── Bull + bear en paralelo ───────────────────────────────────────────────
     bull_result: dict = {}
     bear_result: dict = {}
 
@@ -204,7 +232,6 @@ def _debate_one_ticker(ticker_data: dict, dry_run: bool) -> dict:
     total_cost += bull_result.get("cost_usd", 0.0)
     total_cost += bear_result.get("cost_usd", 0.0)
 
-    # ── Síntesis secuencial ───────────────────────────────────────────────────
     synthesis_prompt = (
         f"TICKER: {ticker}\n\n"
         f"ARGUMENTO BULL:\n{bull_argument}\n\n"
@@ -241,22 +268,320 @@ def _debate_one_ticker(ticker_data: dict, dry_run: bool) -> dict:
     }
 
 
+def run_sequential(tickers: list[dict], dry_run: bool = False) -> list[dict]:
+    """
+    Path síncrono: bull/bear en paralelo dentro de cada ticker, varios tickers
+    a la vez via ThreadPoolExecutor. Conserva el comportamiento previo a la
+    migración batch — útil para dry_run y debug.
+    """
+    total = len(tickers)
+    pending: dict[int, dict] = {}
+    with ThreadPoolExecutor(max_workers=DEBATE_WORKERS) as pool:
+        future_to_ticker = {
+            pool.submit(_debate_one_ticker, td, dry_run): (i, td.get("ticker", "?"))
+            for i, td in enumerate(tickers, start=1)
+        }
+        for future in as_completed(future_to_ticker):
+            idx, ticker_sym = future_to_ticker[future]
+            log.info(f"[{idx}/{total}] {ticker_sym} — completado")
+            try:
+                result = future.result()
+            except Exception as exc:
+                log.error(f"[{idx}/{total}] {ticker_sym} falló: {exc}")
+                result = _empty_result(ticker_sym, error=str(exc))
+            pending[idx] = result
+    return [pending[i] for i in sorted(pending.keys())]
+
+
+def _empty_result(ticker: str, error: str | None = None) -> dict:
+    """Resultado vacío para casos de error — preserva el schema."""
+    razon = f"Error durante debate: {error}" if error else "Error desconocido."
+    return {
+        "ticker": ticker,
+        "bull_argument": "",
+        "bear_argument": "",
+        "verdict": {
+            "decision": "no_invertir",
+            "conviccion_ajustada": 0,
+            "razon": razon,
+            "precio_objetivo_ajustado": 0.0,
+        },
+        "cost_usd": 0.0,
+    }
+
+
+# ── Modo batch (default) ──────────────────────────────────────────────────────
+
+
+def _build_phase1_requests(
+    tickers: list[dict], system_prompt_bull: str, system_prompt_bear: str
+) -> list[dict]:
+    """
+    Construye los requests del batch de fase 1 (bull + bear para cada ticker).
+    custom_id sigue el formato `<TICKER>__<role>` para reconstruir luego.
+    """
+    reqs: list[dict] = []
+    for td in tickers:
+        ticker = td.get("ticker", "UNKNOWN")
+        prompt = build_debate_prompt(td)
+        for role, suffix in (("bull", system_prompt_bull), ("bear", system_prompt_bear)):
+            reqs.append(
+                {
+                    "custom_id": f"{ticker}__{role}",
+                    "params": {
+                        "model": DEBATE_MODEL,
+                        "max_tokens": DEBATE_BATCH_MAX_TOKENS,
+                        "system": [
+                            {
+                                "type": "text",
+                                "text": suffix,
+                                "cache_control": {"type": "ephemeral"},
+                            }
+                        ],
+                        "messages": [{"role": "user", "content": prompt}],
+                    },
+                }
+            )
+    return reqs
+
+
+def _build_phase2_requests(
+    bull_bear_by_ticker: dict[str, dict[str, str]],
+    system_prompt_synthesis: str,
+) -> list[dict]:
+    """
+    Construye los requests del batch de fase 2 (síntesis), usando los outputs
+    bull/bear de la fase 1 como input.
+    """
+    reqs: list[dict] = []
+    for ticker, parts in bull_bear_by_ticker.items():
+        synthesis_prompt = (
+            f"TICKER: {ticker}\n\n"
+            f"ARGUMENTO BULL:\n{parts.get('bull', '')}\n\n"
+            f"ARGUMENTO BEAR:\n{parts.get('bear', '')}\n\n"
+            "Producí el veredicto final en JSON."
+        )
+        reqs.append(
+            {
+                "custom_id": f"{ticker}__synthesis",
+                "params": {
+                    "model": ANALYST_MODEL,
+                    "max_tokens": SYNTHESIS_BATCH_MAX_TOKENS,
+                    "system": [
+                        {
+                            "type": "text",
+                            "text": system_prompt_synthesis,
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ],
+                    "messages": [{"role": "user", "content": synthesis_prompt}],
+                },
+            }
+        )
+    return reqs
+
+
+def _submit_batches(
+    client: anthropic.Anthropic, requests: list[dict], chunk_size: int = BATCH_CHUNK_SIZE
+) -> list[str]:
+    """
+    Envía los requests al Batch API en chunks (evita HTTP request bodies de >10MB).
+    Retry hasta 3 veces ante errores transitorios. Retorna lista de batch_ids.
+    """
+    chunks = [requests[i:i + chunk_size] for i in range(0, len(requests), chunk_size)]
+    batch_ids: list[str] = []
+    for i, chunk in enumerate(chunks, 1):
+        custom_ids = [r["custom_id"] for r in chunk]
+        log.info(f"Enviando chunk {i}/{len(chunks)}: {custom_ids}")
+        for attempt in range(3):
+            try:
+                batch = client.messages.batches.create(requests=chunk)
+                log.info(f"  → batch_id={batch.id} estado={batch.processing_status}")
+                batch_ids.append(batch.id)
+                break
+            except Exception as e:
+                if attempt == 2:
+                    raise
+                log.warning(f"  Intento {attempt+1} fallido ({type(e).__name__}), reintentando…")
+                time.sleep(3)
+    return batch_ids
+
+
+def _poll_batches(
+    client: anthropic.Anthropic, batch_ids: list[str], poll_interval: int
+) -> list[Any]:
+    """
+    Espera a que TODOS los batches terminen y retorna la lista consolidada de
+    `result` objects (uno por request). El caller decide qué hacer con cada
+    custom_id según el rol.
+    """
+    log.info(f"Polling {len(batch_ids)} batches…")
+    all_results: list[Any] = []
+    for batch_id in batch_ids:
+        while True:
+            batch = client.messages.batches.retrieve(batch_id)
+            counts = batch.request_counts
+            done = counts.succeeded + counts.errored + counts.canceled + counts.expired
+            total = done + counts.processing
+            log.info(f"  [{batch_id[:20]}] {batch.processing_status} — {done}/{total}")
+            if batch.processing_status == "ended":
+                break
+            time.sleep(poll_interval)
+        for result in client.messages.batches.results(batch_id):
+            all_results.append(result)
+        log.info(f"  Batch {batch_id[:20]} completado.")
+    return all_results
+
+
+def _extract_text(message_content: list) -> str:
+    """Concatena los bloques de texto de un mensaje de la API."""
+    return " ".join(
+        block.text for block in message_content if hasattr(block, "text")
+    )
+
+
+def _process_phase1(results: list[Any], tickers: list[dict]) -> tuple[dict, float]:
+    """
+    Toma los results del batch fase 1 (bull + bear) y devuelve:
+      - dict {ticker: {"bull": text, "bear": text}}
+      - costo total (estimado por usage)
+    Tickers con bull o bear faltante se reportan como warning pero igual pasan
+    a la fase 2 con el lado faltante en string vacío. El veredicto reflejará
+    eso o caerá al fallback.
+    """
+    bull_bear: dict[str, dict[str, str]] = {td["ticker"]: {} for td in tickers}
+    cost = 0.0
+    for r in results:
+        custom_id = r.custom_id
+        if "__" not in custom_id:
+            log.warning(f"custom_id inesperado en fase 1: {custom_id}")
+            continue
+        ticker, role = custom_id.split("__", 1)
+        if r.result.type != "succeeded":
+            log.warning(f"[{ticker}__{role}] resultado tipo {r.result.type}")
+            bull_bear.setdefault(ticker, {})[role] = ""
+            continue
+        text = _extract_text(r.result.message.content)
+        bull_bear.setdefault(ticker, {})[role] = text
+        try:
+            cost += _estimate_cost(r.result.message.usage, DEBATE_MODEL) * 0.5  # batch 50% off
+        except Exception:
+            pass
+    return bull_bear, cost
+
+
+def _process_phase2(
+    results: list[Any], bull_bear: dict[str, dict[str, str]]
+) -> tuple[list[dict], float]:
+    """
+    Toma los results del batch fase 2 (síntesis) y arma la lista final de
+    debates con verdict parseado. Devuelve (debates, costo_estimado_total).
+    """
+    debates_by_ticker: dict[str, dict] = {}
+    cost = 0.0
+    for r in results:
+        custom_id = r.custom_id
+        if "__" not in custom_id:
+            log.warning(f"custom_id inesperado en fase 2: {custom_id}")
+            continue
+        ticker, role = custom_id.split("__", 1)
+        if role != "synthesis":
+            continue
+        if r.result.type != "succeeded":
+            log.warning(f"[{ticker}__synthesis] resultado tipo {r.result.type}")
+            verdict = _parse_verdict("")  # cae al fallback
+        else:
+            text = _extract_text(r.result.message.content)
+            verdict = _parse_verdict(text)
+            try:
+                cost += _estimate_cost(r.result.message.usage, ANALYST_MODEL) * 0.5
+            except Exception:
+                pass
+        parts = bull_bear.get(ticker, {})
+        debates_by_ticker[ticker] = {
+            "ticker": ticker,
+            "bull_argument": parts.get("bull", ""),
+            "bear_argument": parts.get("bear", ""),
+            "verdict": verdict,
+            # cost_usd se asigna al final (lo distribuye proporcional o en bloque).
+        }
+
+    debates = list(debates_by_ticker.values())
+    return debates, cost
+
+
+def run_batch(tickers: list[dict], poll_interval: int = 60) -> list[dict]:
+    """
+    Path batch (default): dos fases secuenciales contra Message Batches API.
+    El costo se estima a partir de Usage de cada request (con multiplicador
+    de 0.5 por el descuento del batch).
+    """
+    from pipeline.postmortem import augment_suffix
+    client = get_client()
+    philosophy = get_philosophy()
+
+    bull_system = f"{philosophy}\n\n---\n\n{augment_suffix(BULL_SUFFIX)}"
+    bear_system = f"{philosophy}\n\n---\n\n{augment_suffix(BEAR_SUFFIX)}"
+    synthesis_system = f"{philosophy}\n\n---\n\n{augment_suffix(ANALYST_SUFFIX)}"
+
+    # ── Fase 1 ──
+    log.info(f"Fase 1 (bull+bear) — {len(tickers)} tickers, {len(tickers)*2} requests")
+    phase1_reqs = _build_phase1_requests(tickers, bull_system, bear_system)
+    phase1_batch_ids = _submit_batches(client, phase1_reqs)
+    phase1_results = _poll_batches(client, phase1_batch_ids, poll_interval)
+    bull_bear, cost1 = _process_phase1(phase1_results, tickers)
+    log.info(f"Fase 1 completa — costo estimado: ${cost1:.4f}")
+
+    # ── Fase 2 ──
+    log.info(f"Fase 2 (síntesis) — {len(bull_bear)} requests")
+    phase2_reqs = _build_phase2_requests(bull_bear, synthesis_system)
+    phase2_batch_ids = _submit_batches(client, phase2_reqs)
+    phase2_results = _poll_batches(client, phase2_batch_ids, poll_interval)
+    debates, cost2 = _process_phase2(phase2_results, bull_bear)
+    log.info(f"Fase 2 completa — costo estimado: ${cost2:.4f}")
+
+    # Distribuir el costo total uniformemente entre tickers — granularidad fina
+    # quedaría artificiosa cuando el cache compartido no se atribuye 1:1.
+    total_cost = cost1 + cost2
+    if debates:
+        per_ticker = round(total_cost / len(debates), 6)
+        for d in debates:
+            d["cost_usd"] = per_ticker
+
+    # Asegurar que tickers de la entrada que no aparecieron en phase2 (errores
+    # totales) igual aparezcan como debates con error.
+    seen = {d["ticker"] for d in debates}
+    for td in tickers:
+        if td["ticker"] not in seen:
+            debates.append(_empty_result(td["ticker"], error="batch incompleto"))
+
+    return debates
+
+
 # ── Función principal ─────────────────────────────────────────────────────────
 
 
-def run(top_n: int | None = None, dry_run: bool = False) -> Path:
+def run(
+    top_n: int | None = None,
+    dry_run: bool = False,
+    sequential: bool = False,
+    poll_interval: int = 60,
+) -> Path:
     """
     Ejecuta el debate bull-bear para los top N tickers por convicción.
 
     Args:
-        top_n:    Cuántos tickers debatir. Default: DEBATE_TOP_N de config.py
-        dry_run:  Si True, no llama a la API — genera estructura vacía
+        top_n:        Cuántos tickers debatir. Default: DEBATE_TOP_N de config.py.
+        dry_run:      Si True, no llama a la API — fuerza modo sequential con dry.
+        sequential:   Si True, usa el path síncrono (debug). Si False y dry_run
+                      False, usa el path batch (default productivo).
+        poll_interval: Segundos entre polls del batch (solo modo batch).
 
     Returns:
-        Path al archivo debate_YYYY-MM-DD.json generado
+        Path al archivo debate_YYYY-MM-DD.json generado.
 
     Raises:
-        FileNotFoundError: si no existe ningún analysis_*.json
+        FileNotFoundError: si no existe ningún analysis_*.json.
     """
     if top_n is None:
         top_n = DEBATE_TOP_N
@@ -268,46 +593,19 @@ def run(top_n: int | None = None, dry_run: bool = False) -> Path:
     total = len(tickers)
     log.info(f"Debate iniciando para {total} tickers (top_n={top_n})")
 
-    results: list[dict] = []
+    # Path selection. dry_run implica sequential (no API).
+    use_batch = not (dry_run or sequential)
 
-    # Paralelizar bull+bear de los 20 tickers con máximo DEBATE_WORKERS a la vez.
-    # Cada future corresponde a un ticker completo (bull+bear+síntesis).
-    # La síntesis es secuencial dentro de _debate_one_ticker, pero el procesamiento
-    # de distintos tickers puede solaparse en bull+bear.
-    with ThreadPoolExecutor(max_workers=DEBATE_WORKERS) as pool:
-        future_to_ticker = {
-            pool.submit(_debate_one_ticker, td, dry_run): (i, td.get("ticker", "?"))
-            for i, td in enumerate(tickers, start=1)
-        }
+    if use_batch:
+        log.info("Modo: BATCH (Sonnet 4.6 + Anthropic Message Batches API, 50% off)")
+        results = run_batch(tickers, poll_interval=poll_interval)
+    else:
+        log.info(f"Modo: SEQUENTIAL (dry_run={dry_run})")
+        results = run_sequential(tickers, dry_run=dry_run)
 
-        # Recopilar en orden de completado (el sort final reordena)
-        pending: dict[int, dict] = {}  # idx -> result
-        for future in as_completed(future_to_ticker):
-            idx, ticker_sym = future_to_ticker[future]
-            log.info(f"[{idx}/{total}] {ticker_sym} — completado")
-            try:
-                result = future.result()
-            except Exception as exc:
-                log.error(f"[{idx}/{total}] {ticker_sym} falló: {exc}")
-                result = {
-                    "ticker": ticker_sym,
-                    "bull_argument": "",
-                    "bear_argument": "",
-                    "verdict": {
-                        "decision": "no_invertir",
-                        "conviccion_ajustada": 0,
-                        "razon": f"Error durante debate: {exc}",
-                        "precio_objetivo_ajustado": 0.0,
-                    },
-                    "cost_usd": 0.0,
-                }
-            pending[idx] = result
-
-    # Reordenar por idx original para tener output determinista base,
-    # luego ordenar por conviccion_ajustada desc como requiere la spec
-    results = [pending[i] for i in sorted(pending.keys())]
+    # ── Reordenar por conviccion_ajustada desc ────────────────────────────────
     results.sort(
-        key=lambda x: -x.get("verdict", {}).get("conviccion_ajustada", 0)
+        key=lambda x: -(x.get("verdict", {}).get("conviccion_ajustada") or 0)
     )
 
     # ── Guardar output ────────────────────────────────────────────────────────
@@ -317,13 +615,12 @@ def run(top_n: int | None = None, dry_run: bool = False) -> Path:
 
     total_cost = sum(r.get("cost_usd", 0.0) for r in results)
     output = {
-        "generated_at": __import__("datetime").datetime.now(
-            __import__("datetime").timezone.utc
-        ).isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "analysis_source": str(analysis_path),
         "top_n": top_n,
         "debate_model": DEBATE_MODEL,
         "analyst_model": ANALYST_MODEL,
+        "mode": "batch" if use_batch else ("dry_run" if dry_run else "sequential"),
         "total_cost_usd": round(total_cost, 6),
         "debates": results,
     }
@@ -348,8 +645,24 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Agente de debate bull-bear de Indigo AI")
     parser.add_argument("--dry-run", action="store_true", help="Sin llamadas a la API")
-    parser.add_argument("--top-n", type=int, default=None, help=f"Top N tickers por convicción (default {DEBATE_TOP_N})")
+    parser.add_argument(
+        "--sequential", action="store_true",
+        help="Llamadas síncronas (debug, costo ~2× batch)",
+    )
+    parser.add_argument(
+        "--top-n", type=int, default=None,
+        help=f"Top N tickers por convicción (default {DEBATE_TOP_N})",
+    )
+    parser.add_argument(
+        "--poll-interval", type=int, default=60,
+        help="Segundos entre polls del batch (modo batch)",
+    )
     args = parser.parse_args()
 
-    out = run(top_n=args.top_n, dry_run=args.dry_run)
+    out = run(
+        top_n=args.top_n,
+        dry_run=args.dry_run,
+        sequential=args.sequential,
+        poll_interval=args.poll_interval,
+    )
     print(f"\nDebate guardado en: {out}")

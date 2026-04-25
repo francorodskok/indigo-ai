@@ -372,7 +372,8 @@ class TestSaveDebate:
                 json.dumps(make_analysis_json(tickers_3), ensure_ascii=False),
                 encoding="utf-8",
             )
-            output_path = run(top_n=3, dry_run=False)
+            # sequential=True para usar call_agent mockeado (path batch ignora call_agent)
+            output_path = run(top_n=3, dry_run=False, sequential=True)
 
         data = json.loads(output_path.read_text(encoding="utf-8"))
         convictions = [d["verdict"]["conviccion_ajustada"] for d in data["debates"]]
@@ -417,7 +418,7 @@ class TestSaveDebate:
                 json.dumps(make_analysis_json(SAMPLE_TICKERS[:2]), ensure_ascii=False),
                 encoding="utf-8",
             )
-            output_path = run(top_n=2, dry_run=False)
+            output_path = run(top_n=2, dry_run=False, sequential=True)
 
         data = json.loads(output_path.read_text(encoding="utf-8"))
         for debate in data["debates"]:
@@ -479,6 +480,251 @@ class TestParseVerdict:
         })
         result = _parse_verdict(content)
         assert result["decision"] == "posicion_pequeña"
+
+
+# ── TestBatchPath ─────────────────────────────────────────────────────────────
+
+
+class TestBatchPath:
+    """Tests del path batch (Sonnet 4.6 + Anthropic Batches API, ADR 2026-04-25)."""
+
+    def test_build_phase1_requests_creates_bull_and_bear_per_ticker(self):
+        from pipeline.debate import _build_phase1_requests
+
+        reqs = _build_phase1_requests(SAMPLE_TICKERS[:2], "BULL", "BEAR")
+        # 2 tickers × (bull + bear) = 4 requests
+        assert len(reqs) == 4
+
+        custom_ids = sorted(r["custom_id"] for r in reqs)
+        assert custom_ids == [
+            "MSFT__bear", "MSFT__bull", "NVDA__bear", "NVDA__bull",
+        ]
+
+    def test_build_phase1_requests_uses_correct_system_per_role(self):
+        from pipeline.debate import _build_phase1_requests
+        from pipeline.config import DEBATE_MODEL
+
+        reqs = _build_phase1_requests([SAMPLE_TICKER], "BULL_SYS", "BEAR_SYS")
+        bull = next(r for r in reqs if r["custom_id"] == "NVDA__bull")
+        bear = next(r for r in reqs if r["custom_id"] == "NVDA__bear")
+        assert bull["params"]["system"][0]["text"] == "BULL_SYS"
+        assert bear["params"]["system"][0]["text"] == "BEAR_SYS"
+        assert bull["params"]["model"] == DEBATE_MODEL
+        # Cache control para reusar prefijo entre llamadas
+        assert bull["params"]["system"][0]["cache_control"] == {"type": "ephemeral"}
+
+    def test_build_phase1_requests_includes_ticker_in_user_prompt(self):
+        from pipeline.debate import _build_phase1_requests
+
+        reqs = _build_phase1_requests([SAMPLE_TICKER], "BULL", "BEAR")
+        for r in reqs:
+            user_msg = r["params"]["messages"][0]["content"]
+            assert "NVDA" in user_msg
+            assert "domina el mercado de GPUs" in user_msg
+
+    def test_build_phase2_requests_one_per_ticker(self):
+        from pipeline.debate import _build_phase2_requests
+
+        bull_bear = {
+            "NVDA": {"bull": "bull text NVDA", "bear": "bear text NVDA"},
+            "MSFT": {"bull": "bull text MSFT", "bear": "bear text MSFT"},
+        }
+        reqs = _build_phase2_requests(bull_bear, "SYNTH_SYS")
+        assert len(reqs) == 2
+        ids = sorted(r["custom_id"] for r in reqs)
+        assert ids == ["MSFT__synthesis", "NVDA__synthesis"]
+
+    def test_build_phase2_includes_bull_and_bear_in_prompt(self):
+        from pipeline.debate import _build_phase2_requests
+        from pipeline.config import ANALYST_MODEL
+
+        bull_bear = {"NVDA": {"bull": "BULL_NVDA", "bear": "BEAR_NVDA"}}
+        reqs = _build_phase2_requests(bull_bear, "SYNTH_SYS")
+        assert reqs[0]["params"]["model"] == ANALYST_MODEL
+        msg = reqs[0]["params"]["messages"][0]["content"]
+        assert "BULL_NVDA" in msg
+        assert "BEAR_NVDA" in msg
+        assert "NVDA" in msg
+
+    def _make_fake_result(self, custom_id, text, succeeded=True, usage=None):
+        """Construye un mock de un resultado del batch API."""
+        result = MagicMock()
+        result.custom_id = custom_id
+        result.result.type = "succeeded" if succeeded else "errored"
+        if succeeded:
+            block = MagicMock()
+            block.text = text
+            result.result.message.content = [block]
+            result.result.message.usage = usage or MagicMock(
+                input_tokens=1000,
+                output_tokens=500,
+                cache_creation_input_tokens=0,
+                cache_read_input_tokens=0,
+            )
+        return result
+
+    def test_process_phase1_extracts_bull_and_bear_per_ticker(self):
+        from pipeline.debate import _process_phase1
+
+        results = [
+            self._make_fake_result("NVDA__bull", "bull arg NVDA"),
+            self._make_fake_result("NVDA__bear", "bear arg NVDA"),
+            self._make_fake_result("MSFT__bull", "bull arg MSFT"),
+            self._make_fake_result("MSFT__bear", "bear arg MSFT"),
+        ]
+        bull_bear, cost = _process_phase1(results, SAMPLE_TICKERS[:2])
+        assert bull_bear["NVDA"]["bull"] == "bull arg NVDA"
+        assert bull_bear["NVDA"]["bear"] == "bear arg NVDA"
+        assert bull_bear["MSFT"]["bull"] == "bull arg MSFT"
+        assert cost > 0  # batch discount aplicado
+
+    def test_process_phase1_handles_failed_results(self):
+        from pipeline.debate import _process_phase1
+
+        results = [
+            self._make_fake_result("NVDA__bull", "ok bull"),
+            self._make_fake_result("NVDA__bear", "", succeeded=False),
+        ]
+        bull_bear, _ = _process_phase1(results, [SAMPLE_TICKER])
+        assert bull_bear["NVDA"]["bull"] == "ok bull"
+        assert bull_bear["NVDA"]["bear"] == ""
+
+    def test_process_phase2_parses_verdict_from_synthesis(self):
+        from pipeline.debate import _process_phase2
+
+        verdict_json = json.dumps({
+            "decision": "comprar",
+            "conviccion_ajustada": 8,
+            "razon": "Sólida.",
+            "precio_objetivo_ajustado": 950.0,
+        })
+        results = [self._make_fake_result("NVDA__synthesis", verdict_json)]
+        bull_bear = {"NVDA": {"bull": "B", "bear": "Be"}}
+        debates, cost = _process_phase2(results, bull_bear)
+        assert len(debates) == 1
+        assert debates[0]["ticker"] == "NVDA"
+        assert debates[0]["verdict"]["decision"] == "comprar"
+        assert debates[0]["verdict"]["conviccion_ajustada"] == 8
+        assert debates[0]["bull_argument"] == "B"
+        assert debates[0]["bear_argument"] == "Be"
+        assert cost > 0
+
+    def test_process_phase2_falls_back_on_failed_synthesis(self):
+        from pipeline.debate import _process_phase2
+
+        results = [self._make_fake_result("AAPL__synthesis", "", succeeded=False)]
+        bull_bear = {"AAPL": {"bull": "x", "bear": "y"}}
+        debates, _ = _process_phase2(results, bull_bear)
+        assert len(debates) == 1
+        # Veredicto default cuando sintesis falla
+        assert debates[0]["verdict"]["decision"] == "no_invertir"
+        assert debates[0]["verdict"]["conviccion_ajustada"] == 1
+
+    def test_run_batch_end_to_end_with_mocked_client(self, tmp_path, monkeypatch):
+        """Smoke test: run_batch entera con cliente mockeado, sin tocar la red."""
+        from pipeline.debate import run_batch
+
+        verdict_json = json.dumps({
+            "decision": "comprar",
+            "conviccion_ajustada": 7,
+            "razon": "ok",
+            "precio_objetivo_ajustado": 100.0,
+        })
+
+        # Mock del cliente: batches.create devuelve un id, retrieve devuelve "ended",
+        # results devuelve los results adecuados según el batch_id.
+        client = MagicMock()
+        batch_obj = MagicMock()
+        batch_obj.id = "batch_xxx"
+        batch_obj.processing_status = "ended"
+        batch_obj.request_counts.succeeded = 2
+        batch_obj.request_counts.errored = 0
+        batch_obj.request_counts.canceled = 0
+        batch_obj.request_counts.expired = 0
+        batch_obj.request_counts.processing = 0
+        client.messages.batches.create.return_value = batch_obj
+        client.messages.batches.retrieve.return_value = batch_obj
+
+        call_count = {"results": 0}
+
+        def fake_results(batch_id):
+            call_count["results"] += 1
+            # Primeras llamadas (fase 1): bull/bear. Resto (fase 2): synthesis.
+            # Como BATCH_CHUNK_SIZE=5, 4 reqs (2 tickers × 2) van en 1 batch fase 1.
+            # Fase 2: 2 reqs en 1 batch.
+            if call_count["results"] <= 1:
+                return [
+                    self._make_fake_result("NVDA__bull", "bull NVDA"),
+                    self._make_fake_result("NVDA__bear", "bear NVDA"),
+                    self._make_fake_result("MSFT__bull", "bull MSFT"),
+                    self._make_fake_result("MSFT__bear", "bear MSFT"),
+                ]
+            return [
+                self._make_fake_result("NVDA__synthesis", verdict_json),
+                self._make_fake_result("MSFT__synthesis", verdict_json),
+            ]
+
+        client.messages.batches.results.side_effect = fake_results
+
+        monkeypatch.setattr("pipeline.debate.get_client", lambda: client)
+        monkeypatch.setattr("pipeline.debate.get_philosophy", lambda: "FILOSOFIA STUB")
+        monkeypatch.setattr("pipeline.postmortem.augment_suffix", lambda s: s)
+
+        debates = run_batch(SAMPLE_TICKERS[:2], poll_interval=0)
+        assert len(debates) == 2
+        tickers_out = sorted(d["ticker"] for d in debates)
+        assert tickers_out == ["MSFT", "NVDA"]
+        for d in debates:
+            assert d["verdict"]["decision"] == "comprar"
+            assert d["bull_argument"].startswith("bull ")
+            assert d["bear_argument"].startswith("bear ")
+            assert d["cost_usd"] >= 0
+
+    def test_run_batch_marks_missing_tickers_as_empty(self, tmp_path, monkeypatch):
+        """Si phase 2 no devuelve un ticker, debe aparecer como _empty_result."""
+        from pipeline.debate import run_batch
+
+        client = MagicMock()
+        batch_obj = MagicMock()
+        batch_obj.id = "batch_xxx"
+        batch_obj.processing_status = "ended"
+        batch_obj.request_counts.succeeded = 1
+        batch_obj.request_counts.errored = 0
+        batch_obj.request_counts.canceled = 0
+        batch_obj.request_counts.expired = 0
+        batch_obj.request_counts.processing = 0
+        client.messages.batches.create.return_value = batch_obj
+        client.messages.batches.retrieve.return_value = batch_obj
+
+        call_count = {"results": 0}
+
+        def fake_results(batch_id):
+            call_count["results"] += 1
+            if call_count["results"] <= 1:
+                # phase 1 — sólo NVDA bull+bear, MSFT desaparece
+                return [
+                    self._make_fake_result("NVDA__bull", "B"),
+                    self._make_fake_result("NVDA__bear", "Be"),
+                ]
+            # phase 2 — solo NVDA synthesis
+            verdict_json = json.dumps({
+                "decision": "comprar", "conviccion_ajustada": 7,
+                "razon": "ok", "precio_objetivo_ajustado": 100.0,
+            })
+            return [self._make_fake_result("NVDA__synthesis", verdict_json)]
+
+        client.messages.batches.results.side_effect = fake_results
+        monkeypatch.setattr("pipeline.debate.get_client", lambda: client)
+        monkeypatch.setattr("pipeline.debate.get_philosophy", lambda: "FILOSOFIA STUB")
+        monkeypatch.setattr("pipeline.postmortem.augment_suffix", lambda s: s)
+
+        debates = run_batch(SAMPLE_TICKERS[:2], poll_interval=0)
+        # Ambos tickers presentes — MSFT como empty, NVDA con verdict real
+        tickers_out = {d["ticker"] for d in debates}
+        assert tickers_out == {"NVDA", "MSFT"}
+        msft = next(d for d in debates if d["ticker"] == "MSFT")
+        assert msft["verdict"]["decision"] == "no_invertir"
+        assert "batch incompleto" in msft["verdict"]["razon"]
 
 
 # ── Test de integración (requiere API real) ───────────────────────────────────
