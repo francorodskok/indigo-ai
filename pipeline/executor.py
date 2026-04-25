@@ -33,6 +33,11 @@ from pipeline.config import (
     MAX_ORDERS_PER_CYCLE,
     MAX_POSITION_SAFETY_PCT,
 )
+from pipeline.execution_report import (
+    build_execution_report,
+    log_summary as log_execution_summary,
+    save_execution_report,
+)
 from pipeline.state import save_holdings, sync_from_alpaca
 
 log = logging.getLogger(__name__)
@@ -534,6 +539,23 @@ def run(
         log.info(
             f"Fills: {len(result['filled'])} filled, {len(result['unfilled'])} unfilled"
         )
+
+    # 8.5. Validación post-ejecución: target vs realidad.
+    # Snapshot del estado real después de los fills, comparado contra el target
+    # del constructor. Detecta drift por slippage, fills parciales, redondeo,
+    # o errores transitorios. No bloqueante — solo loggea y guarda el reporte.
+    try:
+        post_state = fetch_current_state()
+        report = build_execution_report(
+            target_portfolio=portfolio,
+            actual_state=post_state,
+            cycle_id=today,
+            submitted_orders=submitted,
+        )
+        save_execution_report(report, base, cycle_id=today)
+        log_execution_summary(report)
+    except Exception as e:
+        log.error(f"Error generando execution report: {e}")
 
     # 9. Sincronizar memoria entre ciclos (Paso D).
     # Fuente de verdad = Alpaca (qué posiciones quedaron, con qué avg_cost);
