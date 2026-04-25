@@ -34,6 +34,12 @@ from pipeline.config import (
     FILTER_TARGET_CANDIDATES,
 )
 from pipeline.valuation import extract_historical_valuation, extract_valuation_fields
+from pipeline.yf_utils import (
+    fetch_with_retry,
+    is_blacklisted,
+    is_delisted_response,
+    record_delisted,
+)
 
 DATA_DIR = ROOT / "pipeline" / "data"
 OUTPUTS_DIR = ROOT / "pipeline" / "outputs"
@@ -103,12 +109,30 @@ def save_cache(cache: dict) -> None:
 def fetch_fundamentals(ticker: str) -> dict | None:
     """
     Trae fundamentals de yfinance para un ticker.
-    Retorna None si no hay datos suficientes.
+    Retorna None si no hay datos suficientes, si el ticker está en la
+    blacklist de delistings, o si yfinance falla persistentemente tras retries.
+
+    El módulo `yf_utils` se encarga de:
+      - Retry con backoff exponencial ante errores transitorios (429, 503,
+        timeouts) — antes los descartábamos silenciosamente.
+      - Detectar respuestas de delistings y persistirlas en blacklist
+        (pipeline/state/delisted.json) para no re-llamarlas en runs futuras.
     """
+    # Skip rápido si ya sabemos que está delisted
+    if is_blacklisted(ticker):
+        log.debug(f"{ticker}: skip — en blacklist de delistings")
+        return None
+
     try:
         t = yf.Ticker(ticker)
-        info = t.info
-        if not info or info.get("quoteType") not in ("EQUITY", "ETF", None):
+        info = fetch_with_retry(lambda: t.info, ticker=ticker)
+
+        # Detección de delisting con persistencia
+        if is_delisted_response(info):
+            record_delisted(ticker, reason="empty_or_invalid_info")
+            return None
+
+        if info.get("quoteType") not in ("EQUITY", "ETF", None):
             return None
 
         # Market cap
@@ -240,7 +264,12 @@ def fetch_fundamentals(ticker: str) -> dict | None:
         }
 
     except Exception as e:
-        log.debug(f"{ticker}: fetch error — {e}")
+        # Si los retries de yf_utils se agotaron, esto significa que el ticker
+        # respondió persistentemente con errores transitorios (probable
+        # delisting o problema crónico de yfinance con ese símbolo). Lo
+        # blacklistamos por 30 días para no volver a intentarlo en cada ciclo.
+        log.warning(f"{ticker}: fetch error tras retries — {e}")
+        record_delisted(ticker, reason=f"fetch_error: {type(e).__name__}")
         return None
 
 

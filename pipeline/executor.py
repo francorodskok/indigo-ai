@@ -185,19 +185,28 @@ def fetch_prices(tickers: list[str], data_client=None) -> dict[str, float]:
     except Exception as e:
         log.warning(f"Alpaca data fetch falló ({e}); usando fallback yfinance")
 
-    # Fallback yfinance para faltantes
+    # Fallback yfinance para faltantes — con retries via yf_utils
     missing = [t for t in tickers if t not in prices or not prices[t]]
     if missing:
         try:
             import yfinance as yf
+
+            from pipeline.yf_utils import fetch_with_retry, is_blacklisted
             for t in missing:
+                if is_blacklisted(t):
+                    log.warning(f"{t}: skip yfinance fallback — en blacklist de delistings")
+                    continue
                 try:
-                    info = yf.Ticker(t).fast_info
+                    info = fetch_with_retry(
+                        lambda t=t: yf.Ticker(t).fast_info,
+                        ticker=t,
+                        max_attempts=3,
+                    )
                     price = getattr(info, "last_price", None) or info.get("lastPrice") if isinstance(info, dict) else getattr(info, "last_price", None)
                     if price:
                         prices[t] = float(price)
                 except Exception as inner:
-                    log.warning(f"yfinance fallback falló para {t}: {inner}")
+                    log.warning(f"yfinance fallback falló para {t} tras retries: {inner}")
         except ImportError:
             log.warning("yfinance no disponible para fallback de precios")
 
