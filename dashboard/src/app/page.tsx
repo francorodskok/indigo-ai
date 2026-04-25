@@ -3,6 +3,10 @@ import {
   getLatestDebate,
   getLatestPortfolio,
 } from "@/lib/data";
+import { getNavHistory, spanInDays } from "@/lib/nav";
+import { computeSummary } from "@/lib/metrics";
+import { EquityChart } from "@/components/EquityChart";
+import { MetricCard } from "@/components/MetricCard";
 import type { Analysis, Debate, DebateVerdict, HoldingAction } from "@/lib/types";
 
 export const revalidate = 3600;
@@ -97,6 +101,23 @@ function weightDelta(curr: number | null | undefined, prev: number | null | unde
   return (d > 0 ? "+" : "") + d.toFixed(1) + "pp";
 }
 
+function formatSignedPct(n: number | null | undefined, digits = 2): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  const sign = n > 0 ? "+" : "";
+  return sign + n.toFixed(digits) + "%";
+}
+
+function formatSignedPp(n: number | null | undefined, digits = 2): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  const sign = n > 0 ? "+" : "";
+  return sign + n.toFixed(digits) + "pp";
+}
+
+function metricTone(n: number | null | undefined): "positive" | "negative" | "neutral" {
+  if (n == null || Number.isNaN(n) || Math.abs(n) < 1e-9) return "neutral";
+  return n > 0 ? "positive" : "negative";
+}
+
 function decisionLabel(d: string | undefined): { label: string; color: string } {
   const s = (d ?? "").toLowerCase();
   if (s.includes("invertir") && !s.includes("no")) return { label: "invertir", color: "text-emerald-400" };
@@ -106,10 +127,11 @@ function decisionLabel(d: string | undefined): { label: string; color: string } 
 }
 
 export default async function HomePage() {
-  const [analysis, debate, portfolio] = await Promise.all([
+  const [analysis, debate, portfolio, navHistory] = await Promise.all([
     getLatestAnalysis(),
     getLatestDebate(),
     getLatestPortfolio(),
+    getNavHistory(),
   ]);
 
   // Index analyst & debate por ticker para cruzarlos con los holdings.
@@ -122,6 +144,14 @@ export default async function HomePage() {
     .slice()
     .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0));
 
+  // Métricas de portfolio — series alineadas (mismo length que navHistory).
+  const portfolioSeries = navHistory.map((e) => e.equity_usd ?? null);
+  const spySeries = navHistory.map((e) => e.spy_close ?? null);
+  const navSpan = spanInDays(navHistory);
+  const summary = computeSummary(portfolioSeries, spySeries, navSpan);
+  const hasNavData = navHistory.length >= 2;
+  const lastNavEntry = navHistory.length > 0 ? navHistory[navHistory.length - 1] : null;
+
   return (
     <div className="space-y-12">
       <section>
@@ -131,12 +161,68 @@ export default async function HomePage() {
         </p>
       </section>
 
-      {/* Equity curve placeholder */}
+      {/* Métricas headline — 5 KPIs: total return, CAGR, Sharpe, max DD, alpha vs SPY */}
+      <section>
+        <h2 className="text-lg font-semibold mb-3">
+          Performance
+          {lastNavEntry?.date && (
+            <span className="text-sm font-normal text-[color:var(--muted)] ml-2">
+              al {lastNavEntry.date} · {summary.n_observations} días
+            </span>
+          )}
+        </h2>
+        {hasNavData ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            <MetricCard
+              label="Total return"
+              value={formatSignedPct(summary.total_return_pct)}
+              sub={lastNavEntry?.equity_usd != null ? `equity ${formatUsd(lastNavEntry.equity_usd)}` : undefined}
+              tone={metricTone(summary.total_return_pct)}
+            />
+            <MetricCard
+              label="CAGR"
+              value={formatSignedPct(summary.cagr_pct)}
+              sub={navSpan > 0 ? `${navSpan} días calend.` : undefined}
+              tone={metricTone(summary.cagr_pct)}
+            />
+            <MetricCard
+              label="Sharpe"
+              value={summary.sharpe.toFixed(2)}
+              sub={`vol ${summary.vol_annualized_pct.toFixed(1)}%`}
+              tone="accent"
+            />
+            <MetricCard
+              label="Max drawdown"
+              value={"-" + summary.max_drawdown_pct.toFixed(2) + "%"}
+              sub="desde peak previo"
+              tone={summary.max_drawdown_pct > 0.05 ? "negative" : "neutral"}
+            />
+            <MetricCard
+              label="Alpha vs SPY"
+              value={
+                summary.alpha_vs_benchmark_pct != null
+                  ? formatSignedPp(summary.alpha_vs_benchmark_pct)
+                  : "—"
+              }
+              sub={summary.alpha_vs_benchmark_pct != null ? "puntos porcentuales" : "sin benchmark"}
+              tone={metricTone(summary.alpha_vs_benchmark_pct)}
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            <MetricCard label="Total return" value="—" empty />
+            <MetricCard label="CAGR" value="—" empty />
+            <MetricCard label="Sharpe" value="—" empty />
+            <MetricCard label="Max drawdown" value="—" empty />
+            <MetricCard label="Alpha vs SPY" value="—" empty />
+          </div>
+        )}
+      </section>
+
+      {/* Curva de equity — Indigo vs SPY vs QQQ rebased to 100 */}
       <section>
         <h2 className="text-lg font-semibold mb-3">Curva de equity</h2>
-        <div className="border border-dashed border-[color:var(--border)] rounded-lg h-56 flex items-center justify-center text-sm text-[color:var(--muted)]">
-          equity curve (disponible tras primer ciclo real)
-        </div>
+        <EquityChart history={navHistory} />
       </section>
 
       {/* Tabla de pesos */}

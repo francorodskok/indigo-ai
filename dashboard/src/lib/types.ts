@@ -108,3 +108,15 @@ export type DebateFile = {
   _filePath: string;
   _dateISO: string;
 };
+
+// NAV equity-curve snapshot — un punto por día calendario.
+// Mirror del schema escrito por `pipeline/nav_tracker.record_today`.
+// equity_usd = portfolio total equity (Alpaca account.equity).
+// spy_close / qqq_close = adjusted close de los benchmarks ese día.
+export type NavEntry = {
+  date: string;            // YYYY-MM-DD
+  equity_usd?: number | null;
+  spy_close?: number | null;
+  qqq_close?: number | null;
+  recorded_at?: string;    // ISO timestamp del momento de captura
+};
