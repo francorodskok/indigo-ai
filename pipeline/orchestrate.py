@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 from pipeline.config import CYCLE_INTERVAL_DAYS
+from pipeline.cycle_lock import CycleLockedError, cycle_lock
 from pipeline.killswitch import can_run_cycle
 from pipeline.state import load_current_holdings
 
@@ -237,7 +238,14 @@ def run(
     # ── Ciclo regular ─────────────────────────────────────────────────────────
     if cycle_due:
         started = datetime.now(timezone.utc)
-        results = run_pipeline(dry_run=dry_run)
+        # File lock — evita runs concurrentes (cron + manual, o cron solapando
+        # un ciclo lento). Stale locks (>6h o PID muerto) se sobreescriben.
+        try:
+            with cycle_lock():
+                results = run_pipeline(dry_run=dry_run)
+        except CycleLockedError as e:
+            log.error(f"Otro ciclo ya está corriendo: {e}")
+            return 0
         elapsed = (datetime.now(timezone.utc) - started).total_seconds()
 
         all_ok = all(r.ok for r in results)
