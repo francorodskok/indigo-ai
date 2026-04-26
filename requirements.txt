@@ -12,6 +12,9 @@ yfinance>=0.2.50
 # Utilities
 python-dotenv>=1.0.0
 
+# Renderer de carrouseles para Instagram (pipeline.social.renderer)
+Pillow>=10.0.0
+
 # Dev / test (instalados solo en dev, no en imagen prod)
 # pytest>=8.0.0
 # pytest-mock>=3.12.0

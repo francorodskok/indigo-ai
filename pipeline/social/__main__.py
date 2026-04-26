@@ -76,6 +76,14 @@ def main(argv: list[str] | None = None) -> int:
             "Si se pasa solo --review junto a --type, genera + revisa."
         ),
     )
+    p.add_argument(
+        "--render",
+        metavar="PATH",
+        help=(
+            "Renderiza un carrousel_ig (de drafts/ o approved/) a PNGs "
+            "1080×1080. Output: pipeline/outputs/social/renders/<basename>/."
+        ),
+    )
     p.add_argument("--force", action="store_true", help="Sobreescribe drafts existentes.")
     p.add_argument("--dry-run", action="store_true", help="No llama a la API.")
     p.add_argument(
@@ -91,6 +99,20 @@ def main(argv: list[str] | None = None) -> int:
         level=logging.DEBUG if args.verbose >= 2 else logging.INFO if args.verbose == 1 else logging.WARNING,
         format="%(asctime)s %(levelname)s %(name)s — %(message)s",
     )
+
+    # Modo: --render <path>
+    if args.render:
+        from pipeline.social.copy_generator import load_approved_draft
+        from pipeline.social.renderer import render_carrousel
+        try:
+            draft = load_approved_draft(args.render)
+            paths = render_carrousel(draft)
+            for p in paths:
+                print(p)
+            return 0
+        except (FileNotFoundError, ValueError) as e:
+            log.error("Render falló: %s", e)
+            return 1
 
     # Modo: --adapt <path> --to <platform>
     if args.adapt:
