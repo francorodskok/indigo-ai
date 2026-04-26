@@ -1,12 +1,16 @@
-// /social — preview + scoring de drafts editoriales para redes sociales.
+// /admin/social — preview + scoring + approval gate de drafts editoriales.
 //
-// Tier 2: read-only. Muestra los drafts generados por
-// `pipeline/social/copy_generator.py`, con el veredicto del filtro
-// regulatorio y violations específicas si las hay. El approval gate
-// (mover de drafts/ a approved/) viene en Tier 3 con una API route.
+// Read + approve. Muestra los drafts generados por
+// `pipeline/social/copy_generator.py` con el veredicto regulatorio.
+// Botón "Aprobar" mueve el draft de drafts/ a approved/ vía
+// POST /api/social/approve.
+//
+// Auth: protegido por middleware basic auth si DASHBOARD_ADMIN_PASSWORD
+// está seteada. En dev (sin env var) queda libre.
 //
 // ADR: docs/decisions/2026-04-25-social-copy-pipeline.md
 
+import { ApproveButton } from "@/components/ApproveButton";
 import { getApprovedDrafts, getSocialDrafts, getSocialStats } from "@/lib/social";
 import type {
   SocialDraft,
@@ -201,7 +205,13 @@ function TweetCard({ text, idx }: { text: string; idx: number }) {
   );
 }
 
-function DraftCard({ draft }: { draft: SocialDraft }) {
+function DraftCard({
+  draft,
+  showApprove = false,
+}: {
+  draft: SocialDraft;
+  showApprove?: boolean;
+}) {
   const tweets = draft.content?.tweets ?? [];
   return (
     <article
@@ -296,11 +306,19 @@ function DraftCard({ draft }: { draft: SocialDraft }) {
         </div>
       )}
 
-      {draft._fileName && (
-        <div className="text-[10px] text-[color:var(--muted)] mono">
-          {draft._fileName}
-        </div>
-      )}
+      <div className="border-t border-[color:var(--border)] pt-4 flex items-center justify-between gap-3 flex-wrap">
+        {draft._fileName && (
+          <div className="text-[10px] text-[color:var(--muted)] mono">
+            {draft._fileName}
+          </div>
+        )}
+        {showApprove && draft._fileName && (
+          <ApproveButton
+            fileName={draft._fileName}
+            status={draft.regulatory?.status ?? "pending"}
+          />
+        )}
+      </div>
     </article>
   );
 }
@@ -393,13 +411,17 @@ export default async function SocialPage() {
         ) : (
           <div className="space-y-6">
             {drafts.map((d) => (
-              <DraftCard key={d._fileName ?? d.target_date + d.type} draft={d} />
+              <DraftCard
+                key={d._fileName ?? d.target_date + d.type}
+                draft={d}
+                showApprove
+              />
             ))}
           </div>
         )}
       </section>
 
-      {/* Aprobados (Tier 3) */}
+      {/* Aprobados — listos para publicación */}
       {approved.length > 0 && (
         <section>
           <h2 className="text-lg font-semibold mb-3">

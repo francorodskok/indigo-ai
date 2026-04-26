@@ -71,6 +71,66 @@ export type SocialStats = {
   total_review_cost_usd: number;
 };
 
+/**
+ * Mueve un draft de `drafts/` a `approved/` (idempotente: si ya está
+ * en approved, no falla). Validaciones:
+ *
+ * - El nombre de archivo debe estar en `drafts/` actual (anti path-traversal).
+ * - El draft debe tener `regulatory.status` ∈ {green, yellow}. Si es `red`
+ *   o `pending`, rechazamos — la idea del approval gate es que el humano
+ *   solo pueda aprobar lo que ya pasó el filtro.
+ *
+ * En Vercel/prod el filesystem es read-only — esta función va a fallar y
+ * la API devuelve 503. El flujo prod-real es vía git/PR con los drafts.
+ */
+export async function approveDraft(fileName: string): Promise<{
+  ok: boolean;
+  error?: string;
+  newPath?: string;
+}> {
+  // Anti path traversal: solo permitir basenames que ya existen en drafts/.
+  if (fileName.includes("/") || fileName.includes("\\") || fileName.includes("..")) {
+    return { ok: false, error: "fileName inválido (path traversal)" };
+  }
+  if (!fileName.startsWith("post_") || !fileName.endsWith(".json")) {
+    return { ok: false, error: "fileName debe ser post_*.json" };
+  }
+  const draftPath = path.join(DRAFTS_DIR, fileName);
+  const approvedPath = path.join(APPROVED_DIR, fileName);
+
+  // Cargar y validar el draft
+  let draft: SocialDraft;
+  try {
+    const raw = await fs.readFile(draftPath, "utf8");
+    draft = safeJsonParse<SocialDraft>(raw);
+  } catch {
+    return { ok: false, error: `draft no encontrado: ${fileName}` };
+  }
+  const status = draft.regulatory?.status ?? "pending";
+  if (status === "pending") {
+    return {
+      ok: false,
+      error: "draft sin review regulatorio. Correr `python -m pipeline.social --review <path>` antes de aprobar.",
+    };
+  }
+  if (status === "red") {
+    return {
+      ok: false,
+      error: "draft en estado RED — no se puede aprobar. Editar y re-revisar antes.",
+    };
+  }
+
+  // Asegurar approved/ existe + mover.
+  try {
+    await fs.mkdir(APPROVED_DIR, { recursive: true });
+    await fs.rename(draftPath, approvedPath);
+    return { ok: true, newPath: approvedPath };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: `move falló: ${msg}` };
+  }
+}
+
 export async function getSocialStats(): Promise<SocialStats> {
   const [drafts, approved] = await Promise.all([
     getSocialDrafts(),

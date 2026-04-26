@@ -20,11 +20,12 @@ export const metadata: Metadata = {
     "Experimento público: portafolio S&P 500 gestionado por agentes de Claude. Paper trading.",
 };
 
+// NAV público. /admin/* queda fuera del menú a propósito — accesible solo
+// via URL directa con basic auth (env: DASHBOARD_ADMIN_PASSWORD).
 const NAV = [
   { href: "/", label: "Inicio" },
   { href: "/cycles", label: "Ciclos" },
   { href: "/trades", label: "Trades" },
-  { href: "/social", label: "Social" },
   { href: "/constitution", label: "Constitución" },
   { href: "/about", label: "Acerca" },
 ];
