@@ -13,6 +13,7 @@
 import { ApproveButton } from "@/components/ApproveButton";
 import { getApprovedDrafts, getSocialDrafts, getSocialStats } from "@/lib/social";
 import type {
+  CarrouselSlide,
   SocialDraft,
   SocialRegulatory,
   SocialToneIssue,
@@ -25,6 +26,8 @@ const TYPE_LABELS: Record<string, string> = {
   thread_post_ciclo: "Thread post-ciclo",
   analisis_coyuntura: "Análisis de coyuntura",
   didactico: "Didáctico",
+  carrousel_ig: "Carrousel Instagram",
+  linkedin_post: "Post LinkedIn",
 };
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -205,6 +208,134 @@ function TweetCard({ text, idx }: { text: string; idx: number }) {
   );
 }
 
+function SlideCard({
+  slide,
+  idx,
+  isCta,
+}: {
+  slide: CarrouselSlide;
+  idx: number;
+  isCta: boolean;
+}) {
+  // Estilo "instagram-ish": cuadrado, fondo distinto, tipografía grande para
+  // el title. No es el render final (eso lo hace Puppeteer en Tier 2 visual);
+  // es preview legible.
+  return (
+    <div
+      className={`border rounded-lg p-4 aspect-square flex flex-col justify-between ${
+        isCta
+          ? "border-[color:var(--accent)] bg-[color:var(--accent)]/5"
+          : "border-[color:var(--border)] bg-[color:var(--border)]/10"
+      }`}
+    >
+      <div className="text-[10px] uppercase tracking-wider text-[color:var(--muted)] flex items-center justify-between">
+        <span>slide {idx + 1}</span>
+        {isCta && (
+          <span className="mono text-[color:var(--accent)]">CTA</span>
+        )}
+      </div>
+      <div className="space-y-2 my-auto">
+        {slide.title && (
+          <div className="text-base font-semibold leading-tight">
+            {slide.title}
+          </div>
+        )}
+        {slide.body && (
+          <p className="text-sm leading-relaxed whitespace-pre-line text-[color:var(--foreground)]/90">
+            {slide.body}
+          </p>
+        )}
+      </div>
+      {slide.footnote && (
+        <div className="text-[10px] text-[color:var(--muted)] mono">
+          {slide.footnote}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LinkedInPostCard({ draft }: { draft: SocialDraft }) {
+  const text = draft.content?.text ?? "";
+  const wc = draft.content?.word_count_approx;
+  return (
+    <div className="border border-[color:var(--border)] rounded-lg p-4 space-y-2">
+      <div className="flex items-baseline justify-between text-[10px] uppercase tracking-wider text-[color:var(--muted)]">
+        <span>preview LinkedIn</span>
+        {wc != null && (
+          <span
+            className={`mono ${
+              wc < 200 || wc > 400 ? "text-rose-400 font-semibold" : ""
+            }`}
+          >
+            ~{wc} palabras (200-400)
+          </span>
+        )}
+      </div>
+      <p className="text-sm leading-relaxed whitespace-pre-line text-[color:var(--foreground)]/90">
+        {text}
+      </p>
+    </div>
+  );
+}
+
+function ContentPreview({ draft }: { draft: SocialDraft }) {
+  const c = draft.content ?? {};
+  // X thread
+  if (c.tweets && c.tweets.length > 0) {
+    return (
+      <div className="space-y-2">
+        <h4 className="text-xs uppercase tracking-wider text-[color:var(--muted)]">
+          Preview ({c.tweets.length} {c.tweets.length === 1 ? "tweet" : "tweets"})
+        </h4>
+        <div className="space-y-2">
+          {c.tweets.map((t, i) => (
+            <TweetCard key={i} text={t} idx={i} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  // Carrousel Instagram
+  if (c.slides && c.slides.length > 0) {
+    return (
+      <div className="space-y-2">
+        <h4 className="text-xs uppercase tracking-wider text-[color:var(--muted)]">
+          Preview ({c.slides.length} slides)
+        </h4>
+        {c.hook_visual && (
+          <div className="text-sm italic text-[color:var(--foreground)]/85 border-l-2 border-[color:var(--accent)] pl-3">
+            Hook visual: {c.hook_visual}
+          </div>
+        )}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          {c.slides.map((s, i) => (
+            <SlideCard
+              key={i}
+              slide={s}
+              idx={i}
+              isCta={i === c.cta_slide_index}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  // LinkedIn
+  if (c.text) {
+    return (
+      <div className="space-y-2">
+        <LinkedInPostCard draft={draft} />
+      </div>
+    );
+  }
+  return (
+    <div className="text-xs text-[color:var(--muted)]">
+      Sin content reconocible para preview.
+    </div>
+  );
+}
+
 function DraftCard({
   draft,
   showApprove = false,
@@ -212,7 +343,6 @@ function DraftCard({
   draft: SocialDraft;
   showApprove?: boolean;
 }) {
-  const tweets = draft.content?.tweets ?? [];
   return (
     <article
       id={`draft-${draft._fileName}`}
@@ -261,19 +391,21 @@ function DraftCard({
         </div>
       )}
 
-      {/* Preview de tweets */}
-      {tweets.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-xs uppercase tracking-wider text-[color:var(--muted)]">
-            Preview ({tweets.length} {tweets.length === 1 ? "tweet" : "tweets"})
-          </h4>
-          <div className="space-y-2">
-            {tweets.map((t, i) => (
-              <TweetCard key={i} text={t} idx={i} />
-            ))}
+      <ContentPreview draft={draft} />
+
+      {/* Hint de adapter para drafts X */}
+      {draft.platform === "x" &&
+        draft.regulatory?.status &&
+        draft.regulatory.status !== "pending" &&
+        draft.regulatory.status !== "red" && (
+          <div className="border border-dashed border-[color:var(--border)] rounded p-2 text-[11px] text-[color:var(--muted)] mono">
+            Adaptar a otra plataforma:
+            <pre className="mt-1 text-[10px]">
+              python -m pipeline.social --adapt {draft._fileName ?? "<file>"} --to instagram --review
+              {"\n"}python -m pipeline.social --adapt {draft._fileName ?? "<file>"} --to linkedin --review
+            </pre>
           </div>
-        </div>
-      )}
+        )}
 
       {draft.content?.self_review_notes && (
         <div className="border border-[color:var(--border)] rounded p-3 text-xs space-y-1">

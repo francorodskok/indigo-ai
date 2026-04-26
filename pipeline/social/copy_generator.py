@@ -36,15 +36,22 @@ SOCIAL_OUTPUTS = PIPELINE_OUTPUTS / "social"
 DRAFTS_DIR = SOCIAL_OUTPUTS / "drafts"
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
-# Tipos válidos de post (Tier 1).
-POST_TYPES = ("thread_post_ciclo", "analisis_coyuntura", "didactico")
+# Tipos generadores (escriben de cero a partir de cycle data / topic / concept).
+SOURCE_POST_TYPES = ("thread_post_ciclo", "analisis_coyuntura", "didactico")
 
-# Por ahora todos los tipos del Tier 1 van a X. Instagram/LinkedIn vienen
-# después como adaptaciones del thread X (Tier 2).
+# Tipos adapters (toman un draft fuente aprobado y lo traducen a otra plataforma).
+ADAPTER_POST_TYPES = ("carrousel_ig", "linkedin_post")
+
+# Todos los tipos válidos.
+POST_TYPES = SOURCE_POST_TYPES + ADAPTER_POST_TYPES
+
+# Mapa tipo → plataforma destino.
 TYPE_TO_PLATFORM = {
     "thread_post_ciclo": "x",
     "analisis_coyuntura": "x",
     "didactico": "x",
+    "carrousel_ig": "instagram",
+    "linkedin_post": "linkedin",
 }
 
 # Default model: Sonnet 4.6 con effort medium. Suficiente para copy y barato
@@ -222,10 +229,14 @@ def _extract_json_block(text: str) -> dict[str, Any]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 X_TWEET_MAX_CHARS = 280
+LINKEDIN_MIN_WORDS = 200
+LINKEDIN_MAX_WORDS = 400
+CARROUSEL_MIN_SLIDES = 8
+CARROUSEL_MAX_SLIDES = 10
 
 
 def _validate_thread(parsed: dict) -> list[str]:
-    """Devuelve lista de problemas (vacía = todo OK)."""
+    """Devuelve lista de problemas (vacía = todo OK) para threads X."""
     issues: list[str] = []
     tweets = parsed.get("tweets")
     if not isinstance(tweets, list) or not tweets:
@@ -242,6 +253,89 @@ def _validate_thread(parsed: dict) -> list[str]:
     if "hook_family" in parsed and parsed["hook_family"] not in {"A", "B", "C", "D"}:
         issues.append(f"hook_family inválida: {parsed['hook_family']}")
     return issues
+
+
+def _validate_carrousel(parsed: dict) -> list[str]:
+    """Validador específico para carrouseles de Instagram."""
+    issues: list[str] = []
+    slides = parsed.get("slides")
+    if not isinstance(slides, list) or not slides:
+        issues.append("missing 'slides' (list)")
+        return issues
+    n = len(slides)
+    if n < CARROUSEL_MIN_SLIDES:
+        issues.append(f"carrousel tiene {n} slides, mínimo {CARROUSEL_MIN_SLIDES}")
+    if n > CARROUSEL_MAX_SLIDES:
+        issues.append(f"carrousel tiene {n} slides, máximo {CARROUSEL_MAX_SLIDES}")
+    for i, s in enumerate(slides):
+        if not isinstance(s, dict):
+            issues.append(f"slide {i} no es dict")
+            continue
+        body = s.get("body", "")
+        if not isinstance(body, str) or not body.strip():
+            issues.append(f"slide {i} sin 'body'")
+        # IG soporta cuerpos largos pero un slide se diseña corto: cap suave.
+        if isinstance(body, str) and len(body) > 600:
+            issues.append(f"slide {i} body tiene {len(body)} chars (sugerido < 600)")
+    return issues
+
+
+def _validate_linkedin(parsed: dict) -> list[str]:
+    """Validador específico para posts de LinkedIn."""
+    issues: list[str] = []
+    text = parsed.get("text")
+    if not isinstance(text, str) or not text.strip():
+        issues.append("missing 'text' (string)")
+        return issues
+    # Conteo de palabras simple; tolerante (no tiene que ser exacto).
+    words = [w for w in re.split(r"\s+", text) if w]
+    n = len(words)
+    if n < LINKEDIN_MIN_WORDS:
+        issues.append(f"post tiene {n} palabras, mínimo {LINKEDIN_MIN_WORDS}")
+    if n > LINKEDIN_MAX_WORDS:
+        issues.append(f"post tiene {n} palabras, máximo {LINKEDIN_MAX_WORDS}")
+    if not parsed.get("signer"):
+        issues.append("missing 'signer' (firma)")
+    return issues
+
+
+# Registro central tipo → validador.
+_VALIDATORS = {
+    "thread_post_ciclo": _validate_thread,
+    "analisis_coyuntura": _validate_thread,
+    "didactico": _validate_thread,
+    "carrousel_ig": _validate_carrousel,
+    "linkedin_post": _validate_linkedin,
+}
+
+
+def _dry_run_content_for(post_type: str) -> dict[str, Any]:
+    """Estructura mock para dry_run, con el shape correcto por tipo."""
+    if post_type == "carrousel_ig":
+        return {
+            "slides": [
+                {"title": f"[DRY RUN] slide {i + 1}", "body": "...", "footnote": None}
+                for i in range(8)
+            ],
+            "cta_slide_index": 7,
+            "hook_visual": "[DRY RUN]",
+            "key_message": "[DRY RUN]",
+            "self_review_notes": "[DRY RUN]",
+        }
+    if post_type == "linkedin_post":
+        return {
+            "text": "[DRY RUN] LinkedIn post de prueba.",
+            "word_count_approx": 5,
+            "signer": "Franco",
+            "key_message": "[DRY RUN]",
+            "self_review_notes": "[DRY RUN]",
+        }
+    return {
+        "tweets": ["[DRY RUN] tweet 1", "[DRY RUN] tweet 2", "[DRY RUN] tweet 3"],
+        "hook_family": "A",
+        "key_message": "[DRY RUN]",
+        "self_review_notes": "[DRY RUN]",
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -292,6 +386,27 @@ def _build_user_input_didactico(
     )
 
 
+def _build_user_input_adapter(source_draft: dict, signer: str | None = None) -> str:
+    """
+    Empaqueta un draft fuente (thread X aprobado) en el user_input para
+    los adapters de Instagram y LinkedIn.
+    """
+    content = source_draft.get("content", {}) or {}
+    payload = {
+        "source_thread": content.get("tweets", []),
+        "source_type": source_draft.get("type"),
+        "key_message": content.get("key_message"),
+        "hook_family": content.get("hook_family"),
+        "signer": signer or "Franco",
+    }
+    return (
+        "THREAD FUENTE (JSON):\n\n```json\n"
+        + json.dumps(payload, indent=2, ensure_ascii=False)
+        + "\n```\n\n"
+        "Traducí siguiendo las instrucciones."
+    )
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Función pública principal
 # ─────────────────────────────────────────────────────────────────────────────
@@ -305,6 +420,8 @@ def generate_post(
     concept: str | None = None,
     optional_indigo_example: str | None = None,
     cycle_data: dict[str, Any] | None = None,
+    source_draft: dict[str, Any] | None = None,
+    signer: str | None = None,
     target_date: date | None = None,
     model: str = DEFAULT_MODEL,
     effort: str = DEFAULT_EFFORT,
@@ -373,6 +490,16 @@ def generate_post(
         if not concept:
             raise ValueError("didactico requiere `concept`")
         user_input = _build_user_input_didactico(concept, optional_indigo_example)
+    elif post_type in ADAPTER_POST_TYPES:
+        if source_draft is None:
+            raise ValueError(
+                f"{post_type} requiere `source_draft` (un draft X aprobado)"
+            )
+        # Source files: el archivo del thread fuente, si está marcado.
+        src_file = source_draft.get("_fileName") or source_draft.get("_filePath")
+        if src_file:
+            source_files = [Path(src_file).name]
+        user_input = _build_user_input_adapter(source_draft, signer=signer)
     else:  # pragma: no cover — guardado por la validación de arriba
         raise ValueError(f"post_type no implementado: {post_type}")
 
@@ -389,12 +516,7 @@ def generate_post(
 
     # Parse del JSON. En dry_run el content es "[DRY RUN]".
     if dry_run:
-        content_obj = {
-            "tweets": ["[DRY RUN] tweet 1", "[DRY RUN] tweet 2", "[DRY RUN] tweet 3"],
-            "hook_family": "A",
-            "key_message": "[DRY RUN]",
-            "self_review_notes": "[DRY RUN]",
-        }
+        content_obj = _dry_run_content_for(post_type)
         validation_issues = []
     else:
         try:
@@ -402,11 +524,13 @@ def generate_post(
         except ValueError as e:
             log.error("Parse del output falló: %s", e)
             raise
-        validation_issues = _validate_thread(content_obj)
+        validator = _VALIDATORS.get(post_type, _validate_thread)
+        validation_issues = validator(content_obj)
         if validation_issues:
             log.warning(
-                "Validación del thread tiene issues: %s. El draft se guarda igual; "
+                "Validación del %s tiene issues: %s. El draft se guarda igual; "
                 "el filtro regulatorio + el reviewer humano deciden qué hacer.",
+                post_type,
                 validation_issues,
             )
 
@@ -441,3 +565,82 @@ def generate_post(
     out_path.write_text(json.dumps(draft, indent=2, ensure_ascii=False), encoding="utf-8")
     log.info("Draft guardado en %s (cost=$%.4f)", out_path, response.get("cost_usd", 0.0))
     return draft
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Adapter helpers — wrappers que toman un thread X aprobado y traducen a otra
+# plataforma. Persisten un nuevo draft (status regulatorio "pending" — necesita
+# su propia review porque las reglas de IG/LinkedIn son distintas a X).
+# ─────────────────────────────────────────────────────────────────────────────
+
+def load_approved_draft(path: str | Path) -> dict[str, Any]:
+    """Carga un draft aprobado (o cualquier draft de disk) sanitizando NaN."""
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(p)
+    raw = p.read_text(encoding="utf-8")
+    sanitized = re.sub(r"\bNaN\b", "null", raw)
+    draft = json.loads(sanitized)
+    draft["_filePath"] = str(p)
+    draft["_fileName"] = p.name
+    return draft
+
+
+def adapt_draft(
+    source_draft: dict[str, Any],
+    target: str,
+    *,
+    signer: str | None = None,
+    target_date: date | None = None,
+    model: str = DEFAULT_MODEL,
+    effort: str = DEFAULT_EFFORT,
+    force: bool = False,
+    dry_run: bool = False,
+    drafts_dir: Path | None = None,
+) -> dict[str, Any]:
+    """
+    Adapta un draft fuente a Instagram (carrousel) o LinkedIn (post).
+
+    Args:
+        source_draft: dict del draft fuente (típicamente un thread X aprobado).
+            Debe tener al menos `content.tweets` y `content.key_message`.
+        target: "instagram" | "linkedin" (o equivalentemente "carrousel_ig" /
+            "linkedin_post").
+        signer: nombre del firmante (LinkedIn). Default "Franco".
+        target_date / model / effort / force / dry_run: pasthrough a generate_post.
+
+    Returns:
+        El nuevo draft, persistido en drafts/.
+    """
+    target_to_type = {
+        "instagram": "carrousel_ig",
+        "ig": "carrousel_ig",
+        "carrousel_ig": "carrousel_ig",
+        "linkedin": "linkedin_post",
+        "li": "linkedin_post",
+        "linkedin_post": "linkedin_post",
+    }
+    post_type = target_to_type.get(target.lower())
+    if post_type is None:
+        raise ValueError(
+            f"target inválido: {target}. Opciones: instagram, linkedin"
+        )
+
+    # Validación mínima del source: debe tener tweets para poder adaptar.
+    src_content = source_draft.get("content", {}) or {}
+    if not src_content.get("tweets"):
+        raise ValueError(
+            "source_draft sin `content.tweets` — no hay nada para adaptar."
+        )
+
+    return generate_post(
+        post_type=post_type,
+        source_draft=source_draft,
+        signer=signer,
+        target_date=target_date,
+        model=model,
+        effort=effort,
+        force=force,
+        dry_run=dry_run,
+        drafts_dir=drafts_dir,
+    )

@@ -22,8 +22,12 @@ import pytest
 from pipeline.social import copy_generator
 from pipeline.social.copy_generator import (
     POST_TYPES,
+    SOURCE_POST_TYPES,
     _extract_json_block,
+    _validate_carrousel,
+    _validate_linkedin,
     _validate_thread,
+    adapt_draft,
     generate_post,
 )
 
@@ -332,3 +336,256 @@ class TestPostTypeRouting:
                 copy_generator.PROMPTS_DIR / f"{t}.md"
             )
             assert p.exists(), f"falta prompt {p}"
+
+    def test_source_types_disjoint_from_adapter_types(self):
+        from pipeline.social.copy_generator import ADAPTER_POST_TYPES
+        assert not (set(SOURCE_POST_TYPES) & set(ADAPTER_POST_TYPES))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Validadores específicos por tipo
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestValidateCarrousel:
+    def test_valid(self):
+        slides = [
+            {"title": f"slide {i}", "body": "lorem ipsum corto"}
+            for i in range(8)
+        ]
+        assert _validate_carrousel({"slides": slides}) == []
+
+    def test_missing_slides(self):
+        issues = _validate_carrousel({"hook_visual": "x"})
+        assert any("missing 'slides'" in i for i in issues)
+
+    def test_too_few_slides(self):
+        slides = [{"title": "x", "body": "y"} for _ in range(5)]
+        issues = _validate_carrousel({"slides": slides})
+        assert any("mínimo 8" in i for i in issues)
+
+    def test_too_many_slides(self):
+        slides = [{"title": "x", "body": "y"} for _ in range(15)]
+        issues = _validate_carrousel({"slides": slides})
+        assert any("máximo 10" in i for i in issues)
+
+    def test_slide_without_body(self):
+        slides = [{"title": "x", "body": "y"} for _ in range(8)]
+        slides[3] = {"title": "no body"}
+        issues = _validate_carrousel({"slides": slides})
+        assert any("slide 3 sin 'body'" in i for i in issues)
+
+    def test_slide_body_too_long(self):
+        long = "a" * 700
+        slides = [{"title": "x", "body": long}] + [
+            {"title": "x", "body": "ok"} for _ in range(7)
+        ]
+        issues = _validate_carrousel({"slides": slides})
+        assert any("700 chars" in i for i in issues)
+
+
+class TestValidateLinkedIn:
+    def test_valid(self):
+        text = " ".join(["palabra"] * 280)
+        assert _validate_linkedin({"text": text, "signer": "Franco"}) == []
+
+    def test_missing_text(self):
+        issues = _validate_linkedin({"signer": "Franco"})
+        assert any("missing 'text'" in i for i in issues)
+
+    def test_too_few_words(self):
+        text = " ".join(["palabra"] * 100)
+        issues = _validate_linkedin({"text": text, "signer": "Franco"})
+        assert any("mínimo 200" in i for i in issues)
+
+    def test_too_many_words(self):
+        text = " ".join(["palabra"] * 500)
+        issues = _validate_linkedin({"text": text, "signer": "Franco"})
+        assert any("máximo 400" in i for i in issues)
+
+    def test_missing_signer(self):
+        text = " ".join(["palabra"] * 280)
+        issues = _validate_linkedin({"text": text})
+        assert any("signer" in i for i in issues)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Adapter: thread X → carrousel IG / LinkedIn post
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.fixture
+def approved_thread_draft() -> dict:
+    """Mock de un draft de thread X aprobado, listo para adaptar."""
+    return {
+        "type": "didactico",
+        "platform": "x",
+        "generated_at": "2026-04-25T20:00:00+00:00",
+        "target_date": "2026-04-25",
+        "_fileName": "post_2026-04-25_didactico.json",
+        "content": {
+            "tweets": [
+                "Tardé tres años en entender qué es un moat.",
+                "Lo defino simple: una ventaja competitiva durable.",
+                "Marcas, costos bajos, network effects, switching costs.",
+                "El error común es confundir cuota de mercado con moat.",
+                "Bottom line: el moat predice supervivencia más que rentabilidad presente.",
+            ],
+            "hook_family": "D",
+            "key_message": "moat = ventaja durable, no cuota actual",
+        },
+        "metadata": {"cost_usd": 0.01},
+        "regulatory": {"status": "green", "publishable_as_is": True},
+    }
+
+
+@pytest.fixture
+def fake_carrousel_response() -> dict:
+    payload = {
+        "slides": [
+            {"title": f"Slide {i}", "body": "lorem ipsum corto", "footnote": None}
+            for i in range(8)
+        ],
+        "cta_slide_index": 7,
+        "hook_visual": "Tardé 3 años en entender qué es un moat.",
+        "key_message": "moat = ventaja durable",
+        "self_review_notes": "ningún precio objetivo, ninguna recomendación",
+    }
+    return {
+        "content": json.dumps(payload),
+        "model": "claude-sonnet-4-6",
+        "usage": None,
+        "cost_usd": 0.025,
+    }
+
+
+@pytest.fixture
+def fake_linkedin_response() -> dict:
+    text = " ".join(["palabra"] * 280)
+    payload = {
+        "text": text,
+        "word_count_approx": 280,
+        "signer": "Franco",
+        "key_message": "moat = ventaja durable",
+        "self_review_notes": "sin recomendaciones",
+    }
+    return {
+        "content": json.dumps(payload),
+        "model": "claude-sonnet-4-6",
+        "usage": None,
+        "cost_usd": 0.022,
+    }
+
+
+class TestAdaptDraft:
+    def test_invalid_target(self, tmp_drafts, approved_thread_draft):
+        with pytest.raises(ValueError, match="target inválido"):
+            adapt_draft(
+                approved_thread_draft,
+                "tiktok",
+                target_date=date(2026, 4, 26),
+                drafts_dir=tmp_drafts,
+                dry_run=True,
+            )
+
+    def test_source_without_tweets_raises(self, tmp_drafts):
+        bad = {"type": "didactico", "content": {"key_message": "x"}}
+        with pytest.raises(ValueError, match="content.tweets"):
+            adapt_draft(
+                bad,
+                "instagram",
+                target_date=date(2026, 4, 26),
+                drafts_dir=tmp_drafts,
+                dry_run=True,
+            )
+
+    def test_to_instagram_writes_carrousel(
+        self, tmp_drafts, approved_thread_draft, fake_carrousel_response
+    ):
+        with patch.object(
+            copy_generator, "call_agent", return_value=fake_carrousel_response
+        ) as mock_call:
+            draft = adapt_draft(
+                approved_thread_draft,
+                "instagram",
+                target_date=date(2026, 4, 26),
+                drafts_dir=tmp_drafts,
+            )
+        assert draft["type"] == "carrousel_ig"
+        assert draft["platform"] == "instagram"
+        assert len(draft["content"]["slides"]) == 8
+        # El user_input debe incluir los tweets fuente.
+        ui = mock_call.call_args.kwargs["user_input"]
+        assert "Tardé tres años" in ui
+        # El draft debe haberse persistido.
+        out = tmp_drafts / "post_2026-04-26_carrousel_ig.json"
+        assert out.exists()
+        # Source files debe haber registrado el archivo del thread fuente.
+        assert "post_2026-04-25_didactico.json" in (draft["metadata"]["source_files"] or [])
+
+    def test_to_linkedin_writes_post(
+        self, tmp_drafts, approved_thread_draft, fake_linkedin_response
+    ):
+        with patch.object(
+            copy_generator, "call_agent", return_value=fake_linkedin_response
+        ) as mock_call:
+            draft = adapt_draft(
+                approved_thread_draft,
+                "linkedin",
+                signer="Franco",
+                target_date=date(2026, 4, 26),
+                drafts_dir=tmp_drafts,
+            )
+        assert draft["type"] == "linkedin_post"
+        assert draft["platform"] == "linkedin"
+        assert draft["content"]["signer"] == "Franco"
+        assert draft["content"]["word_count_approx"] == 280
+        ui = mock_call.call_args.kwargs["user_input"]
+        assert "Franco" in ui
+
+    def test_dry_run_no_api(self, tmp_drafts, approved_thread_draft):
+        with patch.object(
+            copy_generator, "call_agent", return_value={
+                "content": "[DRY RUN]", "model": "claude-sonnet-4-6",
+                "usage": None, "cost_usd": 0.0,
+            },
+        ):
+            draft = adapt_draft(
+                approved_thread_draft,
+                "instagram",
+                target_date=date(2026, 4, 26),
+                drafts_dir=tmp_drafts,
+                dry_run=True,
+            )
+        assert draft["metadata"]["dry_run"] is True
+        # Dry-run debe producir el shape correcto (slides, no tweets).
+        assert "slides" in draft["content"]
+        assert len(draft["content"]["slides"]) == 8
+
+    @pytest.mark.parametrize("alias,expected_type", [
+        ("ig", "carrousel_ig"),
+        ("instagram", "carrousel_ig"),
+        ("carrousel_ig", "carrousel_ig"),
+        ("li", "linkedin_post"),
+        ("linkedin", "linkedin_post"),
+        ("linkedin_post", "linkedin_post"),
+    ])
+    def test_target_aliases(
+        self,
+        alias,
+        expected_type,
+        tmp_drafts,
+        approved_thread_draft,
+    ):
+        with patch.object(
+            copy_generator, "call_agent", return_value={
+                "content": "[DRY RUN]", "model": "claude-sonnet-4-6",
+                "usage": None, "cost_usd": 0.0,
+            },
+        ):
+            draft = adapt_draft(
+                approved_thread_draft,
+                alias,
+                target_date=date(2026, 4, 26),
+                drafts_dir=tmp_drafts,
+                dry_run=True,
+            )
+        assert draft["type"] == expected_type

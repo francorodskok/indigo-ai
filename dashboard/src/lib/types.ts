@@ -114,13 +114,31 @@ export type DebateFile = {
 export type SocialPostType =
   | "thread_post_ciclo"
   | "analisis_coyuntura"
-  | "didactico";
+  | "didactico"
+  | "carrousel_ig"
+  | "linkedin_post";
 
 export type SocialPlatform = "x" | "instagram" | "linkedin";
 
+export type CarrouselSlide = {
+  title?: string;
+  body?: string;
+  footnote?: string | null;
+};
+
 export type SocialContent = {
+  // Threads X
   tweets?: string[];
   hook_family?: "A" | "B" | "C" | "D" | string;
+  // Carrousel Instagram
+  slides?: CarrouselSlide[];
+  hook_visual?: string;
+  cta_slide_index?: number;
+  // LinkedIn
+  text?: string;
+  word_count_approx?: number;
+  signer?: string;
+  // Común
   key_message?: string;
   self_review_notes?: string;
 };
