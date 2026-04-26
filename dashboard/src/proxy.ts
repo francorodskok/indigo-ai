@@ -1,7 +1,10 @@
-// middleware.ts — basic auth para /admin/* y /api/social/*.
+// proxy.ts — basic auth para /admin/* y /api/social/*.
 //
-// Si la env var `DASHBOARD_ADMIN_PASSWORD` no está seteada, el middleware
-// deja pasar todo (modo dev). En prod (Vercel), seteás la env var y queda
+// (Antes era middleware.ts; Next.js 16 lo renombró a "proxy" para evitar
+// confusión con server middleware. Misma API.)
+//
+// Si la env var `DASHBOARD_ADMIN_PASSWORD` no está seteada, el proxy deja
+// pasar todo (modo dev). En prod (Vercel), seteás la env var y queda
 // protegido con HTTP basic auth (el browser pide user/pass).
 //
 // Username: cualquiera (por convención `franco`). Sólo se valida la pass.
@@ -9,7 +12,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const expected = process.env.DASHBOARD_ADMIN_PASSWORD;
   if (!expected) return NextResponse.next(); // sin password → dev mode, libre
 
