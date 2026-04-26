@@ -61,6 +61,24 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     p.add_argument(
+        "--account",
+        help="(engagement_reply) handle de la cuenta a la que respondemos.",
+    )
+    p.add_argument(
+        "--thread-text",
+        help=(
+            "(engagement_reply) texto del thread del autor (concatenado "
+            "tweet por tweet). Pegalo entre comillas."
+        ),
+    )
+    p.add_argument(
+        "--our-context",
+        help=(
+            "(engagement_reply) JSON con contexto adicional de Indigo, "
+            'ej. \'{"position":"AAPL 4.2%","cycle_summary":"..."}\'.'
+        ),
+    )
+    p.add_argument(
         "--adapt",
         help="Path a un draft fuente (thread X aprobado) a traducir.",
     )
@@ -212,6 +230,19 @@ def main(argv: list[str] | None = None) -> int:
         except json.JSONDecodeError as e:
             p.error(f"--reading debe ser JSON válido: {e}")
 
+    our_context_dict = None
+    if args.our_context:
+        try:
+            our_context_dict = json.loads(args.our_context)
+        except json.JSONDecodeError as e:
+            p.error(f"--our-context debe ser JSON válido: {e}")
+
+    if args.type == "engagement_reply" and (not args.account or not args.thread_text):
+        p.error(
+            "--type engagement_reply requiere --account <handle> y "
+            "--thread-text \"<texto>\""
+        )
+
     gen_kwargs: dict = {
         "post_type": args.type,
         "topic": args.topic,
@@ -220,6 +251,9 @@ def main(argv: list[str] | None = None) -> int:
         "concept": args.concept,
         "optional_indigo_example": args.example,
         "reading_suggestions": reading_suggestions,
+        "target_account": args.account,
+        "thread_text": args.thread_text,
+        "our_context": our_context_dict,
         "force": args.force,
         "dry_run": args.dry_run,
     }
@@ -247,9 +281,14 @@ def main(argv: list[str] | None = None) -> int:
                 **({"effort": args.effort} if args.effort else {}),
             )
             # Re-persistir con el regulatory actualizado.
+            # Re-persistir con el regulatory actualizado, usando el path
+            # original que devolvió generate_post (puede tener slug por
+            # disambiguación, ej engagement_reply_<handle>).
             from pathlib import Path
-            from pipeline.social.copy_generator import DRAFTS_DIR
-            out = DRAFTS_DIR / f"post_{draft['target_date']}_{draft['type']}.json"
+            out = Path(draft.get("_filePath") or "")
+            if not out.is_file():
+                from pipeline.social.copy_generator import DRAFTS_DIR
+                out = DRAFTS_DIR / f"post_{draft['target_date']}_{draft['type']}.json"
             out.write_text(
                 json.dumps(draft, indent=2, ensure_ascii=False),
                 encoding="utf-8",

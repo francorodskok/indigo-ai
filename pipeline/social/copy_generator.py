@@ -37,7 +37,13 @@ DRAFTS_DIR = SOCIAL_OUTPUTS / "drafts"
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 # Tipos generadores (escriben de cero a partir de cycle data / topic / concept).
-SOURCE_POST_TYPES = ("thread_post_ciclo", "analisis_coyuntura", "didactico", "newsletter")
+SOURCE_POST_TYPES = (
+    "thread_post_ciclo",
+    "analisis_coyuntura",
+    "didactico",
+    "newsletter",
+    "engagement_reply",
+)
 
 # Tipos adapters (toman un draft fuente aprobado y lo traducen a otra plataforma).
 ADAPTER_POST_TYPES = ("carrousel_ig", "linkedin_post")
@@ -53,6 +59,7 @@ TYPE_TO_PLATFORM = {
     "carrousel_ig": "instagram",
     "linkedin_post": "linkedin",
     "newsletter": "newsletter",
+    "engagement_reply": "x",
 }
 
 # Default model: Sonnet 4.6 con effort medium. Suficiente para copy y barato
@@ -304,6 +311,36 @@ def _validate_linkedin(parsed: dict) -> list[str]:
     return issues
 
 
+def _validate_engagement_reply(parsed: dict) -> list[str]:
+    """Validador para drafts de respuesta a threads ajenos."""
+    issues: list[str] = []
+    replies = parsed.get("replies")
+    if not isinstance(replies, list):
+        issues.append("missing 'replies' (list, puede ser vacía)")
+        return issues
+    # `replies` vacío es OK — significa "no responder, no aporta valor".
+    # Validamos el shape de las que vengan.
+    valid_approaches = {"complement", "disagree", "extend", "data_add"}
+    for i, r in enumerate(replies):
+        if not isinstance(r, dict):
+            issues.append(f"reply {i} no es dict")
+            continue
+        text = r.get("text")
+        if not isinstance(text, str) or not text.strip():
+            issues.append(f"reply {i} sin 'text'")
+            continue
+        if len(text) > X_TWEET_MAX_CHARS:
+            issues.append(
+                f"reply {i} tiene {len(text)} chars (máx {X_TWEET_MAX_CHARS})"
+            )
+        approach = r.get("approach")
+        if approach and approach not in valid_approaches:
+            issues.append(f"reply {i} approach inválido: {approach}")
+    if not parsed.get("decision_summary"):
+        issues.append("missing 'decision_summary'")
+    return issues
+
+
 def _validate_newsletter(parsed: dict) -> list[str]:
     """Validador específico para newsletters quincenales."""
     issues: list[str] = []
@@ -351,6 +388,7 @@ _VALIDATORS = {
     "carrousel_ig": _validate_carrousel,
     "linkedin_post": _validate_linkedin,
     "newsletter": _validate_newsletter,
+    "engagement_reply": _validate_engagement_reply,
 }
 
 
@@ -385,6 +423,19 @@ def _dry_run_content_for(post_type: str) -> dict[str, Any]:
             ],
             "closing_question": "[DRY RUN]",
             "word_count_approx": 4,
+            "key_message": "[DRY RUN]",
+            "self_review_notes": "[DRY RUN]",
+        }
+    if post_type == "engagement_reply":
+        return {
+            "replies": [
+                {
+                    "text": "[DRY RUN] respuesta de prueba",
+                    "approach": "complement",
+                    "rationale": "[DRY RUN]",
+                },
+            ],
+            "decision_summary": "[DRY RUN]",
             "key_message": "[DRY RUN]",
             "self_review_notes": "[DRY RUN]",
         }
@@ -444,6 +495,29 @@ def _build_user_input_didactico(
     )
 
 
+def _build_user_input_engagement_reply(
+    target_account: str,
+    thread_text: str,
+    our_context: dict[str, Any] | None,
+) -> str:
+    """User input para el generador de respuestas a threads ajenos."""
+    from pipeline.social.accounts import get_account
+    account_meta = get_account(target_account)
+    payload = {
+        "target_account": target_account,
+        "target_account_metadata": account_meta,
+        "thread_text": thread_text,
+        "our_context": our_context or {},
+    }
+    return (
+        "THREAD AL QUE QUEREMOS RESPONDER (JSON):\n\n```json\n"
+        + json.dumps(payload, indent=2, ensure_ascii=False, default=str)
+        + "\n```\n\n"
+        "Decidí si vale la pena responder y devolvé propuestas siguiendo "
+        "las instrucciones."
+    )
+
+
 def _build_user_input_newsletter(
     topic: str,
     cycle_data: dict[str, Any] | None,
@@ -499,6 +573,9 @@ def generate_post(
     source_draft: dict[str, Any] | None = None,
     signer: str | None = None,
     reading_suggestions: list[dict[str, Any]] | None = None,
+    target_account: str | None = None,
+    thread_text: str | None = None,
+    our_context: dict[str, Any] | None = None,
     target_date: date | None = None,
     model: str = DEFAULT_MODEL,
     effort: str = DEFAULT_EFFORT,
@@ -538,7 +615,14 @@ def generate_post(
 
     out_dir = drafts_dir if drafts_dir is not None else DRAFTS_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"post_{target_date.isoformat()}_{post_type}.json"
+    # Disambiguator: engagement_reply puede tener varios el mismo día (un draft
+    # por thread al que respondemos). Incluimos slug del handle al filename.
+    if post_type == "engagement_reply" and target_account:
+        slug = re.sub(r"[^a-zA-Z0-9]+", "", target_account.lstrip("@")).lower()[:20]
+        suffix = f"engagement_reply_{slug}" if slug else "engagement_reply"
+    else:
+        suffix = post_type
+    out_path = out_dir / f"post_{target_date.isoformat()}_{suffix}.json"
 
     if out_path.exists() and not force:
         raise FileExistsError(
@@ -575,6 +659,14 @@ def generate_post(
         source_files = list(cycle_data.pop("_source_files", []))
         user_input = _build_user_input_newsletter(
             topic, cycle_data, reading_suggestions
+        )
+    elif post_type == "engagement_reply":
+        if not target_account or not thread_text:
+            raise ValueError(
+                "engagement_reply requiere `target_account` y `thread_text`"
+            )
+        user_input = _build_user_input_engagement_reply(
+            target_account, thread_text, our_context
         )
     elif post_type in ADAPTER_POST_TYPES:
         if source_draft is None:
@@ -654,6 +746,10 @@ def generate_post(
 
     out_path.write_text(json.dumps(draft, indent=2, ensure_ascii=False), encoding="utf-8")
     log.info("Draft guardado en %s (cost=$%.4f)", out_path, response.get("cost_usd", 0.0))
+    # Inyectar el path en el draft devuelto al caller (útil para CLI/tests
+    # que necesitan re-persistir tras un review).
+    draft["_filePath"] = str(out_path)
+    draft["_fileName"] = out_path.name
     return draft
 
 

@@ -25,6 +25,7 @@ from pipeline.social.copy_generator import (
     SOURCE_POST_TYPES,
     _extract_json_block,
     _validate_carrousel,
+    _validate_engagement_reply,
     _validate_linkedin,
     _validate_newsletter,
     _validate_thread,
@@ -681,6 +682,167 @@ class TestGenerateNewsletter:
         # Newsletter usa max_tokens más alto.
         assert mock_call.call_args.kwargs["max_tokens"] == 16_000
         assert draft["type"] == "newsletter"
+
+
+class TestValidateEngagementReply:
+    def test_empty_replies_with_summary_is_ok(self):
+        # Cero replies = "no aporta valor responder" → válido si hay summary.
+        assert _validate_engagement_reply({
+            "replies": [],
+            "decision_summary": "el thread ya tiene 200+ respuestas y nuestra observación se pierde",
+        }) == []
+
+    def test_missing_replies_field(self):
+        issues = _validate_engagement_reply({"decision_summary": "x"})
+        assert any("missing 'replies'" in i for i in issues)
+
+    def test_reply_too_long(self):
+        long = "a" * 290
+        issues = _validate_engagement_reply({
+            "replies": [{"text": long, "approach": "complement"}],
+            "decision_summary": "x",
+        })
+        assert any("290 chars" in i for i in issues)
+
+    def test_invalid_approach(self):
+        issues = _validate_engagement_reply({
+            "replies": [{"text": "ok", "approach": "shitpost"}],
+            "decision_summary": "x",
+        })
+        assert any("approach inválido" in i for i in issues)
+
+    def test_missing_decision_summary(self):
+        issues = _validate_engagement_reply({"replies": []})
+        assert any("decision_summary" in i for i in issues)
+
+    def test_valid_with_three_replies(self):
+        replies = [
+            {"text": "ok 1", "approach": "complement", "rationale": "x"},
+            {"text": "ok 2", "approach": "disagree", "rationale": "x"},
+            {"text": "ok 3", "approach": "extend", "rationale": "x"},
+        ]
+        assert _validate_engagement_reply({
+            "replies": replies,
+            "decision_summary": "x",
+        }) == []
+
+
+class TestGenerateEngagementReply:
+    def test_requires_account_and_thread(self, tmp_drafts):
+        with pytest.raises(ValueError, match="target_account"):
+            generate_post(
+                "engagement_reply",
+                target_date=date(2026, 4, 26),
+                drafts_dir=tmp_drafts,
+                dry_run=True,
+            )
+
+    def test_filename_includes_handle_slug(self, tmp_drafts):
+        with patch.object(
+            copy_generator, "call_agent", return_value={
+                "content": "[DRY RUN]", "model": "claude-sonnet-4-6",
+                "usage": None, "cost_usd": 0.0,
+            },
+        ):
+            draft = generate_post(
+                "engagement_reply",
+                target_account="@mkiguel",
+                thread_text="el thread completo del autor",
+                target_date=date(2026, 4, 26),
+                drafts_dir=tmp_drafts,
+                dry_run=True,
+            )
+        assert draft["type"] == "engagement_reply"
+        # El filename debe incluir un slug del handle.
+        out_files = list(tmp_drafts.iterdir())
+        assert len(out_files) == 1
+        assert "mkiguel" in out_files[0].name
+
+    def test_two_replies_to_same_account_need_force_or_different_day(
+        self, tmp_drafts
+    ):
+        # Mismo handle el mismo día: idempotencia.
+        with patch.object(
+            copy_generator, "call_agent", return_value={
+                "content": "[DRY RUN]", "model": "claude-sonnet-4-6",
+                "usage": None, "cost_usd": 0.0,
+            },
+        ):
+            generate_post(
+                "engagement_reply",
+                target_account="@mkiguel",
+                thread_text="thread A",
+                target_date=date(2026, 4, 26),
+                drafts_dir=tmp_drafts,
+                dry_run=True,
+            )
+            with pytest.raises(FileExistsError):
+                generate_post(
+                    "engagement_reply",
+                    target_account="@mkiguel",
+                    thread_text="thread B (otro)",
+                    target_date=date(2026, 4, 26),
+                    drafts_dir=tmp_drafts,
+                    dry_run=True,
+                )
+
+    def test_two_replies_to_different_accounts_coexist(self, tmp_drafts):
+        with patch.object(
+            copy_generator, "call_agent", return_value={
+                "content": "[DRY RUN]", "model": "claude-sonnet-4-6",
+                "usage": None, "cost_usd": 0.0,
+            },
+        ):
+            generate_post(
+                "engagement_reply",
+                target_account="@mkiguel",
+                thread_text="thread X",
+                target_date=date(2026, 4, 26),
+                drafts_dir=tmp_drafts,
+                dry_run=True,
+            )
+            generate_post(
+                "engagement_reply",
+                target_account="@LynAldenContact",
+                thread_text="thread Y",
+                target_date=date(2026, 4, 26),
+                drafts_dir=tmp_drafts,
+                dry_run=True,
+            )
+        files = sorted(tmp_drafts.iterdir())
+        assert len(files) == 2
+
+    def test_passes_account_and_thread(self, tmp_drafts):
+        payload = {
+            "replies": [
+                {"text": "+3.4 pp en 60 días.", "approach": "data_add", "rationale": "x"},
+            ],
+            "decision_summary": "agregar dato concreto",
+            "key_message": "x",
+            "self_review_notes": "x",
+        }
+        response = {
+            "content": json.dumps(payload),
+            "model": "claude-sonnet-4-6",
+            "usage": None,
+            "cost_usd": 0.01,
+        }
+        with patch.object(
+            copy_generator, "call_agent", return_value=response
+        ) as mock_call:
+            draft = generate_post(
+                "engagement_reply",
+                target_account="@mkiguel",
+                thread_text="el thread del autor sobre concentración sectorial",
+                our_context={"position": "AAPL 4.2%"},
+                target_date=date(2026, 4, 26),
+                drafts_dir=tmp_drafts,
+            )
+        ui = mock_call.call_args.kwargs["user_input"]
+        assert "@mkiguel" in ui or "mkiguel" in ui
+        assert "concentración sectorial" in ui
+        assert "AAPL 4.2%" in ui
+        assert draft["content"]["replies"][0]["approach"] == "data_add"
 
 
 class TestAdaptDraftAliases:

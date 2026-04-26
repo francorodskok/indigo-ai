@@ -117,7 +117,14 @@ export type SocialPostType =
   | "didactico"
   | "carrousel_ig"
   | "linkedin_post"
-  | "newsletter";
+  | "newsletter"
+  | "engagement_reply";
+
+export type EngagementReplyOption = {
+  text?: string;
+  approach?: "complement" | "disagree" | "extend" | "data_add" | string;
+  rationale?: string;
+};
 
 export type SocialPlatform = "x" | "instagram" | "linkedin" | "newsletter";
 
@@ -151,6 +158,9 @@ export type SocialContent = {
   body_markdown?: string;
   reading_list?: ReadingListEntry[];
   closing_question?: string;
+  // Engagement reply
+  replies?: EngagementReplyOption[];
+  decision_summary?: string;
   // Común
   key_message?: string;
   self_review_notes?: string;

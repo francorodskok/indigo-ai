@@ -29,6 +29,26 @@ const TYPE_LABELS: Record<string, string> = {
   carrousel_ig: "Carrousel Instagram",
   linkedin_post: "Post LinkedIn",
   newsletter: "Newsletter quincenal",
+  engagement_reply: "Respuesta a thread ajeno",
+};
+
+const APPROACH_LABELS: Record<string, { label: string; className: string }> = {
+  complement: {
+    label: "complement",
+    className: "border-sky-400/40 text-sky-300 bg-sky-400/10",
+  },
+  disagree: {
+    label: "disagree",
+    className: "border-rose-400/40 text-rose-300 bg-rose-400/10",
+  },
+  extend: {
+    label: "extend",
+    className: "border-emerald-400/40 text-emerald-300 bg-emerald-400/10",
+  },
+  data_add: {
+    label: "data_add",
+    className: "border-amber-400/40 text-amber-300 bg-amber-400/10",
+  },
 };
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -257,6 +277,71 @@ function SlideCard({
   );
 }
 
+function EngagementReplyCard({ draft }: { draft: SocialDraft }) {
+  const c = draft.content ?? {};
+  const replies = c.replies ?? [];
+  return (
+    <div className="space-y-3">
+      {c.decision_summary && (
+        <div className="border-l-2 border-[color:var(--accent)] pl-3 text-sm italic text-[color:var(--foreground)]/90">
+          {c.decision_summary}
+        </div>
+      )}
+      {replies.length === 0 ? (
+        <div className="border border-dashed border-[color:var(--border)] rounded-lg p-3 text-sm text-[color:var(--muted)]">
+          0 respuestas — el modelo decidió que no aporta valor responder.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <h4 className="text-xs uppercase tracking-wider text-[color:var(--muted)]">
+            Alternativas ({replies.length})
+          </h4>
+          {replies.map((r, i) => {
+            const approachKey = r.approach ?? "";
+            const approachStyle = APPROACH_LABELS[approachKey];
+            const len = (r.text ?? "").length;
+            const overLimit = len > 280;
+            return (
+              <div
+                key={i}
+                className="border border-[color:var(--border)] rounded-lg p-3 space-y-2"
+              >
+                <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="text-[10px] uppercase tracking-wider text-[color:var(--muted)] mono">
+                      opción {i + 1}
+                    </span>
+                    {approachStyle && (
+                      <span
+                        className={`inline-block border rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wider mono ${approachStyle.className}`}
+                      >
+                        {approachStyle.label}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className={`text-[10px] mono ${overLimit ? "text-rose-400 font-semibold" : "text-[color:var(--muted)]"}`}
+                  >
+                    {len}/280
+                  </span>
+                </div>
+                <p className="text-sm leading-relaxed whitespace-pre-line">
+                  {r.text}
+                </p>
+                {r.rationale && (
+                  <p className="text-xs text-[color:var(--muted)] italic leading-relaxed">
+                    {r.rationale}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NewsletterCard({ draft }: { draft: SocialDraft }) {
   const c = draft.content ?? {};
   const wc = c.word_count_approx;
@@ -361,6 +446,14 @@ function LinkedInPostCard({ draft }: { draft: SocialDraft }) {
 
 function ContentPreview({ draft }: { draft: SocialDraft }) {
   const c = draft.content ?? {};
+  // Engagement reply (chequeo antes que tweets para no confundir).
+  if (draft.type === "engagement_reply") {
+    return (
+      <div className="space-y-2">
+        <EngagementReplyCard draft={draft} />
+      </div>
+    );
+  }
   // X thread
   if (c.tweets && c.tweets.length > 0) {
     return (
