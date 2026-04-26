@@ -24,6 +24,7 @@ const NAV = [
   { href: "/", label: "Inicio" },
   { href: "/cycles", label: "Ciclos" },
   { href: "/trades", label: "Trades" },
+  { href: "/social", label: "Social" },
   { href: "/constitution", label: "Constitución" },
   { href: "/about", label: "Acerca" },
 ];

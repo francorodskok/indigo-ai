@@ -109,6 +109,72 @@ export type DebateFile = {
   _dateISO: string;
 };
 
+// Drafts de redes sociales generados por `pipeline/social/copy_generator.py`.
+// Mirror del schema escrito a `pipeline/outputs/social/drafts/post_*.json`.
+export type SocialPostType =
+  | "thread_post_ciclo"
+  | "analisis_coyuntura"
+  | "didactico";
+
+export type SocialPlatform = "x" | "instagram" | "linkedin";
+
+export type SocialContent = {
+  tweets?: string[];
+  hook_family?: "A" | "B" | "C" | "D" | string;
+  key_message?: string;
+  self_review_notes?: string;
+};
+
+export type SocialViolation = {
+  category: string;
+  severity: "high" | "medium" | "low" | string;
+  fragment: string;
+  explanation: string;
+  suggested_fix: string;
+};
+
+export type SocialToneIssue = {
+  category: string;
+  fragment: string;
+  fix: string;
+};
+
+export type SocialRegulatory = {
+  status: "pending" | "green" | "yellow" | "red" | string;
+  summary?: string;
+  violations?: SocialViolation[];
+  tone_issues?: SocialToneIssue[];
+  publishable_as_is?: boolean;
+  reviewed_at?: string | null;
+  review_model?: string;
+  review_cost_usd?: number;
+  review_dry_run?: boolean;
+};
+
+export type SocialMetadata = {
+  model?: string;
+  effort?: string;
+  cost_usd?: number;
+  source_files?: string[];
+  validation_issues?: string[];
+  dry_run?: boolean;
+  input_args?: Record<string, unknown>;
+};
+
+export type SocialDraft = {
+  type: SocialPostType | string;
+  platform: SocialPlatform | string;
+  generated_at: string;
+  target_date: string;       // YYYY-MM-DD
+  cycle_id?: string | null;
+  content: SocialContent;
+  metadata: SocialMetadata;
+  regulatory: SocialRegulatory;
+  // Inyectado por el reader.
+  _filePath?: string;
+  _fileName?: string;
+};
+
 // NAV equity-curve snapshot — un punto por día calendario.
 // Mirror del schema escrito por `pipeline/nav_tracker.record_today`.
 // equity_usd = portfolio total equity (Alpaca account.equity).
