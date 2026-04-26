@@ -116,9 +116,16 @@ export type SocialPostType =
   | "analisis_coyuntura"
   | "didactico"
   | "carrousel_ig"
-  | "linkedin_post";
+  | "linkedin_post"
+  | "newsletter";
 
-export type SocialPlatform = "x" | "instagram" | "linkedin";
+export type SocialPlatform = "x" | "instagram" | "linkedin" | "newsletter";
+
+export type ReadingListEntry = {
+  title?: string;
+  url?: string | null;
+  comment?: string;
+};
 
 export type CarrouselSlide = {
   title?: string;
@@ -138,6 +145,12 @@ export type SocialContent = {
   text?: string;
   word_count_approx?: number;
   signer?: string;
+  // Newsletter
+  subject?: string;
+  preheader?: string;
+  body_markdown?: string;
+  reading_list?: ReadingListEntry[];
+  closing_question?: string;
   // Común
   key_message?: string;
   self_review_notes?: string;

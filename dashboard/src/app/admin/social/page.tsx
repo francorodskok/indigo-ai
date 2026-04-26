@@ -28,12 +28,14 @@ const TYPE_LABELS: Record<string, string> = {
   didactico: "Didáctico",
   carrousel_ig: "Carrousel Instagram",
   linkedin_post: "Post LinkedIn",
+  newsletter: "Newsletter quincenal",
 };
 
 const PLATFORM_LABELS: Record<string, string> = {
   x: "X",
   instagram: "Instagram",
   linkedin: "LinkedIn",
+  newsletter: "Newsletter",
 };
 
 function statusBadge(status: string): { label: string; className: string } {
@@ -255,6 +257,84 @@ function SlideCard({
   );
 }
 
+function NewsletterCard({ draft }: { draft: SocialDraft }) {
+  const c = draft.content ?? {};
+  const wc = c.word_count_approx;
+  return (
+    <div className="space-y-3">
+      <div className="border border-[color:var(--border)] rounded-lg p-4 space-y-2">
+        <div className="text-[10px] uppercase tracking-wider text-[color:var(--muted)]">
+          Subject
+        </div>
+        <div className="font-semibold">{c.subject ?? "—"}</div>
+        {c.preheader && (
+          <div className="text-sm text-[color:var(--muted)] italic">
+            Preheader: {c.preheader}
+          </div>
+        )}
+      </div>
+
+      {c.body_markdown && (
+        <div className="border border-[color:var(--border)] rounded-lg p-4 space-y-2">
+          <div className="flex items-baseline justify-between text-[10px] uppercase tracking-wider text-[color:var(--muted)]">
+            <span>Body (markdown)</span>
+            {wc != null && (
+              <span
+                className={`mono ${
+                  wc < 1000 || wc > 1500 ? "text-rose-400 font-semibold" : ""
+                }`}
+              >
+                ~{wc} palabras (1000–1500)
+              </span>
+            )}
+          </div>
+          <pre className="text-sm leading-relaxed whitespace-pre-wrap font-sans text-[color:var(--foreground)]/90 max-h-96 overflow-y-auto">
+            {c.body_markdown}
+          </pre>
+        </div>
+      )}
+
+      {c.reading_list && c.reading_list.length > 0 && (
+        <div className="border border-[color:var(--border)] rounded-lg p-4 space-y-2">
+          <div className="text-[10px] uppercase tracking-wider text-[color:var(--muted)]">
+            Qué estoy leyendo ({c.reading_list.length})
+          </div>
+          <ul className="space-y-2">
+            {c.reading_list.map((r, i) => (
+              <li key={i} className="text-sm space-y-1">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <span className="font-semibold">{r.title ?? "—"}</span>
+                  {r.url && (
+                    <a
+                      href={r.url}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="text-xs text-[color:var(--accent)] hover:underline mono break-all"
+                    >
+                      {r.url}
+                    </a>
+                  )}
+                </div>
+                {r.comment && (
+                  <p className="text-[color:var(--foreground)]/85 leading-relaxed">
+                    {r.comment}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {c.closing_question && (
+        <div className="border-l-2 border-[color:var(--accent)] pl-3 text-sm italic text-[color:var(--foreground)]/90">
+          {c.closing_question}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LinkedInPostCard({ draft }: { draft: SocialDraft }) {
   const text = draft.content?.text ?? "";
   const wc = draft.content?.word_count_approx;
@@ -322,10 +402,18 @@ function ContentPreview({ draft }: { draft: SocialDraft }) {
     );
   }
   // LinkedIn
-  if (c.text) {
+  if (c.text && draft.type === "linkedin_post") {
     return (
       <div className="space-y-2">
         <LinkedInPostCard draft={draft} />
+      </div>
+    );
+  }
+  // Newsletter
+  if (draft.type === "newsletter" || c.body_markdown) {
+    return (
+      <div className="space-y-2">
+        <NewsletterCard draft={draft} />
       </div>
     );
   }

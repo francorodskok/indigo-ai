@@ -37,7 +37,7 @@ DRAFTS_DIR = SOCIAL_OUTPUTS / "drafts"
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 # Tipos generadores (escriben de cero a partir de cycle data / topic / concept).
-SOURCE_POST_TYPES = ("thread_post_ciclo", "analisis_coyuntura", "didactico")
+SOURCE_POST_TYPES = ("thread_post_ciclo", "analisis_coyuntura", "didactico", "newsletter")
 
 # Tipos adapters (toman un draft fuente aprobado y lo traducen a otra plataforma).
 ADAPTER_POST_TYPES = ("carrousel_ig", "linkedin_post")
@@ -52,6 +52,7 @@ TYPE_TO_PLATFORM = {
     "didactico": "x",
     "carrousel_ig": "instagram",
     "linkedin_post": "linkedin",
+    "newsletter": "newsletter",
 }
 
 # Default model: Sonnet 4.6 con effort medium. Suficiente para copy y barato
@@ -233,6 +234,10 @@ LINKEDIN_MIN_WORDS = 200
 LINKEDIN_MAX_WORDS = 400
 CARROUSEL_MIN_SLIDES = 8
 CARROUSEL_MAX_SLIDES = 10
+NEWSLETTER_MIN_WORDS = 1000
+NEWSLETTER_MAX_WORDS = 1500
+NEWSLETTER_SUBJECT_MAX_CHARS = 80
+NEWSLETTER_PREHEADER_MAX_CHARS = 150
 
 
 def _validate_thread(parsed: dict) -> list[str]:
@@ -299,6 +304,45 @@ def _validate_linkedin(parsed: dict) -> list[str]:
     return issues
 
 
+def _validate_newsletter(parsed: dict) -> list[str]:
+    """Validador específico para newsletters quincenales."""
+    issues: list[str] = []
+    body = parsed.get("body_markdown")
+    if not isinstance(body, str) or not body.strip():
+        issues.append("missing 'body_markdown' (string)")
+        return issues
+    words = [w for w in re.split(r"\s+", body) if w]
+    n = len(words)
+    if n < NEWSLETTER_MIN_WORDS:
+        issues.append(f"body tiene {n} palabras, mínimo {NEWSLETTER_MIN_WORDS}")
+    if n > NEWSLETTER_MAX_WORDS:
+        issues.append(f"body tiene {n} palabras, máximo {NEWSLETTER_MAX_WORDS}")
+
+    subject = parsed.get("subject", "")
+    if not isinstance(subject, str) or not subject.strip():
+        issues.append("missing 'subject' (string)")
+    elif len(subject) > NEWSLETTER_SUBJECT_MAX_CHARS:
+        issues.append(
+            f"subject tiene {len(subject)} chars (máx {NEWSLETTER_SUBJECT_MAX_CHARS})"
+        )
+
+    preheader = parsed.get("preheader", "")
+    if isinstance(preheader, str) and len(preheader) > NEWSLETTER_PREHEADER_MAX_CHARS:
+        issues.append(
+            f"preheader tiene {len(preheader)} chars (máx {NEWSLETTER_PREHEADER_MAX_CHARS})"
+        )
+
+    reading_list = parsed.get("reading_list")
+    if not isinstance(reading_list, list):
+        issues.append("missing 'reading_list' (list)")
+    elif len(reading_list) < 2:
+        issues.append(f"reading_list tiene {len(reading_list)} entries (mínimo 2 sugerido)")
+
+    if not parsed.get("closing_question"):
+        issues.append("missing 'closing_question'")
+    return issues
+
+
 # Registro central tipo → validador.
 _VALIDATORS = {
     "thread_post_ciclo": _validate_thread,
@@ -306,6 +350,7 @@ _VALIDATORS = {
     "didactico": _validate_thread,
     "carrousel_ig": _validate_carrousel,
     "linkedin_post": _validate_linkedin,
+    "newsletter": _validate_newsletter,
 }
 
 
@@ -327,6 +372,19 @@ def _dry_run_content_for(post_type: str) -> dict[str, Any]:
             "text": "[DRY RUN] LinkedIn post de prueba.",
             "word_count_approx": 5,
             "signer": "Franco",
+            "key_message": "[DRY RUN]",
+            "self_review_notes": "[DRY RUN]",
+        }
+    if post_type == "newsletter":
+        return {
+            "subject": "[DRY RUN] subject",
+            "preheader": "[DRY RUN] preheader",
+            "body_markdown": "## DRY RUN\n\nLorem ipsum.\n",
+            "reading_list": [
+                {"title": "[DRY RUN]", "url": None, "comment": "..."},
+            ],
+            "closing_question": "[DRY RUN]",
+            "word_count_approx": 4,
             "key_message": "[DRY RUN]",
             "self_review_notes": "[DRY RUN]",
         }
@@ -386,6 +444,24 @@ def _build_user_input_didactico(
     )
 
 
+def _build_user_input_newsletter(
+    topic: str,
+    cycle_data: dict[str, Any] | None,
+    reading_suggestions: list[dict] | None,
+) -> str:
+    payload = {
+        "topic": topic,
+        "cycle_data": cycle_data,
+        "reading_suggestions": reading_suggestions or [],
+    }
+    return (
+        "INPUTS DEL NEWSLETTER (JSON):\n\n```json\n"
+        + json.dumps(payload, indent=2, ensure_ascii=False, default=str)
+        + "\n```\n\n"
+        "Escribí el newsletter siguiendo las instrucciones."
+    )
+
+
 def _build_user_input_adapter(source_draft: dict, signer: str | None = None) -> str:
     """
     Empaqueta un draft fuente (thread X aprobado) en el user_input para
@@ -422,6 +498,7 @@ def generate_post(
     cycle_data: dict[str, Any] | None = None,
     source_draft: dict[str, Any] | None = None,
     signer: str | None = None,
+    reading_suggestions: list[dict[str, Any]] | None = None,
     target_date: date | None = None,
     model: str = DEFAULT_MODEL,
     effort: str = DEFAULT_EFFORT,
@@ -490,6 +567,15 @@ def generate_post(
         if not concept:
             raise ValueError("didactico requiere `concept`")
         user_input = _build_user_input_didactico(concept, optional_indigo_example)
+    elif post_type == "newsletter":
+        if not topic:
+            raise ValueError("newsletter requiere `topic`")
+        if cycle_data is None:
+            cycle_data = _load_cycle_data()
+        source_files = list(cycle_data.pop("_source_files", []))
+        user_input = _build_user_input_newsletter(
+            topic, cycle_data, reading_suggestions
+        )
     elif post_type in ADAPTER_POST_TYPES:
         if source_draft is None:
             raise ValueError(
@@ -503,6 +589,10 @@ def generate_post(
     else:  # pragma: no cover — guardado por la validación de arriba
         raise ValueError(f"post_type no implementado: {post_type}")
 
+    # Newsletters son ensayos largos (1000-1500 palabras ≈ 5-8K tokens output);
+    # tipos cortos como threads / posts viven cómodos en 8K.
+    max_tokens = 16_000 if post_type == "newsletter" else 8_000
+
     response = call_agent(
         role=f"social_{post_type}",
         user_input=user_input,
@@ -511,7 +601,7 @@ def generate_post(
         system_suffix=system_suffix,
         dry_run=dry_run,
         inject_lessons=False,  # las lecciones de inversión no aplican a copy
-        max_tokens=8_000,       # threads no necesitan más
+        max_tokens=max_tokens,
     )
 
     # Parse del JSON. En dry_run el content es "[DRY RUN]".

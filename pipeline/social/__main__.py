@@ -54,6 +54,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--concept", help="(didactico) concepto a explicar.")
     p.add_argument("--example", help="(didactico) ejemplo opcional del portafolio.")
     p.add_argument(
+        "--reading",
+        help=(
+            "(newsletter) JSON-array de reading suggestions "
+            '[{title, url?, summary?}]. Si no se pasa, el modelo elige.'
+        ),
+    )
+    p.add_argument(
         "--adapt",
         help="Path a un draft fuente (thread X aprobado) a traducir.",
     )
@@ -196,6 +203,15 @@ def main(argv: list[str] | None = None) -> int:
         except json.JSONDecodeError as e:
             p.error(f"--context debe ser JSON válido: {e}")
 
+    reading_suggestions = None
+    if args.reading:
+        try:
+            reading_suggestions = json.loads(args.reading)
+            if not isinstance(reading_suggestions, list):
+                p.error("--reading debe ser un JSON array")
+        except json.JSONDecodeError as e:
+            p.error(f"--reading debe ser JSON válido: {e}")
+
     gen_kwargs: dict = {
         "post_type": args.type,
         "topic": args.topic,
@@ -203,6 +219,7 @@ def main(argv: list[str] | None = None) -> int:
         "connection_to_indigo": args.connection,
         "concept": args.concept,
         "optional_indigo_example": args.example,
+        "reading_suggestions": reading_suggestions,
         "force": args.force,
         "dry_run": args.dry_run,
     }

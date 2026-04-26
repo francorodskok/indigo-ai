@@ -51,10 +51,10 @@ def test_regulatory_line_mentions_key_constraints():
 
 
 def test_platform_rules_keys():
-    assert set(PLATFORM_RULES.keys()) == {"x", "instagram", "linkedin"}
+    assert set(PLATFORM_RULES.keys()) == {"x", "instagram", "linkedin", "newsletter"}
 
 
-@pytest.mark.parametrize("platform", ["x", "instagram", "linkedin"])
+@pytest.mark.parametrize("platform", ["x", "instagram", "linkedin", "newsletter"])
 def test_build_style_guide_includes_all_blocks(platform):
     block = build_style_guide(platform)
     # Cada bloque crítico debe estar presente.

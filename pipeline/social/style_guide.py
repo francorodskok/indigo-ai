@@ -187,10 +187,34 @@ LinkedIn (B2B, posts largos firmados):
   (no a vender).
 """
 
+NEWSLETTER_RULES = """\
+Newsletter (formato email, distribuido vía Beehiiv/Substack):
+- Pieza de ensayo, NO un resumen de cosas ya publicadas en otros lados.
+  La gente se suscribe al newsletter para obtener contenido que no circula
+  en redes. Si el newsletter repite lo que ya leyeron, se dan de baja.
+- Cadencia quincenal — la palabra es la unidad, no el tweet.
+- Estructura sugerida:
+  1. Texto central de 1000-1500 palabras sobre UN tema específico (tesis,
+     análisis profundo, reflexión sobre algo que el sistema decidió).
+  2. Sección breve "Qué estoy leyendo": 3-4 links comentados con 1-2
+     oraciones de reseña propia. NO listas largas.
+  3. Cierre con UNA pregunta abierta para los lectores que responden por
+     email. Esto construye la lista más fiel.
+- Lenguaje: equivalente a LinkedIn pero con espacio para profundizar.
+  Aún sin emojis, aún sin hooks motivacionales, aún sin "te cambia la vida".
+- Subject del email: 50-70 chars. Sin clickbait. Estilo: "Por qué vendimos
+  LVMH (y qué cambia en la cartera)" o "Tres ratios que el sistema mira y
+  los analistas raramente comentan".
+- Preheader (preview en inbox): 80-120 chars. Complementa el subject sin
+  repetirlo.
+- Output formato Markdown — Beehiiv/Substack consumen Markdown nativo.
+"""
+
 PLATFORM_RULES = {
     "x": X_RULES,
     "instagram": INSTAGRAM_RULES,
     "linkedin": LINKEDIN_RULES,
+    "newsletter": NEWSLETTER_RULES,
 }
 
 

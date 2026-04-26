@@ -26,6 +26,7 @@ from pipeline.social.copy_generator import (
     _extract_json_block,
     _validate_carrousel,
     _validate_linkedin,
+    _validate_newsletter,
     _validate_thread,
     adapt_draft,
     generate_post,
@@ -560,6 +561,129 @@ class TestAdaptDraft:
         assert "slides" in draft["content"]
         assert len(draft["content"]["slides"]) == 8
 
+
+class TestValidateNewsletter:
+    def _good(self, **overrides) -> dict:
+        body = " ".join(["palabra"] * 1200)
+        defaults = {
+            "subject": "Por qué vendimos LVMH",
+            "preheader": "Lo que el sistema flagueó después de 9 semanas",
+            "body_markdown": f"## Apertura\n\n{body}",
+            "reading_list": [
+                {"title": "x", "url": None, "comment": "..."},
+                {"title": "y", "url": None, "comment": "..."},
+                {"title": "z", "url": None, "comment": "..."},
+            ],
+            "closing_question": "¿En qué casos preferirías bajar la convicción?",
+        }
+        defaults.update(overrides)
+        return defaults
+
+    def test_valid(self):
+        assert _validate_newsletter(self._good()) == []
+
+    def test_too_few_words(self):
+        body = "## x\n\n" + " ".join(["palabra"] * 500)
+        issues = _validate_newsletter(self._good(body_markdown=body))
+        assert any("mínimo 1000" in i for i in issues)
+
+    def test_too_many_words(self):
+        body = "## x\n\n" + " ".join(["palabra"] * 1800)
+        issues = _validate_newsletter(self._good(body_markdown=body))
+        assert any("máximo 1500" in i for i in issues)
+
+    def test_missing_subject(self):
+        issues = _validate_newsletter(self._good(subject=""))
+        assert any("subject" in i for i in issues)
+
+    def test_subject_too_long(self):
+        issues = _validate_newsletter(self._good(subject="x" * 100))
+        assert any("subject tiene 100 chars" in i for i in issues)
+
+    def test_short_reading_list(self):
+        issues = _validate_newsletter(self._good(reading_list=[
+            {"title": "x", "comment": "..."}
+        ]))
+        assert any("reading_list" in i for i in issues)
+
+    def test_missing_closing_question(self):
+        issues = _validate_newsletter(self._good(closing_question=""))
+        assert any("closing_question" in i for i in issues)
+
+
+class TestGenerateNewsletter:
+    def test_topic_required(self, tmp_drafts):
+        with pytest.raises(ValueError, match="topic"):
+            generate_post(
+                "newsletter",
+                target_date=date(2026, 4, 26),
+                drafts_dir=tmp_drafts,
+                dry_run=True,
+            )
+
+    def test_dry_run_produces_newsletter_shape(self, tmp_drafts):
+        with patch.object(
+            copy_generator, "call_agent", return_value={
+                "content": "[DRY RUN]", "model": "claude-sonnet-4-6",
+                "usage": None, "cost_usd": 0.0,
+            },
+        ):
+            draft = generate_post(
+                "newsletter",
+                topic="Por qué vendimos LVMH",
+                cycle_data={"cycle_id": "x"},  # evita load real
+                target_date=date(2026, 4, 26),
+                drafts_dir=tmp_drafts,
+                dry_run=True,
+            )
+        assert draft["type"] == "newsletter"
+        assert draft["platform"] == "newsletter"
+        assert "body_markdown" in draft["content"]
+        assert "reading_list" in draft["content"]
+        assert draft["content"]["closing_question"]
+
+    def test_passes_topic_and_reading(self, tmp_drafts):
+        body = " ".join(["palabra"] * 1200)
+        payload = {
+            "subject": "x",
+            "preheader": "y",
+            "body_markdown": f"## a\n\n{body}",
+            "reading_list": [
+                {"title": "a", "comment": "z"},
+                {"title": "b", "comment": "z"},
+                {"title": "c", "comment": "z"},
+            ],
+            "closing_question": "¿qué opinás?",
+            "word_count_approx": 1200,
+            "key_message": "x",
+            "self_review_notes": "x",
+        }
+        response = {
+            "content": json.dumps(payload),
+            "model": "claude-sonnet-4-6",
+            "usage": None,
+            "cost_usd": 0.5,
+        }
+        with patch.object(
+            copy_generator, "call_agent", return_value=response
+        ) as mock_call:
+            draft = generate_post(
+                "newsletter",
+                topic="alpha vs beta en argentina",
+                cycle_data={"cycle_id": "x"},
+                reading_suggestions=[{"title": "Marks 2024", "url": "https://example.com"}],
+                target_date=date(2026, 4, 26),
+                drafts_dir=tmp_drafts,
+            )
+        ui = mock_call.call_args.kwargs["user_input"]
+        assert "alpha vs beta" in ui
+        assert "Marks 2024" in ui
+        # Newsletter usa max_tokens más alto.
+        assert mock_call.call_args.kwargs["max_tokens"] == 16_000
+        assert draft["type"] == "newsletter"
+
+
+class TestAdaptDraftAliases:
     @pytest.mark.parametrize("alias,expected_type", [
         ("ig", "carrousel_ig"),
         ("instagram", "carrousel_ig"),
