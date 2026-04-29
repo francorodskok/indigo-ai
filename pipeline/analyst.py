@@ -549,6 +549,9 @@ def run(
 
 
 if __name__ == "__main__":
+    from pipeline._console import setup_utf8
+    setup_utf8()
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s — %(message)s",

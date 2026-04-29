@@ -62,11 +62,14 @@ Cada ciclo de rebalanceo (cadencia de 20 días calendario) decide, ejecuta y pub
 - En régimen estable: ~18 ciclos al año (no 52). Esto reduce el costo de API anual proporcionalmente (~USD 555 en vez de ~USD 1.600 a la tasa de ~USD 30,80 por ciclo del plan de ejecución).
 - El cronjob de pipeline se dispara cada 20 días calendario a la hora configurada; la ejecución de órdenes en Alpaca ocurre en el next market open.
 - El monitoreo diario sin IA se mantiene igual que en los docs (chequeo cada día de mercado abierto; no depende del ciclo de rebalanceo).
-- La cadencia editorial sigue su ritmo propio e independiente del rebalanceo:
-  - Threads en X con frecuencia semanal (derivados del último rationale disponible).
-  - Posts en Instagram con su calendario semanal.
-  - Newsletter mensual el primer día hábil del mes.
-  - Cuando el ciclo de rebalanceo cae en una semana, ese thread se compone a partir del rationale fresco; las demás semanas se usan formatos que no dependen de una decisión nueva (performance vs. S&P 500, revisión de una posición existente, behind-the-scenes del sistema, etc.).
+- La cadencia editorial sigue su ritmo propio e independiente del rebalanceo, anclada al ciclo de 20 días (ver `pipeline/social/scheduler.py`):
+  - **X — 5 posts por ciclo (~uno cada 4 días):**
+    - Día 1: thread del rebalanceo (rationale fresco del constructor).
+    - Días 5, 9, 13, 17: didácticos populados desde `pipeline/social/state/didactico_queue.json`.
+  - **Instagram — 1 carrusel por ciclo (día 1)** generado del thread + carruseles ad-hoc manuales (frase semanal de inversor, etc.).
+  - **Newsletter quincenal — día 20 cada 2 ciclos (Substack).** El scheduler lo dispara automáticamente.
+  - **Análisis de coyuntura y engagement replies** son manuales, on-demand (`py -m pipeline.social --type analisis_coyuntura …` o `… --type engagement_reply …`).
+  - El override sobre los `.docx` fundacionales que decían "semanal" prevalece — la cadencia editorial real es cada 4 días en X, alineada al ciclo de 20 días del portafolio.
 
 ## Cómo trabajar con Claude Code en este repo
 

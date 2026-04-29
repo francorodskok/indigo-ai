@@ -24,7 +24,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from pipeline.config import KILL_SWITCH_MONTHLY_USD
@@ -70,7 +70,7 @@ def create_kill_switch_flag(reason: str = "") -> Path:
     d.mkdir(parents=True, exist_ok=True)
     flag = d / _KILL_SWITCH_FILENAME
     flag.write_text(
-        f"created_at: {datetime.utcnow().isoformat()}Z\nreason: {reason}\n",
+        f"created_at: {datetime.now(timezone.utc).isoformat()}\nreason: {reason}\n",
         encoding="utf-8",
     )
     return flag
@@ -138,7 +138,7 @@ def record_spend(amount_usd: float) -> float:
     data = _load_budget()
     data["spent_usd"] = float(data.get("spent_usd", 0.0)) + float(amount_usd)
     data["month"] = date.today().strftime("%Y-%m")
-    data["last_updated"] = datetime.utcnow().isoformat() + "Z"
+    data["last_updated"] = datetime.now(timezone.utc).isoformat()
     _save_budget(data)
     return data["spent_usd"]
 

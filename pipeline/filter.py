@@ -14,7 +14,7 @@ import logging
 import os
 import re
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -88,18 +88,18 @@ def load_cache() -> dict:
                 cache = json.load(f)
             # Invalidate if older than FILTER_CACHE_HOURS
             ts = cache.get("_timestamp", 0)
-            age_hours = (datetime.utcnow().timestamp() - ts) / 3600
+            age_hours = (datetime.now(timezone.utc).timestamp() - ts) / 3600
             if age_hours < FILTER_CACHE_HOURS:
                 log.info(f"Cache hit ({age_hours:.1f}h old, limit {FILTER_CACHE_HOURS}h)")
                 return cache
             log.info(f"Cache expired ({age_hours:.1f}h old) — refreshing")
         except Exception:
             pass
-    return {"_timestamp": datetime.utcnow().timestamp()}
+    return {"_timestamp": datetime.now(timezone.utc).timestamp()}
 
 
 def save_cache(cache: dict) -> None:
-    cache["_timestamp"] = datetime.utcnow().timestamp()
+    cache["_timestamp"] = datetime.now(timezone.utc).timestamp()
     with open(CACHE_FILE, "w", encoding="utf-8") as f:
         json.dump(cache, f, indent=2)
 

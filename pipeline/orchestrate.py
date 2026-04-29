@@ -352,5 +352,8 @@ def _parse_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
+    from pipeline._console import setup_utf8
+    setup_utf8()
+
     args = _parse_args()
     sys.exit(run(force=args.force, dry_run=args.dry_run, check_only=args.check_only))
