@@ -67,6 +67,23 @@ TYPE_TO_PLATFORM = {
 DEFAULT_MODEL = "claude-sonnet-4-6"
 DEFAULT_EFFORT = "medium"
 
+# Engagement replies son textos cortos (≤280 chars × 1-3 alts) con criterio
+# simple. Haiku 4.5 es 3× más barato en input y suficiente para esta tarea —
+# Sonnet sería overkill. Si en producción se ve que falla en juicios sutiles,
+# se pasa a Sonnet pasando el override `model="claude-sonnet-4-6"`.
+ENGAGEMENT_REPLY_MODEL = "claude-haiku-4-5"
+
+# Modo de filosofía cacheada según tipo de post:
+#   - source posts (thread/coyuntura/didactico/newsletter/engagement): "light"
+#     → solo constitución (~5K tokens) que define voz/valores/línea regulatoria.
+#     El canon (Buffett/Marks/etc.) no aporta para redactar copy y son ~190K
+#     tokens de cache que pagar al pedo.
+#   - adapters: "none" → traducen un thread ya validado a otra plataforma. La
+#     filosofía ya quedó absorbida en el thread fuente; el adapter solo
+#     necesita reglas de plataforma destino.
+SOURCE_PHILOSOPHY_MODE = "light"
+ADAPTER_PHILOSOPHY_MODE = "none"
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Carga de prompts y datos del ciclo
@@ -685,15 +702,31 @@ def generate_post(
     # tipos cortos como threads / posts viven cómodos en 8K.
     max_tokens = 16_000 if post_type == "newsletter" else 8_000
 
+    # Modo de filosofía: adapters no necesitan filosofía (el thread fuente ya
+    # la absorbió); el resto usa solo la constitución.
+    philosophy_mode = (
+        ADAPTER_PHILOSOPHY_MODE
+        if post_type in ADAPTER_POST_TYPES
+        else SOURCE_PHILOSOPHY_MODE
+    )
+
+    # Override de modelo: engagement_reply usa Haiku por default (texto corto,
+    # 3× más barato). Si el caller pasó un model explícito distinto al default,
+    # respetamos su elección.
+    effective_model = model
+    if post_type == "engagement_reply" and model == DEFAULT_MODEL:
+        effective_model = ENGAGEMENT_REPLY_MODEL
+
     response = call_agent(
         role=f"social_{post_type}",
         user_input=user_input,
-        model=model,
+        model=effective_model,
         effort=effort,
         system_suffix=system_suffix,
         dry_run=dry_run,
         inject_lessons=False,  # las lecciones de inversión no aplican a copy
         max_tokens=max_tokens,
+        philosophy_mode=philosophy_mode,
     )
 
     # Parse del JSON. En dry_run el content es "[DRY RUN]".

@@ -241,6 +241,7 @@ def _check_budget() -> None:
 # ── Cliente singleton ─────────────────────────────────────────────────────────
 _client: anthropic.Anthropic | None = None
 _philosophy_cache: str | None = None
+_philosophy_light_cache: str | None = None
 
 
 def get_client() -> anthropic.Anthropic:
@@ -260,6 +261,30 @@ def get_philosophy() -> str:
     return _philosophy_cache
 
 
+def get_philosophy_light() -> str:
+    """
+    Versión liviana de la filosofía: solo constitución (~5K tokens) sin canon.
+
+    Pensada para tareas que necesitan voice/values del sistema pero NO el peso
+    completo del canon (Buffett/Marks/Munger/etc.). Caso de uso típico: copy
+    de redes sociales, donde el contexto de inversión profunda no aporta para
+    redactar un thread de 280 chars.
+
+    Ahorro: ~190K tokens vs filosofía completa → ~$0.71 menos por cache write,
+    ~$0.057 menos por cache read.
+    """
+    global _philosophy_light_cache
+    if _philosophy_light_cache is None:
+        if CONSTITUTION_FILE.exists():
+            _philosophy_light_cache = (
+                f"# CONSTITUCIÓN DEL SISTEMA\n\n"
+                f"{CONSTITUTION_FILE.read_text(encoding='utf-8')}"
+            )
+        else:
+            _philosophy_light_cache = ""
+    return _philosophy_light_cache
+
+
 # ── Función principal ─────────────────────────────────────────────────────────
 
 def call_agent(
@@ -271,6 +296,7 @@ def call_agent(
     dry_run: bool = False,
     max_tokens: int = 16_000,
     inject_lessons: bool = True,
+    philosophy_mode: str = "full",
 ) -> dict[str, Any]:
     """
     Llama a Claude con la filosofía cacheada como contexto permanente.
@@ -286,6 +312,10 @@ def call_agent(
                         DESPUÉS del system_suffix (preserva cache de la filosofía).
                         El rol 'postmortem' debe pasarlo en False — inyecta lecciones
                         dentro del user_input para evitar doble conteo. Default True.
+        philosophy_mode: Cuánto contexto filosófico cachear.
+            - "full" (default): constitución + canon (~200K tokens). Análisis, debate, constructor.
+            - "light": solo constitución (~5K tokens). Social copy generators.
+            - "none": nada de filosofía. Adapters (re-formateo), regulatory review (checker).
 
     Returns:
         dict con 'content' (str), 'model', 'usage', 'cost_usd'
@@ -310,37 +340,61 @@ def call_agent(
     # Circuit breaker
     _check_budget()
 
-    philosophy = get_philosophy()
+    # Selector del bloque cacheable según modo. La diferencia entre modos
+    # es enorme en costo: full ≈ 200K tokens, light ≈ 5K, none ≈ 0.
+    if philosophy_mode == "full":
+        philosophy = get_philosophy()
+    elif philosophy_mode == "light":
+        philosophy = get_philosophy_light()
+    elif philosophy_mode == "none":
+        philosophy = ""
+    else:
+        raise ValueError(
+            f"philosophy_mode inválido: {philosophy_mode!r}. "
+            "Opciones: 'full' | 'light' | 'none'."
+        )
+
     client = get_client()
 
-    # System prompt: filosofía cacheada + instrucciones del rol
-    system_prompt = f"{philosophy}\n\n---\n\n{system_suffix}" if system_suffix else philosophy
+    # System prompt: bloque cacheable + instrucciones del rol.
+    # En mode='none' el system_suffix es lo único que va.
+    if philosophy and system_suffix:
+        system_prompt = f"{philosophy}\n\n---\n\n{system_suffix}"
+    elif philosophy:
+        system_prompt = philosophy
+    else:
+        system_prompt = system_suffix
 
     log.info(f"call_agent role={role} model={model} effort={effort} "
-             f"philosophy={len(philosophy):,}chars input={len(user_input):,}chars")
+             f"mode={philosophy_mode} philosophy={len(philosophy):,}chars "
+             f"input={len(user_input):,}chars")
 
     # Construir mensaje con cache extendido en el bloque de filosofía
     # Thinking adaptive + output_config.effort (formato Opus 4.6 / Sonnet 4.6).
     # El map convierte el 'xhigh' interno al 'high' que espera Anthropic (levels: low|medium|high|max).
     _EFFORT_MAP = {"low": "low", "medium": "medium", "high": "high", "xhigh": "high", "max": "max"}
     anthropic_effort = _EFFORT_MAP.get(effort, "high")
+
+    # Cache solo tiene sentido si el system prompt es grande (>~1K tokens ≈ 4K chars).
+    # En 'none' o cuando es muy chico, omitimos cache_control para ahorrar el cache_write
+    # mínimo y evitar logs ruidosos sobre cache miss.
+    stream_kwargs: dict[str, Any] = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "thinking": {"type": "adaptive"},
+        "output_config": {"effort": anthropic_effort},
+        "messages": [{"role": "user", "content": user_input}],
+    }
+    if system_prompt:
+        sys_block: dict[str, Any] = {"type": "text", "text": system_prompt}
+        # Cache solo si el bloque es lo suficientemente grande para amortizarlo.
+        # Anthropic exige >=1024 tokens; usamos 4K chars como heurística conservadora.
+        if len(system_prompt) >= 4_000:
+            sys_block["cache_control"] = {"type": "ephemeral"}
+        stream_kwargs["system"] = [sys_block]
+
     # Streaming con get_final_message() para soportar max_tokens altos y evitar timeouts >10 min.
-    with client.messages.stream(
-        model=model,
-        max_tokens=max_tokens,
-        thinking={"type": "adaptive"},
-        output_config={"effort": anthropic_effort},
-        system=[
-            {
-                "type": "text",
-                "text": system_prompt,
-                "cache_control": {"type": "ephemeral"},   # cache extendido 1h
-            }
-        ],
-        messages=[
-            {"role": "user", "content": user_input}
-        ],
-    ) as stream:
+    with client.messages.stream(**stream_kwargs) as stream:
         response = stream.get_final_message()
 
     # Extraer texto (ignorar thinking blocks)

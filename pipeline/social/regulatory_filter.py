@@ -178,6 +178,10 @@ def review_draft(
         dry_run=dry_run,
         inject_lessons=False,
         max_tokens=4_000,
+        # El reviewer es un checker: aplica reglas concretas (registros prohibidos,
+        # línea regulatoria) sobre un draft chico. No necesita filosofía cacheada
+        # — el system_suffix ya tiene todo lo que necesita.
+        philosophy_mode="none",
     )
 
     if dry_run:

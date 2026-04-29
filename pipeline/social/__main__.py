@@ -29,6 +29,16 @@ import json
 import logging
 import sys
 
+# Forzamos stdout/stderr a UTF-8 en Windows para que los box-drawing chars
+# (─, …, ✓, ⚠) del publish-ready y los emojis del Slack notifier no rompan
+# en cmd/PowerShell con codepage cp1252. No-op en Linux/macOS.
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except (AttributeError, OSError):  # pragma: no cover — best-effort
+        pass
+
 from pipeline.social.copy_generator import (
     POST_TYPES,
     SOURCE_POST_TYPES,
@@ -109,6 +119,44 @@ def main(argv: list[str] | None = None) -> int:
             "1080×1080. Output: pipeline/outputs/social/renders/<basename>/."
         ),
     )
+    p.add_argument(
+        "--publish-ready",
+        metavar="PATH",
+        help=(
+            "Imprime el contenido del draft formateado para copy-paste manual "
+            "(threads tweet por tweet, carrousel slide por slide, etc.). "
+            "No toca ninguna API."
+        ),
+    )
+    p.add_argument(
+        "--no-header",
+        action="store_true",
+        help="(--publish-ready) omite el header con metadata.",
+    )
+    p.add_argument(
+        "--notify",
+        metavar="PATH",
+        help=(
+            "Manda el draft a Slack via Incoming Webhook configurado en "
+            "SLACK_WEBHOOK_URL (.env). Si no hay webhook, loggea warning y skip."
+        ),
+    )
+    p.add_argument(
+        "--approve",
+        metavar="PATH",
+        help=(
+            "Mueve el draft de drafts/ a approved/ tras validar que el "
+            "regulatory status sea green/yellow. Bloquea pending y red."
+        ),
+    )
+    p.add_argument(
+        "--approve-and-notify",
+        metavar="PATH",
+        help=(
+            "Aprueba (mueve a approved/) y manda notif a Slack del aprobado. "
+            "Pensado para flujo CLI-only sin abrir el dashboard."
+        ),
+    )
     p.add_argument("--force", action="store_true", help="Sobreescribe drafts existentes.")
     p.add_argument("--dry-run", action="store_true", help="No llama a la API.")
     p.add_argument(
@@ -138,6 +186,80 @@ def main(argv: list[str] | None = None) -> int:
         except (FileNotFoundError, ValueError) as e:
             log.error("Render falló: %s", e)
             return 1
+
+    # Modo: --publish-ready <path>
+    # Solo formato — útil cuando estás en la compu y querés copiar el thread.
+    if args.publish_ready:
+        from pipeline.social.publish_ready import load_and_format
+        try:
+            text = load_and_format(args.publish_ready, include_header=not args.no_header)
+        except FileNotFoundError as e:
+            log.error("Draft no encontrado: %s", e)
+            return 1
+        except (ValueError, json.JSONDecodeError) as e:
+            log.error("Draft inválido: %s", e)
+            return 1
+        print(text)
+        return 0
+
+    # Modo: --notify <path>
+    # Manda el draft a Slack para que te llegue al celu.
+    if args.notify:
+        from pipeline.social.slack_notifier import notify_draft_file
+        try:
+            result = notify_draft_file(args.notify, dry_run=args.dry_run)
+        except FileNotFoundError as e:
+            log.error("Draft no encontrado: %s", e)
+            return 1
+        if result["sent"]:
+            print("Slack: enviado OK")
+            return 0
+        if args.dry_run:
+            # En dry_run mostramos los blocks que se hubieran enviado.
+            print(json.dumps(result["blocks"], indent=2, ensure_ascii=False))
+            return 0
+        print(f"Slack: NO enviado — {result['body']}")
+        return 1
+
+    # Modo: --approve <path>
+    # Mueve drafts/X.json → approved/X.json validando el gate regulatorio.
+    if args.approve:
+        from pipeline.social.approve import ApproveError, approve_draft_file
+        try:
+            result = approve_draft_file(args.approve, force=args.force)
+        except ApproveError as e:
+            log.error("Approve rechazado: %s", e)
+            return 1
+        msg = f"Aprobado [{result['status']}]: {result['fileName']}"
+        if result.get("already_approved"):
+            msg += " (ya estaba en approved/)"
+        print(msg)
+        print(f"  → {result['dest']}")
+        return 0
+
+    # Modo: --approve-and-notify <path>
+    # Aprueba + manda al Slack en un solo comando. Flujo CLI-only.
+    if args.approve_and_notify:
+        from pipeline.social.approve import ApproveError, approve_and_notify
+        try:
+            result = approve_and_notify(
+                args.approve_and_notify,
+                force=args.force,
+                dry_run=args.dry_run,
+            )
+        except ApproveError as e:
+            log.error("Approve rechazado: %s", e)
+            return 1
+        msg = f"Aprobado [{result['status']}]: {result['fileName']}"
+        if result.get("already_approved"):
+            msg += " (ya estaba en approved/)"
+        print(msg)
+        print(f"  → {result['dest']}")
+        if result["slack_sent"]:
+            print("Slack: notif enviada OK")
+        else:
+            print(f"Slack: NO enviada (status={result['slack_status_code']})")
+        return 0
 
     # Modo: --adapt <path> --to <platform>
     if args.adapt:
