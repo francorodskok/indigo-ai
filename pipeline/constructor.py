@@ -77,7 +77,7 @@ Restricciones DURAS que debés respetar:
 - Ninguna posición > 10% del portfolio
 - Ninguna posición < 3% del portfolio
 - sum(holdings weights) + cash_weight = 1.0 (exactamente)
-- cash_weight entre 0% y 15%
+- cash_weight entre 0% y 25% (cap duro). Régimen normal: 0-5%. Régimen cauteloso: 5-15% (cuando hay 2+ indicadores macro estresados). Régimen defensivo: 15-25% (cuando hay 3+ indicadores estresados). Justificá el régimen elegido en `decision_summary` cuando cash > 5%.
 - No más del 30% en un mismo sector
 - NINGÚN ticker con decision="no_invertir" puede aparecer en "holdings". El debate ya sentenció que NO se invierte. Si ese ticker es posición del ciclo anterior, debe ir obligatoriamente a "exits" con reason que cite el veredicto. Esta regla no tiene excepciones — el validador rechaza el portfolio entero si se viola.
 - Los tickers con decision="posicion_pequeña" sí pueden ir en "holdings", pero con weight cercano al mínimo (3-5%), nunca con peso grande.
@@ -93,9 +93,11 @@ Reglas de rebalanceo (si hay CARTERA ACTUAL):
 # Tolerancia de redondeo para la suma de pesos
 WEIGHT_SUM_TOLERANCE = 0.005
 
-# Máximo de cash en validación (el system suffix dice 15%, pero config tiene 25%)
-# La spec del Paso 8 define 15% como restricción dura para el constructor
-CONSTRUCTOR_MAX_CASH_PCT = 0.15
+# Máximo de cash en validación. Alineado con PORTFOLIO_MAX_CASH_PCT (25%) de
+# config.py y con la constitución §6.1, que permite régimen defensivo entre
+# 15% y 25%. El antiguo cap de 15% era el régimen cauteloso de §6.1, no el
+# máximo absoluto — bloqueaba la entrada legítima a régimen defensivo.
+CONSTRUCTOR_MAX_CASH_PCT = PORTFOLIO_MAX_CASH_PCT  # = 0.25
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

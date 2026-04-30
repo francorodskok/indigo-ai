@@ -369,13 +369,13 @@ class TestValidatePortfolio:
         with pytest.raises(ValueError, match="cash_weight"):
             validate_portfolio(portfolio, sector_map, debate_tickers)
 
-    # ── Test 9: cash_weight > 15% ────────────────────────────────────────────
+    # ── Test 9: cash_weight > 25% (régimen defensivo de constitución §6.1) ────
     def test_excessive_cash_raises(self):
-        """cash_weight > 15% debe lanzar ValueError."""
+        """cash_weight > 25% debe lanzar ValueError (cap duro §6.1)."""
         tickers = self.VALID_TICKERS_12
-        portfolio = self._make_portfolio_from_list(tickers, cash=0.20)
-        # Reducir holdings para que sumen bien con 20% de cash
-        remaining = 0.80
+        portfolio = self._make_portfolio_from_list(tickers, cash=0.30)
+        # Reducir holdings para que sumen bien con 30% de cash
+        remaining = 0.70
         n = len(portfolio["holdings"])
         for h in portfolio["holdings"]:
             h["weight"] = round(remaining / n, 6)
@@ -386,6 +386,22 @@ class TestValidatePortfolio:
         debate_tickers = self._make_debate_tickers(tickers)
         with pytest.raises(ValueError, match="cash_weight"):
             validate_portfolio(portfolio, sector_map, debate_tickers)
+
+    def test_defensive_regime_cash_passes(self):
+        """cash_weight 20% (régimen defensivo legítimo) debe pasar — no romper §6.1."""
+        tickers = self.VALID_TICKERS_12
+        portfolio = self._make_portfolio_from_list(tickers, cash=0.20)
+        remaining = 0.80
+        n = len(portfolio["holdings"])
+        for h in portfolio["holdings"]:
+            h["weight"] = round(remaining / n, 6)
+        portfolio["holdings"][-1]["weight"] = round(
+            remaining - sum(h["weight"] for h in portfolio["holdings"][:-1]), 6
+        )
+        sector_map = self._make_sector_map_from_list(tickers)
+        debate_tickers = self._make_debate_tickers(tickers)
+        # No debe raisear.
+        validate_portfolio(portfolio, sector_map, debate_tickers)
 
     # ── Test 10: concentración sectorial > 30% ────────────────────────────────
     def test_sector_concentration_raises(self):
