@@ -59,9 +59,9 @@ La diferencia entre umbral de entrada (50M) y umbral de permanencia (30M) es del
 
 ## 5. Enmiendas a esta lista
 
-Nuevas exclusiones pueden agregarse por decisión de cualquiera de los dos firmantes, con notificación al otro, y producen una versión menor del documento (1.0 → 1.1). La fecha de la enmienda se registra en el historial de Git. El sistema lee la versión vigente al inicio de cada ciclo.
+Nuevas exclusiones se agregan por commit explícito al repositorio y producen una versión menor del documento (1.0 → 1.1). La fecha de la enmienda queda registrada en el historial de Git. El sistema lee la versión vigente al inicio de cada ciclo.
 
-Ninguna exclusión puede eliminarse sin acuerdo explícito de los dos firmantes.
+Ninguna exclusión existente puede eliminarse sin documentación explícita de la razón en `/docs/decisions/`. Eliminar una exclusión por presión de performance está vedado por construcción, en línea con la sección 14 de la constitución.
 
 ---
 
