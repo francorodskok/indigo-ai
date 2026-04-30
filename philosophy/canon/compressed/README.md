@@ -20,22 +20,28 @@ tokens). Alcanza holgadamente para las ideas fuerza de cada uno.
 
 Más no sirve — empieza a comerse la cuota de los otros autores y a hinchar el cache write.
 
-## Autores prioritarios (en orden)
+## Autores cargados en v1.0
 
-1. **`lynch_essentials.md`** — *One Up on Wall Street* + *Beating the Street*
+El canon vigente del sistema (que se cachea en cada llamada a Claude) son cuatro autores:
+
+1. **Buffett** — `canon/buffett_letters.md` (corpus crudo, cartas anuales 1998-2024).
+2. **Marks** — `canon/marks_memos.md` (corpus crudo, memos 1990-2025).
+3. **`lynch_essentials.md`** — *One Up on Wall Street* + *Beating the Street*
    - Secciones clave: las 6 categorías de empresas, PEG ratio, "invest in what you know", señales de alerta (diworsification, whisper stocks), ventaja del inversor individual.
-2. **`munger_essentials.md`** — Transcripciones Daily Journal + *Poor Charlie's Almanack*
+4. **`munger_essentials.md`** — Transcripciones Daily Journal + *Poor Charlie's Almanack*
    - Mental models (inversión de problemas, second-order effects), checklist investing, temperamento sobre IQ, moat como barrera psicológica-económica.
-3. **`klarman_essentials.md`** — *Margin of Safety* + cartas Baupost seleccionadas
-   - Disciplina del margen de seguridad, asymmetric bets, riesgo vs volatilidad, por qué el efectivo es una posición válida.
-4. **`graham_essentials.md`** — *The Intelligent Investor* + testimonios Senado 1955 (dominio público)
-   - Mr. Market, distinción entre inversión y especulación, fórmula de Graham, diversificación defensiva vs. enterprising investor.
-5. **`fisher_essentials.md`** — *Common Stocks and Uncommon Profits*
-   - Los 15 puntos, scuttlebutt method, por qué vender casi nunca, quality compounders.
-6. **`pabrai_essentials.md`** *(opcional)* — *The Dhandho Investor*
-   - "Heads I win big, tails I don't lose much", concentración con convicción extrema, cloning intelligent.
-7. **`smith_essentials.md`** *(opcional)* — cartas anuales Fundsmith
-   - Quality investing moderno, ROIC persistente, "never sell winners that keep winning".
+
+## Autores futuros (out of scope para v1.0)
+
+Si en algún momento querés expandir el canon, estos eran los siguientes prioritarios. No están en el sistema hoy y la constitución v1.0 NO los referencia:
+
+- **Klarman** — *Margin of Safety* + cartas Baupost. Disciplina del margen de seguridad, asymmetric bets, riesgo vs volatilidad.
+- **Graham** — *The Intelligent Investor* + testimonios Senado 1955 (dominio público). Mr. Market, distinción inversión vs especulación.
+- **Fisher** — *Common Stocks and Uncommon Profits*. 15 puntos, scuttlebutt method, quality compounders.
+- **Pabrai** — *The Dhandho Investor*. "Heads I win big, tails I don't lose much", concentración con convicción.
+- **Smith** — Cartas anuales Fundsmith. Quality investing moderno.
+
+Para agregar uno: armá el `<autor>_essentials.md` siguiendo el formato de la sección siguiente, commiteá, y enmendá la constitución §2 para listarlo. El loader los recoge automáticamente del directorio.
 
 ## Formato esperado
 
@@ -92,7 +98,7 @@ import sys; sys.path.insert(0, '.')
 from pipeline.claude_client import _load_philosophy
 t = _load_philosophy()
 print(f'Total: {len(t):,} chars')
-for a in ['Buffett','Marks','Lynch','Graham','Munger','Fisher','Klarman','Smith','Pabrai']:
+for a in ['Buffett','Marks','Lynch','Munger']:
     print(f'  {a}: {t.count(a)} menciones')
 "
 ```

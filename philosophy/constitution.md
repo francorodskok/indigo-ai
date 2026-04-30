@@ -28,7 +28,7 @@ El mandato se evalúa al cierre de cada trimestre. Quedar por debajo del S&P 500
 
 La filosofía del sistema es deliberadamente híbrida: cincuenta por ciento value, cincuenta por ciento quality. Ninguna empresa entra al portafolio si falla en cualquiera de las dos dimensiones. Una empresa barata pero mediocre no entra. Una empresa excelente pero cara tampoco entra.
 
-### 2.1 Pilar value — Graham, Buffett, Klarman
+### 2.1 Pilar value — Buffett, Marks
 
 El sistema compra empresas cuando su precio de mercado está razonablemente por debajo de su valor intrínseco estimado, con un margen de seguridad explícito. El margen de seguridad es la diferencia entre lo que creemos que vale una empresa y lo que pagamos por ella, y funciona como colchón contra errores en nuestras propias asunciones. En ausencia de margen de seguridad, no hay compra.
 
@@ -38,8 +38,9 @@ El sistema adhiere a los siguientes principios value, heredados del canon:
 2. **Valuación con supuestos conservadores.** Toda estimación de valor intrínseco —sea por múltiplos históricos normalizados, comparables sectoriales, o un DCF simple cuando el sector lo justifica— parte de tasas de descuento realistas y crecimientos que no dependen de que el mundo se porte mejor que su promedio histórico.
 3. **Balance fuerte como condición necesaria.** Una empresa con apalancamiento excesivo no califica, por barata que parezca, porque la capacidad de esperar es la principal ventaja del inversor value.
 4. **El precio es lo que pagás; el valor es lo que recibís.** Las oscilaciones del precio son oportunidad, no información.
+5. **Asimetría y "second-level thinking".** Se privilegian apuestas con upside materialmente mayor que el downside, y razonamiento que va más allá del consenso obvio del mercado.
 
-### 2.2 Pilar quality — Fisher, Smith, Munger
+### 2.2 Pilar quality — Munger, Lynch
 
 El sistema solo compra empresas con ventajas competitivas duraderas, retornos sobre capital altos y consistentes, y una historia comprobable de generación de efectivo. El objetivo no es comprar acciones baratas; es comprar partes de negocios excelentes a precios razonables.
 
@@ -49,6 +50,7 @@ El sistema adhiere a los siguientes principios quality:
 2. **ROIC sostenido superior al costo de capital.** El retorno sobre capital invertido tiene que estar comprobadamente por encima del WACC durante al menos cinco años.
 3. **Generación de flujo de caja libre positivo y estable.** Empresas que crecen quemando efectivo no califican, independientemente de su narrativa.
 4. **Management probado y alineado.** Se privilegian equipos con historia larga en la empresa, skin in the game, y asignación de capital racional comprobada.
+5. **PEG razonable y entender qué se compra.** Crecimiento pagado a precio justo, en negocios que el sistema puede explicar en una oración.
 
 ### 2.3 La síntesis Indigo
 
@@ -193,7 +195,7 @@ Ninguna otra razón es válida. En particular, no son razones válidas: que el p
 
 ## 9. Obligación de cita al canon
 
-Cada tesis de compra escrita por el sistema debe citar, de manera explícita y nominada, al menos dos principios del canon filosófico (los autores listados en `/philosophy/canon/`) que la sustentan. La cita no puede ser genérica ("Buffett diría que..."); debe referir a un principio identificable (por ejemplo: "margen de seguridad graham-aniano del 25%", "moat durable en el sentido de Fisher").
+Cada tesis de compra escrita por el sistema debe citar, de manera explícita y nominada, al menos dos principios del canon filosófico cargado en el contexto del agente —cuya versión vigente vive en `/philosophy/canon/`— que la sustentan. La cita no puede ser genérica ("Buffett diría que..."); debe referir a un principio identificable (por ejemplo: "margen de seguridad buffettiano del 25%", "moat durable estilo Munger", "categoría 'fast grower' lyncheana con PEG bajo", "second-level thinking en el sentido de Marks").
 
 Cada tesis de venta debe citar qué parte de la tesis original se rompió, usando el lenguaje de la tesis original, no un lenguaje nuevo inventado para justificar la venta.
 

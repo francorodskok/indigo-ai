@@ -15,10 +15,14 @@ Marcar con `[x]` a medida que se cierran.
 
 - [x] **Paso 2 · Cargar el corpus filosófico** ✅ 2026-04-21
   Responsable: Franco + Felipe · Semana 2 · ~6 h
-  Output: 8 `.md` en `/philosophy/canon/` — los 8 archivos existen; 2 con contenido real, 6 como stubs detallados.
-  _Contenido real: `buffett_letters.md` (25 cartas 1998–2024, ~296k tokens), `marks_memos.md` (158 memos 1990–2025, ~1.08M tokens)._
-  _Stubs pendientes: Lynch, Graham, Munger, Fisher, Klarman, Smith — cada stub documenta los temas clave y cómo agregar el material._
-  _Nota de tokens: el corpus crudo suma ~1.38M tokens. El target de 200k se logra en Paso 5 con compresión temática (selección de secciones representativas antes de armar el bloque cacheable)._
+  Output: 4 autores cargados en `/philosophy/canon/` para la v1.0 del sistema.
+  _Cargados (v1.0):_
+  - `buffett_letters.md` — corpus crudo, cartas anuales 1998-2024 (~462k tokens, truncado a cuota).
+  - `marks_memos.md` — corpus crudo, memos 1990-2025 (~1.24M tokens, truncado a cuota).
+  - `compressed/lynch_essentials.md` — destilado curado de *One Up* + *Beating the Street* (~6k tokens).
+  - `compressed/munger_essentials.md` — destilado curado de transcripciones + *Poor Charlie's Almanack* (~4.7k tokens).
+  _Out of scope para v1.0:_ Klarman, Graham, Fisher, Smith, Pabrai. Documentados en `philosophy/canon/compressed/README.md` como roadmap si se decide expandir el canon.
+  _Total cargado por ciclo: ~798k chars (~200k tokens), repartido equitativamente por autor con leftover redistribution._
 
 - [x] **Paso 3 · Escribir la constitución v1.0** ✅ 2026-04-21
   Responsable: Franco + Felipe · Semana 2 · ~3 h
