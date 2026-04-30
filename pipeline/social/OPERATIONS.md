@@ -53,15 +53,29 @@ py -m pipeline.social.scheduler -v
 
 1. Abrí Task Scheduler (`taskschd.msc`)
 2. Click "Create Basic Task..."
-3. Nombre: `Indigo Social Scheduler`
+3. Nombre: `Indigo AI Daily Tasks`
 4. Trigger: **Daily** a las 10:00 AM (o la hora que prefieras)
 5. Action: **Start a program**
    - Program: `C:\Users\franc\AppData\Local\Programs\Python\Python313\python.exe`
-   - Arguments: `-m pipeline.social.scheduler`
+   - Arguments: `-m pipeline.daily_tasks`
    - Start in: `C:\Users\franc\Indigo-AI`
 6. Finish
 
-Listo. Cada día a las 10 AM revisa qué toca, lo genera, te llega a Slack.
+Listo. Cada día a las 10 AM corre **dos cosas**:
+
+1. **NAV snapshot** — guarda el equity actual de Alpaca + closes de SPY/QQQ
+   en `pipeline/outputs/nav_history.jsonl`. Es lo que alimenta el equity
+   curve del dashboard.
+2. **Social scheduler** — revisa el calendario del ciclo y, si toca, genera
+   el draft, lo manda a Slack.
+
+Una falla en uno no aborta el otro. Si algún día Alpaca no responde, el
+NAV se salta y el social scheduler igual corre.
+
+Para correrlo manualmente solo una vez (ej. para chequear que está bien):
+```bash
+py -m pipeline.daily_tasks --dry-run -v
+```
 
 ### Queue de didácticos
 
