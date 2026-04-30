@@ -845,6 +845,111 @@ class TestGenerateEngagementReply:
         assert draft["content"]["replies"][0]["approach"] == "data_add"
 
 
+class TestGenerateIntroduccionLanzamiento:
+    """Tests del thread fundacional one-off del paso 12."""
+
+    def test_dashboard_url_required(self, tmp_drafts):
+        with pytest.raises(ValueError, match="dashboard_url"):
+            generate_post(
+                "introduccion_lanzamiento",
+                target_date=date(2026, 5, 12),
+                drafts_dir=tmp_drafts,
+                dry_run=True,
+            )
+
+    def test_dry_run_returns_mock(self, tmp_drafts):
+        draft = generate_post(
+            "introduccion_lanzamiento",
+            dashboard_url="https://indigo-ai.com",
+            target_date=date(2026, 5, 12),
+            drafts_dir=tmp_drafts,
+            dry_run=True,
+        )
+        # El shape es el mismo que un thread normal.
+        assert draft["type"] == "introduccion_lanzamiento"
+        assert draft["platform"] == "x"
+        assert "tweets" in draft["content"]
+        # No tocó la API: regulatory pending.
+        assert draft["regulatory"]["status"] == "pending"
+
+    def test_writes_draft_with_intro_payload(self, tmp_drafts, fake_thread_response):
+        with patch.object(
+            copy_generator, "call_agent", return_value=fake_thread_response,
+        ) as mock_call:
+            draft = generate_post(
+                "introduccion_lanzamiento",
+                dashboard_url="https://indigo-ai.com",
+                repo_url="https://github.com/francorodskok/indigo-ai",
+                signer="Franco",
+                target_date=date(2026, 5, 12),
+                drafts_dir=tmp_drafts,
+            )
+
+        # El user_input debe contener el dashboard_url.
+        call_kwargs = mock_call.call_args.kwargs
+        assert "indigo-ai.com" in call_kwargs["user_input"]
+        assert "francorodskok" in call_kwargs["user_input"]
+        # Role correcto.
+        assert call_kwargs["role"] == "social_introduccion_lanzamiento"
+
+        # El draft persistido tiene metadata de los args.
+        out_file = tmp_drafts / "post_2026-05-12_introduccion_lanzamiento.json"
+        assert out_file.exists()
+        on_disk = json.loads(out_file.read_text(encoding="utf-8"))
+        assert on_disk["metadata"]["input_args"]["dashboard_url"] == "https://indigo-ai.com"
+        assert on_disk["metadata"]["input_args"]["repo_url"] == "https://github.com/francorodskok/indigo-ai"
+        assert on_disk["metadata"]["input_args"]["signer"] == "Franco"
+
+    def test_reference_draft_passed_to_user_input(self, tmp_drafts, fake_thread_response):
+        with patch.object(
+            copy_generator, "call_agent", return_value=fake_thread_response,
+        ) as mock_call:
+            generate_post(
+                "introduccion_lanzamiento",
+                dashboard_url="https://indigo-ai.com",
+                reference_draft="## Tweet 1\n\nHoy lanzamos algo distinto.",
+                target_date=date(2026, 5, 12),
+                drafts_dir=tmp_drafts,
+            )
+        call_kwargs = mock_call.call_args.kwargs
+        assert "Hoy lanzamos algo distinto" in call_kwargs["user_input"]
+
+    def test_uses_thread_validator(self, tmp_drafts):
+        """introduccion_lanzamiento aplica las mismas reglas que un thread (≤280 chars)."""
+        long_tweet_response = {
+            "content": json.dumps({
+                "tweets": ["x" * 281, "tweet 2 corto"],
+                "hook_family": "A",
+                "key_message": "test",
+                "self_review_notes": "test",
+            }),
+            "model": "claude-sonnet-4-6",
+            "usage": None,
+            "cost_usd": 0.0,
+        }
+        with patch.object(
+            copy_generator, "call_agent", return_value=long_tweet_response,
+        ):
+            draft = generate_post(
+                "introduccion_lanzamiento",
+                dashboard_url="https://indigo-ai.com",
+                target_date=date(2026, 5, 12),
+                drafts_dir=tmp_drafts,
+            )
+        # Validation issues debería capturar el tweet largo.
+        issues = draft["metadata"]["validation_issues"]
+        assert any("281 chars" in i or "280" in i for i in issues)
+
+    def test_post_type_in_source_types(self):
+        """Sanity: el tipo está registrado correctamente."""
+        from pipeline.social.copy_generator import (
+            SOURCE_POST_TYPES, TYPE_TO_PLATFORM, _VALIDATORS,
+        )
+        assert "introduccion_lanzamiento" in SOURCE_POST_TYPES
+        assert TYPE_TO_PLATFORM["introduccion_lanzamiento"] == "x"
+        assert _VALIDATORS["introduccion_lanzamiento"] is not None
+
+
 class TestAdaptDraftAliases:
     @pytest.mark.parametrize("alias,expected_type", [
         ("ig", "carrousel_ig"),

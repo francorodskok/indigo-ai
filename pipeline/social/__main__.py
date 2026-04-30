@@ -89,6 +89,22 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     p.add_argument(
+        "--dashboard-url",
+        help="(introduccion_lanzamiento) URL del dashboard publico, ej https://indigo-ai.com",
+    )
+    p.add_argument(
+        "--repo-url",
+        help="(introduccion_lanzamiento) URL del repo en GitHub, opcional.",
+    )
+    p.add_argument(
+        "--reference-draft",
+        metavar="PATH",
+        help=(
+            "(introduccion_lanzamiento) ruta a un .md con un thread de referencia "
+            "tonal. La IA lo usa como inspiracion, no lo copia."
+        ),
+    )
+    p.add_argument(
         "--adapt",
         help="Path a un draft fuente (thread X aprobado) a traducir.",
     )
@@ -365,6 +381,17 @@ def main(argv: list[str] | None = None) -> int:
             "--thread-text \"<texto>\""
         )
 
+    if args.type == "introduccion_lanzamiento" and not args.dashboard_url:
+        p.error("--type introduccion_lanzamiento requiere --dashboard-url <url>")
+
+    reference_draft_text: str | None = None
+    if args.reference_draft:
+        from pathlib import Path
+        ref_path = Path(args.reference_draft)
+        if not ref_path.exists():
+            p.error(f"--reference-draft no existe: {ref_path}")
+        reference_draft_text = ref_path.read_text(encoding="utf-8")
+
     gen_kwargs: dict = {
         "post_type": args.type,
         "topic": args.topic,
@@ -376,6 +403,10 @@ def main(argv: list[str] | None = None) -> int:
         "target_account": args.account,
         "thread_text": args.thread_text,
         "our_context": our_context_dict,
+        "dashboard_url": args.dashboard_url,
+        "repo_url": args.repo_url,
+        "reference_draft": reference_draft_text,
+        "signer": args.signer,
         "force": args.force,
         "dry_run": args.dry_run,
     }

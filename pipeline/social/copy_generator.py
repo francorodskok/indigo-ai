@@ -43,6 +43,7 @@ SOURCE_POST_TYPES = (
     "didactico",
     "newsletter",
     "engagement_reply",
+    "introduccion_lanzamiento",  # one-off thread fundacional del paso 12
 )
 
 # Tipos adapters (toman un draft fuente aprobado y lo traducen a otra plataforma).
@@ -60,6 +61,7 @@ TYPE_TO_PLATFORM = {
     "linkedin_post": "linkedin",
     "newsletter": "newsletter",
     "engagement_reply": "x",
+    "introduccion_lanzamiento": "x",
 }
 
 # Default model: Sonnet 4.6 con effort medium. Suficiente para copy y barato
@@ -406,6 +408,7 @@ _VALIDATORS = {
     "linkedin_post": _validate_linkedin,
     "newsletter": _validate_newsletter,
     "engagement_reply": _validate_engagement_reply,
+    "introduccion_lanzamiento": _validate_thread,  # mismo shape que thread normal
 }
 
 
@@ -535,6 +538,27 @@ def _build_user_input_engagement_reply(
     )
 
 
+def _build_user_input_introduccion_lanzamiento(
+    dashboard_url: str,
+    repo_url: str | None,
+    signer: str | None,
+    reference_draft: str | None,
+) -> str:
+    """User input para el thread fundacional one-off del lanzamiento."""
+    payload = {
+        "dashboard_url": dashboard_url,
+        "repo_url": repo_url,
+        "signer": signer or "los socios de Indigo Star",
+        "reference_draft": reference_draft,
+    }
+    return (
+        "INPUTS DEL THREAD DE LANZAMIENTO (JSON):\n\n```json\n"
+        + json.dumps(payload, indent=2, ensure_ascii=False)
+        + "\n```\n\n"
+        "Generá el thread fundacional siguiendo las instrucciones."
+    )
+
+
 def _build_user_input_newsletter(
     topic: str,
     cycle_data: dict[str, Any] | None,
@@ -593,6 +617,9 @@ def generate_post(
     target_account: str | None = None,
     thread_text: str | None = None,
     our_context: dict[str, Any] | None = None,
+    dashboard_url: str | None = None,
+    repo_url: str | None = None,
+    reference_draft: str | None = None,
     target_date: date | None = None,
     model: str = DEFAULT_MODEL,
     effort: str = DEFAULT_EFFORT,
@@ -685,6 +712,14 @@ def generate_post(
         user_input = _build_user_input_engagement_reply(
             target_account, thread_text, our_context
         )
+    elif post_type == "introduccion_lanzamiento":
+        if not dashboard_url:
+            raise ValueError(
+                "introduccion_lanzamiento requiere `dashboard_url`"
+            )
+        user_input = _build_user_input_introduccion_lanzamiento(
+            dashboard_url, repo_url, signer, reference_draft
+        )
     elif post_type in ADAPTER_POST_TYPES:
         if source_draft is None:
             raise ValueError(
@@ -767,6 +802,9 @@ def generate_post(
                 "connection_to_indigo": connection_to_indigo,
                 "concept": concept,
                 "optional_indigo_example": optional_indigo_example,
+                "dashboard_url": dashboard_url,
+                "repo_url": repo_url,
+                "signer": signer,
             },
             "validation_issues": validation_issues,
             "dry_run": dry_run,
