@@ -734,8 +734,10 @@ def generate_post(
         raise ValueError(f"post_type no implementado: {post_type}")
 
     # Newsletters son ensayos largos (1000-1500 palabras ≈ 5-8K tokens output);
-    # tipos cortos como threads / posts viven cómodos en 8K.
-    max_tokens = 16_000 if post_type == "newsletter" else 8_000
+    # introduccion_lanzamiento es un thread complejo + thinking adaptive de
+    # Sonnet usa muchos tokens internos antes de producir el JSON; ambos
+    # necesitan budget alto. Tipos cortos viven cómodos en 8K.
+    max_tokens = 16_000 if post_type in ("newsletter", "introduccion_lanzamiento") else 8_000
 
     # Modo de filosofía: adapters no necesitan filosofía (el thread fuente ya
     # la absorbió); el resto usa solo la constitución.
