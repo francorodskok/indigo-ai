@@ -86,7 +86,7 @@ Reglas de rebalanceo (si hay CARTERA ACTUAL):
 1. Una posición con conviction >= 6 en el ciclo previo debe mantenerse (hold o add) salvo evidencia fuerte de tesis rota o valuación por encima de 1.3× price target original.
 2. Si una posición supera 1.3× price target original: preferir "trim" parcial antes de "exit" total.
 3. Si una posición cayó >= 25% desde entry sin deterioro fundamental: considerar "add" hasta el cap de 10%.
-4. NO incorporar un nombre nuevo si eso implica hacer "exit" de una posición con conviction >= 7, salvo que el nuevo tenga conviction >= 8 Y margen de seguridad >= 20%.
+4. NO incorporar un nombre nuevo si eso implica hacer "exit" de una posición con conviction >= 7, salvo que el nuevo tenga conviction >= 8 Y margen de seguridad >= 10%.
 5. Si NO hay CARTERA ACTUAL (primer ciclo), todos los holdings son "new" y "exits" queda vacío.\
 """
 

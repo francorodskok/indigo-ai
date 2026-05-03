@@ -143,9 +143,17 @@ class TestValidateThread:
         assert any("mínimo 3" in i for i in issues)
 
     def test_tweet_too_long(self):
-        long_tweet = "a" * 281
+        # Cap es 3500 (X Premium); usamos 3501 chars para forzar fallo.
+        long_tweet = "a" * 3501
         issues = _validate_thread({"tweets": ["ok", "ok2", long_tweet]})
-        assert any("281 chars" in i for i in issues)
+        assert any("3501 chars" in i for i in issues)
+
+    def test_tweet_at_280_passes(self):
+        """Un tweet de 280 chars (cap free tier) ahora pasa: tenemos Premium."""
+        ok_tweet = "a" * 280
+        issues = _validate_thread({"tweets": ["ok", "ok2", ok_tweet]})
+        # No debería haber issues sobre largo de tweet
+        assert not any("chars" in i and "máx" in i for i in issues)
 
     def test_tweet_empty(self):
         issues = _validate_thread({"tweets": ["ok", "", "ok"]})
@@ -915,10 +923,10 @@ class TestGenerateIntroduccionLanzamiento:
         assert "Hoy lanzamos algo distinto" in call_kwargs["user_input"]
 
     def test_uses_thread_validator(self, tmp_drafts):
-        """introduccion_lanzamiento aplica las mismas reglas que un thread (≤280 chars)."""
+        """introduccion_lanzamiento aplica las mismas reglas que un thread (≤3500 chars con X Premium)."""
         long_tweet_response = {
             "content": json.dumps({
-                "tweets": ["x" * 281, "tweet 2 corto"],
+                "tweets": ["x" * 3501, "tweet 2 corto", "tweet 3 corto"],
                 "hook_family": "A",
                 "key_message": "test",
                 "self_review_notes": "test",
@@ -936,9 +944,9 @@ class TestGenerateIntroduccionLanzamiento:
                 target_date=date(2026, 5, 12),
                 drafts_dir=tmp_drafts,
             )
-        # Validation issues debería capturar el tweet largo.
+        # Validation issues debería capturar el tweet largo (>3500).
         issues = draft["metadata"]["validation_issues"]
-        assert any("281 chars" in i or "280" in i for i in issues)
+        assert any("3501 chars" in i or "3500" in i for i in issues)
 
     def test_post_type_in_source_types(self):
         """Sanity: el tipo está registrado correctamente."""

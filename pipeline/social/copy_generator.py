@@ -255,7 +255,13 @@ def _extract_json_block(text: str) -> dict[str, Any]:
 # Validaciones de output
 # ─────────────────────────────────────────────────────────────────────────────
 
-X_TWEET_MAX_CHARS = 280
+# X Premium permite hasta 25.000 chars/tweet pero la legibilidad mobile se
+# rompe pasando los 3.500. Premium básico (~$8/mes) tiene cap de 4.000;
+# usamos 3.500 como límite operativo para dejar margen de seguridad y forzar
+# que el contenido siga siendo legible en feed.
+# Engagement replies siguen en 280 — son respuestas, no threads propios.
+X_TWEET_MAX_CHARS = 3500
+ENGAGEMENT_REPLY_MAX_CHARS = 280
 LINKEDIN_MIN_WORDS = 200
 LINKEDIN_MAX_WORDS = 400
 CARROUSEL_MIN_SLIDES = 8
@@ -348,9 +354,9 @@ def _validate_engagement_reply(parsed: dict) -> list[str]:
         if not isinstance(text, str) or not text.strip():
             issues.append(f"reply {i} sin 'text'")
             continue
-        if len(text) > X_TWEET_MAX_CHARS:
+        if len(text) > ENGAGEMENT_REPLY_MAX_CHARS:
             issues.append(
-                f"reply {i} tiene {len(text)} chars (máx {X_TWEET_MAX_CHARS})"
+                f"reply {i} tiene {len(text)} chars (máx {ENGAGEMENT_REPLY_MAX_CHARS})"
             )
         approach = r.get("approach")
         if approach and approach not in valid_approaches:
@@ -733,11 +739,16 @@ def generate_post(
     else:  # pragma: no cover — guardado por la validación de arriba
         raise ValueError(f"post_type no implementado: {post_type}")
 
-    # Newsletters son ensayos largos (1000-1500 palabras ≈ 5-8K tokens output);
-    # introduccion_lanzamiento es un thread complejo + thinking adaptive de
-    # Sonnet usa muchos tokens internos antes de producir el JSON; ambos
-    # necesitan budget alto. Tipos cortos viven cómodos en 8K.
-    max_tokens = 16_000 if post_type in ("newsletter", "introduccion_lanzamiento") else 8_000
+    # Con X Premium (cap 3500 chars/tweet), los threads pueden tener 4-7 tweets
+    # de hasta ~3500 chars cada uno = ~25K chars de output = ~6K tokens, más
+    # thinking adaptive de Sonnet (2-5K tokens internos). Total ~8-11K — el
+    # cap de 8K se queda corto. Subimos a 16K todos los source types salvo
+    # engagement_reply (texto corto, 280 chars cap, sin thread). Los adapters
+    # también viven cómodos en 8K (re-formateo, no generación de cero).
+    if post_type in ADAPTER_POST_TYPES or post_type == "engagement_reply":
+        max_tokens = 8_000
+    else:
+        max_tokens = 16_000
 
     # Modo de filosofía: adapters no necesitan filosofía (el thread fuente ya
     # la absorbió); el resto usa solo la constitución.

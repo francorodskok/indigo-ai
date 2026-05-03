@@ -375,16 +375,29 @@ def call_agent(
     _EFFORT_MAP = {"low": "low", "medium": "medium", "high": "high", "xhigh": "high", "max": "max"}
     anthropic_effort = _EFFORT_MAP.get(effort, "high")
 
+    # Adaptive thinking SOLO está disponible en Sonnet 4.6 y Opus 4.6/4.7.
+    # Haiku 4.5 no lo soporta — pasarlo causa BadRequestError. Detección por
+    # nombre de modelo para no asumir versiones futuras.
+    supports_adaptive_thinking = model in (
+        "claude-sonnet-4-6", "claude-opus-4-6", "claude-opus-4-7",
+    )
+    supports_effort = model in (
+        "claude-sonnet-4-6", "claude-opus-4-6", "claude-opus-4-7",
+        # Opus 4.5 también soporta effort GA pero no es nuestro default.
+    )
+
     # Cache solo tiene sentido si el system prompt es grande (>~1K tokens ≈ 4K chars).
     # En 'none' o cuando es muy chico, omitimos cache_control para ahorrar el cache_write
     # mínimo y evitar logs ruidosos sobre cache miss.
     stream_kwargs: dict[str, Any] = {
         "model": model,
         "max_tokens": max_tokens,
-        "thinking": {"type": "adaptive"},
-        "output_config": {"effort": anthropic_effort},
         "messages": [{"role": "user", "content": user_input}],
     }
+    if supports_adaptive_thinking:
+        stream_kwargs["thinking"] = {"type": "adaptive"}
+    if supports_effort:
+        stream_kwargs["output_config"] = {"effort": anthropic_effort}
     if system_prompt:
         sys_block: dict[str, Any] = {"type": "text", "text": system_prompt}
         # Cache solo si el bloque es lo suficientemente grande para amortizarlo.

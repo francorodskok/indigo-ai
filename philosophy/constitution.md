@@ -105,9 +105,11 @@ El sistema enriquece cada candidato con un bloque cuantitativo de valuación que
 
 Sobre ese bloque, el agente analista deriva un `precio_objetivo` aplicando uno de tres métodos, según cuál sea más informativo para el negocio: (a) múltiplo histórico normalizado por EPS o FCF forward, (b) múltiplo sectorial de comparables, o (c) DCF simple con tasa de descuento y crecimiento explicitados en la tesis. El método elegido se documenta en cada rationale.
 
-Para entrar al portafolio, el precio actual debe ofrecer al menos un **15% de descuento** sobre ese `precio_objetivo`. Cuando el `P/E` actual supera por más de 1,5x el máximo de los últimos cinco años, la convicción se topea automáticamente en 4 sobre 10 —zona donde rara vez se gana plata comprando.
+Para entrar al portafolio, el precio actual debe ofrecer al menos un **5% de descuento** sobre ese `precio_objetivo`. Cuando el `P/E` actual supera por más de 1,5x el máximo de los últimos cinco años, la convicción se topea automáticamente en 4 sobre 10 —zona donde rara vez se gana plata comprando.
 
-Si el descuento es menor al 15% pero el nombre es excepcional en los criterios cualitativos, se puede archivar en una lista de "compras a precio", esperando una mejor ventana de entrada. No se fuerza la compra por presión de capital no invertido.
+El umbral del 5% es deliberadamente flexible: el `precio_objetivo` que produce el agente analista ya incorpora supuestos conservadores (tasas de descuento realistas, crecimientos no optimistas, hard cap por P/E histórico). Exigir un 15% adicional sobre un número ya conservador puede dejar al sistema sin candidatos en mercados caros y forzar concentración en cash más allá de lo defendible. Con 5%, el sistema sigue priorizando descuento explícito pero puede operar en distintos regímenes de valuación.
+
+Si el descuento es menor al 5% pero el nombre es excepcional en los criterios cualitativos, se puede archivar en una lista de "compras a precio", esperando una mejor ventana de entrada. No se fuerza la compra por presión de capital no invertido.
 
 ---
 

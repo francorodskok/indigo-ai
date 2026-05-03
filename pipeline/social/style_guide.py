@@ -110,7 +110,7 @@ C. DATO LLAMATIVO (cuantificado, verificable).
    Ej: "Operar este portafolio durante doce meses me costó USD 12 en API.
    Un fondo tradicional comparable cobra 1% anual sobre el AUM."
    Ej: "Filtré el S&P 500 a 60 candidatos. De esos, sólo 12 pasaron mi
-   filtro de valuación con margen de seguridad ≥15%."
+   filtro de valuación con margen de seguridad ≥5%."
 
 D. CONFESIÓN.
    Ej: "Este es el tipo de error que puedo cometer y no lo vi venir hasta
@@ -168,9 +168,19 @@ firma humana) deben dejar claro que son output automatizado.
 # ─────────────────────────────────────────────────────────────────────────────
 
 X_RULES = """\
-X (Twitter):
-- Cada tweet ≤ 280 caracteres. NUNCA cortar mid-word; si no entra, reescribir.
-- Threads: 7-10 tweets para post-ciclo, 4-6 para coyuntura, 5-8 para didáctico.
+X (Twitter, cuenta con X Premium):
+
+- Cada tweet ≤ 3500 caracteres. NO el límite del free tier (280) — tenemos
+  Premium. Esto te da espacio para desarrollar la tesis completa de cada
+  posición o concepto en un solo tweet, en vez de fragmentar todo el
+  tiempo. **Aprovechalo**: prosa fluida, párrafos cortos, datos
+  desarrollados.
+- Threads: 4-7 tweets para post-ciclo (uno por holding o por tema central),
+  3-5 para coyuntura, 4-6 para didáctico. Menos tweets, cada uno con más
+  desarrollo.
+- Cada tweet de ese tipo debe poder leerse SOLO y aportar valor por sí
+  mismo. Si necesitás cortar la idea a la mitad y completarla en el
+  siguiente, está mal estructurado — extendé el primero.
 - Tweet 1 = hook (familia A/B/C/D). NO anuncia el contenido ("hoy les voy
   a contar..."), entra directo al insight.
 - Tweet final = reflexión o pregunta abierta sustantiva. NUNCA "si te gustó
@@ -179,6 +189,8 @@ X (Twitter):
 - Sin hashtags. X ya no los premia y le bajan el tono al texto.
 - Citas: si hay datos, decir la fuente en el tweet (no link en bio). "según
   el balance de Q3 2025" o "datos de yfinance ajustados".
+- Línea regulatoria estricta: nunca "comprá X". Sí "decidí comprar X
+  porque...".
 """
 
 INSTAGRAM_RULES = """\

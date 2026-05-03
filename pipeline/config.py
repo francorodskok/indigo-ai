@@ -48,7 +48,7 @@ PORTFOLIO_MAX_POSITION_PCT = 0.10            # 10% máximo por posición
 PORTFOLIO_MIN_POSITION_PCT = 0.03            # 3% mínimo por posición
 PORTFOLIO_MAX_SECTOR_PCT = 0.30              # 30% máximo por sector GICS
 PORTFOLIO_MAX_CASH_PCT = 0.25               # 25% máximo de cash (régimen defensivo)
-PORTFOLIO_MIN_MARGIN_OF_SAFETY = 0.15       # 15% descuento mínimo sobre valor intrínseco
+PORTFOLIO_MIN_MARGIN_OF_SAFETY = 0.05       # 5% descuento mínimo sobre precio_objetivo del analyst
 
 # ── Candidatos por etapa ──────────────────────────────────────────────────────
 FILTER_TARGET_CANDIDATES = 60        # output del filtro cuantitativo
