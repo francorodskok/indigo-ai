@@ -5,7 +5,10 @@
   --foreground: #e4e4e7; /* zinc-200 */
   --muted: #a1a1aa; /* zinc-400 */
   --border: #27272a; /* zinc-800 */
-  --accent: #fafafa; /* zinc-50 */
+  --accent: #818cf8; /* indigo-400 — color de marca, vivo sin saturar */
+  --accent-soft: #4f46e5; /* indigo-600 — variante para fondos */
+  --positive: #34d399; /* emerald-400 */
+  --negative: #f87171; /* rose-400 */
 }
 
 @theme inline {

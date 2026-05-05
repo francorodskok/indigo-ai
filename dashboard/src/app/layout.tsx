@@ -17,13 +17,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Indigo AI",
   description:
-    "Experimento público: portafolio S&P 500 gestionado por agentes de Claude. Paper trading.",
+    "Portafolio del S&P 500 administrado por un sistema autónomo de IA, con constitución explícita y rationales públicos en cada ciclo.",
 };
 
 // NAV público. /admin/* queda fuera del menú a propósito — accesible solo
 // via URL directa con basic auth (env: DASHBOARD_ADMIN_PASSWORD).
 const NAV = [
   { href: "/", label: "Inicio" },
+  { href: "/posiciones", label: "Posiciones" },
   { href: "/cycles", label: "Ciclos" },
   { href: "/trades", label: "Trades" },
   { href: "/constitution", label: "Constitución" },
@@ -86,7 +87,7 @@ export default async function RootLayout({
 
         <footer className="border-t border-[color:var(--border)] mt-8">
           <div className="max-w-5xl mx-auto px-6 py-5 text-xs text-[color:var(--muted)] flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span>Paper trading. No es dinero real.</span>
+            <span>Experimento autónomo. No es asesoramiento financiero.</span>
             <span className="mono flex flex-wrap gap-x-4 gap-y-1 sm:justify-end">
               {cost.n_calls > 0 && (
                 <span title={`${cost.n_calls} llamadas a la API de Anthropic`}>
