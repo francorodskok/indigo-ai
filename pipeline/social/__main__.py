@@ -105,6 +105,14 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     p.add_argument(
+        "--events",
+        help=(
+            "(agenda_semanal) JSON-array de eventos pre-armados de la semana. "
+            'Ej: \'[{"date":"martes","event":"CPI core","relevance":"..."}, ...]\'. '
+            "Si no se pasa, el modelo infiere de su conocimiento del calendario macro."
+        ),
+    )
+    p.add_argument(
         "--adapt",
         help="Path a un draft fuente (thread X aprobado) a traducir.",
     )
@@ -392,6 +400,15 @@ def main(argv: list[str] | None = None) -> int:
             p.error(f"--reference-draft no existe: {ref_path}")
         reference_draft_text = ref_path.read_text(encoding="utf-8")
 
+    events_list: list[dict] | None = None
+    if args.events:
+        try:
+            events_list = json.loads(args.events)
+            if not isinstance(events_list, list):
+                p.error("--events debe ser un JSON array")
+        except json.JSONDecodeError as e:
+            p.error(f"--events debe ser JSON válido: {e}")
+
     gen_kwargs: dict = {
         "post_type": args.type,
         "topic": args.topic,
@@ -406,6 +423,7 @@ def main(argv: list[str] | None = None) -> int:
         "dashboard_url": args.dashboard_url,
         "repo_url": args.repo_url,
         "reference_draft": reference_draft_text,
+        "events": events_list,
         "signer": args.signer,
         "force": args.force,
         "dry_run": args.dry_run,

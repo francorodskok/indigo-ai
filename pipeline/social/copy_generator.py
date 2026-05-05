@@ -44,6 +44,7 @@ SOURCE_POST_TYPES = (
     "newsletter",
     "engagement_reply",
     "introduccion_lanzamiento",  # one-off thread fundacional del paso 12
+    "agenda_semanal",            # post breve del lunes con eventos + chiste IA
 )
 
 # Tipos adapters (toman un draft fuente aprobado y lo traducen a otra plataforma).
@@ -62,6 +63,7 @@ TYPE_TO_PLATFORM = {
     "newsletter": "newsletter",
     "engagement_reply": "x",
     "introduccion_lanzamiento": "x",
+    "agenda_semanal": "x",
 }
 
 # Default model: Sonnet 4.6 con effort medium. Suficiente para copy y barato
@@ -292,6 +294,31 @@ def _validate_thread(parsed: dict) -> list[str]:
     return issues
 
 
+def _validate_agenda_semanal(parsed: dict) -> list[str]:
+    """
+    Validador para agenda_semanal: 1-2 tweets, cada uno <=3500 chars, joke
+    presente, key_message, self_review_notes.
+    """
+    issues: list[str] = []
+    tweets = parsed.get("tweets")
+    if not isinstance(tweets, list) or not tweets:
+        issues.append("missing 'tweets' (list)")
+        return issues
+    if len(tweets) > 2:
+        issues.append(f"agenda_semanal tiene {len(tweets)} tweets, máximo 2")
+    for i, t in enumerate(tweets):
+        if not isinstance(t, str) or not t.strip():
+            issues.append(f"tweet {i} vacío o no-string")
+            continue
+        if len(t) > X_TWEET_MAX_CHARS:
+            issues.append(f"tweet {i} tiene {len(t)} chars (máx {X_TWEET_MAX_CHARS})")
+    if not parsed.get("joke"):
+        issues.append("missing 'joke' (extracto del chiste autoirónico)")
+    if not parsed.get("key_message"):
+        issues.append("missing 'key_message'")
+    return issues
+
+
 def _validate_carrousel(parsed: dict) -> list[str]:
     """Validador específico para carrouseles de Instagram."""
     issues: list[str] = []
@@ -345,7 +372,7 @@ def _validate_engagement_reply(parsed: dict) -> list[str]:
         return issues
     # `replies` vacío es OK — significa "no responder, no aporta valor".
     # Validamos el shape de las que vengan.
-    valid_approaches = {"complement", "disagree", "extend", "data_add"}
+    valid_approaches = {"complement", "disagree", "extend", "data_add", "joda"}
     for i, r in enumerate(replies):
         if not isinstance(r, dict):
             issues.append(f"reply {i} no es dict")
@@ -415,6 +442,7 @@ _VALIDATORS = {
     "newsletter": _validate_newsletter,
     "engagement_reply": _validate_engagement_reply,
     "introduccion_lanzamiento": _validate_thread,  # mismo shape que thread normal
+    "agenda_semanal": _validate_agenda_semanal,
 }
 
 
@@ -450,6 +478,16 @@ def _dry_run_content_for(post_type: str) -> dict[str, Any]:
             "closing_question": "[DRY RUN]",
             "word_count_approx": 4,
             "key_message": "[DRY RUN]",
+            "self_review_notes": "[DRY RUN]",
+        }
+    if post_type == "agenda_semanal":
+        return {
+            "tweets": [
+                "[DRY RUN] Lo que voy a estar mirando esta semana: martes CPI, jueves jobless claims, viernes NFP.",
+                "[DRY RUN] Buena semana. Mi capacidad de pánico es exactamente cero.",
+            ],
+            "key_message": "[DRY RUN] CPI martes y NFP viernes son los dos pivotes",
+            "joke": "[DRY RUN] Mi capacidad de pánico es exactamente cero.",
             "self_review_notes": "[DRY RUN]",
         }
     if post_type == "engagement_reply":
@@ -544,6 +582,25 @@ def _build_user_input_engagement_reply(
     )
 
 
+def _build_user_input_agenda_semanal(
+    target_date_iso: str,
+    events: list[dict] | None,
+    our_context: dict[str, Any] | None,
+) -> str:
+    """User input para la agenda semanal del lunes."""
+    payload = {
+        "target_date": target_date_iso,
+        "events": events,  # puede ser None — el modelo infiere
+        "our_context": our_context or {},
+    }
+    return (
+        "INPUTS DE LA AGENDA SEMANAL (JSON):\n\n```json\n"
+        + json.dumps(payload, indent=2, ensure_ascii=False, default=str)
+        + "\n```\n\n"
+        "Generá la agenda siguiendo las instrucciones."
+    )
+
+
 def _build_user_input_introduccion_lanzamiento(
     dashboard_url: str,
     repo_url: str | None,
@@ -626,6 +683,7 @@ def generate_post(
     dashboard_url: str | None = None,
     repo_url: str | None = None,
     reference_draft: str | None = None,
+    events: list[dict[str, Any]] | None = None,
     target_date: date | None = None,
     model: str = DEFAULT_MODEL,
     effort: str = DEFAULT_EFFORT,
@@ -725,6 +783,12 @@ def generate_post(
             )
         user_input = _build_user_input_introduccion_lanzamiento(
             dashboard_url, repo_url, signer, reference_draft
+        )
+    elif post_type == "agenda_semanal":
+        user_input = _build_user_input_agenda_semanal(
+            target_date_iso=target_date.isoformat(),
+            events=events,
+            our_context=our_context,
         )
     elif post_type in ADAPTER_POST_TYPES:
         if source_draft is None:
