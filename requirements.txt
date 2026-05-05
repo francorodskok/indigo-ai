@@ -15,6 +15,13 @@ python-dotenv>=1.0.0
 # Renderer de carrouseles para Instagram (pipeline.social.renderer)
 Pillow>=10.0.0
 
+# Slack-driven engagement reply (pipeline.social.slack_bot).
+# Solo necesario si vas a correr el bot localmente. CLI funciona sin ellos.
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+requests>=2.31.0
+
 # Dev / test (instalados solo en dev, no en imagen prod)
 # pytest>=8.0.0
 # pytest-mock>=3.12.0
+# httpx>=0.27.0  # FastAPI TestClient en tests del slack_bot

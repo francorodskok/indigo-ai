@@ -9,7 +9,10 @@ import { MetricCard } from "@/components/MetricCard";
 import { SectorBreakdownClient as SectorBreakdown } from "@/components/SectorBreakdownClient";
 import type { Analysis, HoldingAction } from "@/lib/types";
 
-export const revalidate = 3600;
+// Revalidate cada 60s para que cuando llegue un nuevo snapshot del NAV
+// (escrito por nav_tracker.record_today via daily_tasks), aparezca en el
+// dashboard en menos de un minuto. Antes era 1h y daba sensación de "trabado".
+export const revalidate = 60;
 
 function formatPct(weight: number | null | undefined): string {
   if (weight == null || Number.isNaN(weight)) return "—";

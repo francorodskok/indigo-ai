@@ -1,6 +1,6 @@
 import { getLatestTrades } from "@/lib/data";
 
-export const revalidate = 3600;
+export const revalidate = 60;
 
 function formatUsd(n: number | null | undefined): string {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";

@@ -9,7 +9,7 @@ import {
 } from "@/lib/data";
 import type { Analysis, Debate, DebateVerdict, HoldingAction } from "@/lib/types";
 
-export const revalidate = 3600;
+export const revalidate = 60;
 
 function formatPct(weight: number | null | undefined): string {
   if (weight == null || Number.isNaN(weight)) return "—";

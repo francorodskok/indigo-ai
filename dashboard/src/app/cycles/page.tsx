@@ -8,7 +8,7 @@
 import Link from "next/link";
 import { listPortfolioCycles } from "@/lib/data";
 
-export const revalidate = 3600;
+export const revalidate = 60;
 
 const CYCLE_DAYS = 20;
 
