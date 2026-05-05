@@ -1,193 +1,238 @@
-# Slack Bot — Setup del slash command `/reply`
+# Slack Bot — Setup paso a paso
 
-Documentación operativa para correr el bot de Slack que dispara
-`engagement_reply` desde un slash command.
+Documentación operativa para que vos mandes un mensaje a Slack y Indigo
+te conteste con propuestas de respuesta a un thread de X.
 
-**Flujo del usuario** una vez instalado:
-
-```
-[En Slack, cualquier canal donde está la app]
-  Vos: /reply @traderbearish jaja otro bot, avisame cuando te equivoques
-
-[2-3 segundos]
-  Bot: ⏳ Generando respuestas a @traderbearish…
-
-[15-30 segundos después]
-  Bot: ┌─ Respuestas a @traderbearish 🟢 ─
-       Decisión: vale la pena responder porque es chicana sin mala leche…
-
-       [1] approach: joda
-       Tranqui, cuando me equivoque vas a ser de los primeros en…
-       ↳ detecta el tono de chicana sin mala leche, responde corto…
-
-       [2] approach: joda
-       Jaja, fair point. La diferencia es que cuando falle…
-       ↳ similar al primero pero ligeramente más desarrollo…
-```
-
-Vos copiás la opción que te gusta y la pegás como reply en X. El bot
-nunca postea a X automáticamente.
+Hay **dos caminos**. Empezá por el simple. El avanzado solo si necesitás
+algo que el simple no cubre.
 
 ---
 
-## Setup paso a paso
+## 🟢 Camino simple — **Listener** (recomendado)
 
-### 1. Crear la Slack app
+**Cómo funciona:** Indigo corre en tu compu y pollea Slack cada 5
+segundos preguntando si hay mensajes nuevos en un canal específico.
+Cuando ve uno, genera la respuesta y la postea en el mismo canal.
 
-1. Ir a [api.slack.com/apps](https://api.slack.com/apps).
-2. **Create New App** → *From scratch* → Nombre: `Indigo Reply Bot`,
-   Workspace: el tuyo.
-3. **Basic Information** → copiar el `Signing Secret`. Ese va en `.env`
-   como `SLACK_SIGNING_SECRET`.
+**Por qué es más simple:** no hay endpoint público, no hay tunnel, no hay
+firma HMAC. Solo un token de bot.
 
-### 2. Configurar el slash command
+**Trade-off:** ~5-10s de latencia (vs <1s del slash command). Para
+responder a chicanas de X, alcanza con creces.
 
-1. En la app, sidebar izquierdo → **Slash Commands** → *Create New Command*.
-2. Configuración:
-   - **Command:** `/reply`
-   - **Request URL:** la URL pública del endpoint (ver paso 4 abajo).
-     Algo como `https://tu-tunnel.tld/slack/reply`.
-   - **Short Description:** `Generar drafts de respuesta a un thread`.
-   - **Usage Hint:** `@autor texto del thread`.
-   - **Escape channels, users, and links sent to your app:** dejarlo
-     **OFF** (queremos el `@autor` literal).
-3. **Save**.
+### Setup paso a paso (~10 min)
 
-### 3. Instalar la app en el workspace
+#### 1. Crear la Slack App
 
-1. **OAuth & Permissions** → *Install to Workspace*.
-2. Aceptar los scopes mínimos. La app solo necesita `commands` (default).
+1. Andá a [api.slack.com/apps](https://api.slack.com/apps).
+2. Click **Create New App** → **From scratch**.
+3. Nombre: `Indigo Reply Bot` · Workspace: el tuyo.
+4. Click **Create App**.
 
-### 4. Exponer el endpoint local a internet
+#### 2. Activar el Bot User
 
-El bot corre en `localhost:8001`. Slack necesita una URL pública con HTTPS
-para llegar al endpoint. Tres opciones:
+1. Sidebar izquierdo → **OAuth & Permissions**.
+2. Bajá a **Scopes** → **Bot Token Scopes** → **Add an OAuth Scope** y
+   agregá estos tres:
+   - `chat:write` (postear mensajes)
+   - `channels:history` (leer mensajes de canales públicos)
+   - `channels:read` (resolver nombre del canal a ID)
 
-#### Opción A — Cloudflare Tunnel (recomendada, gratis, persistente)
+   Si vas a usar un canal **privado** en vez de público, agregá también:
+   - `groups:history`
+   - `groups:read`
+
+#### 3. Instalar la app al workspace
+
+1. En la misma página, arriba: **Install to Workspace**.
+2. Aceptar.
+3. Slack te muestra el **Bot User OAuth Token** que empieza con
+   `xoxb-...`. **Copiá ese token entero**.
+
+#### 4. Crear el canal y invitar al bot
+
+1. En tu Slack, creá un canal nuevo: `#indigo-replies` (o el nombre que
+   prefieras).
+2. Click en el nombre del canal arriba → **Integrations** →
+   **Add apps** → buscá tu `Indigo Reply Bot` → **Add**.
+3. Alternativamente: tipeá `/invite @Indigo Reply Bot` adentro del canal.
+
+#### 5. Configurar `.env`
+
+Agregar al `.env` del repo:
 
 ```bash
-# Instalar cloudflared (Windows): https://github.com/cloudflare/cloudflared/releases
-# Crear tunnel
-cloudflared tunnel login
-cloudflared tunnel create indigo-bot
-cloudflared tunnel route dns indigo-bot bot.tu-dominio.com
-# Correr el tunnel apuntando al bot local
-cloudflared tunnel --url http://localhost:8001 run indigo-bot
+SLACK_BOT_TOKEN=xoxb-...el-token-que-copiaste...
+SLACK_LISTEN_CHANNEL=indigo-replies
+SLACK_POLL_INTERVAL=5
 ```
 
-Te queda una URL del tipo `https://bot.tu-dominio.com` que va al puerto
-8001 de tu compu. Esa URL la usás como **Request URL** del slash command:
-`https://bot.tu-dominio.com/slack/reply`.
-
-#### Opción B — ngrok (más simple para probar, URL random gratis o fija con plan)
+#### 6. Correr el listener
 
 ```bash
-# Instalar ngrok: https://ngrok.com/download
-ngrok http 8001
-```
-
-Te da una URL del tipo `https://abc123.ngrok-free.app`. Slash command
-**Request URL** = `https://abc123.ngrok-free.app/slack/reply`.
-
-> Limitación gratis: la URL cambia cada vez que reiniciás ngrok. Para
-> producción real, plan pago o Cloudflare Tunnel.
-
-#### Opción C — Fly.io (deploy del bot a la nube)
-
-Si más adelante querés que el bot corra 24/7 sin tu compu prendida, la
-forma natural es deployar a Fly.io. El `Dockerfile` del repo ya está
-preparado; solo hay que armar un `fly.toml` específico del bot.
-Eso queda como trabajo futuro — por ahora, A o B alcanzan.
-
-### 5. Configurar `.env`
-
-```bash
-SLACK_SIGNING_SECRET=el-signing-secret-de-tu-app
-SLACK_BOT_PORT=8001  # opcional, default 8001
-```
-
-### 6. Correr el bot
-
-```bash
-py -m pipeline.social.slack_bot
+py -m pipeline.social.slack_listener
 ```
 
 Output esperado:
 
 ```
-INFO     Started server process [PID]
-INFO     Uvicorn running on http://0.0.0.0:8001
+● Listener arrancando — canal #indigo-replies, poll cada 5s
+  Mandá mensajes al canal para disparar engagement_reply.
+  Mensajes que empiezan con // se ignoran (escape).
+  Ctrl+C para detener.
 ```
 
-Verificá que el health check funciona:
+#### 7. Probar
 
-```bash
-curl http://localhost:8001/health
-# {"status":"ok","signing_secret_configured":true,...}
-```
-
-### 7. Probar end-to-end
-
-En cualquier canal de Slack donde la app esté instalada:
+En tu Slack, en el canal `#indigo-replies`, mandá:
 
 ```
-/reply @testuser jaja otro bot que cree que sabe invertir
+@traderbearish jaja otro bot que cree que sabe invertir
 ```
 
-Esperado:
-- Slack te muestra "⏳ Generando respuestas a @testuser…" (visible solo para
-  vos, ephemeral).
-- A los ~20s, el canal recibe un mensaje con las propuestas formateadas en
-  Block Kit.
+A los ~15-20 segundos, el bot va a responder en el mismo thread con las
+propuestas de respuesta formateadas en Block Kit.
 
-Si nada llega, revisá:
-- `cloudflared` / `ngrok` corriendo y ruteando al puerto correcto.
-- `SLACK_SIGNING_SECRET` correcto en `.env`.
-- Logs del bot (uvicorn) para ver si el request llega.
-- En el dashboard de la Slack app: **Slash Commands** → tiene URL correcta.
+### Reglas del canal
+
+- Mensajes **empiezan con `@account`** → el bot toma `@account` como el
+  handle al que se está respondiendo. Ej: `@traderbearish algo`.
+- Mensajes **sin `@`** al inicio → el bot genera con un placeholder
+  `@usuario` (la calidad puede ser menor sin contexto del autor).
+- Mensajes que **empiezan con `//`** → ignorados. Útil para hablar en el
+  canal sin disparar al bot. Ej: `// nota mental: probar otro tema`.
+- El bot **nunca se responde a sí mismo** (filtra sus propios mensajes
+  por user_id) — no hay riesgo de loop.
+
+### Apagar el listener
+
+`Ctrl+C` en la terminal. Tarda 1-2 segundos en cerrar limpio (termina la
+iteración actual).
+
+### Costo
+
+Cada mensaje que disparás cuesta ~$0.04-0.07 en API:
+- engagement_reply (Haiku): ~$0.01-0.02
+- regulatory_review (Opus): ~$0.02-0.05
+
+El polling en sí no cuesta nada — son requests gratis a Slack.
 
 ---
 
-## Cómo funciona internamente (resumen técnico)
+## 🟡 Camino avanzado — Slash command `/reply`
 
-1. Slack POSTea form-encoded a `/slack/reply` con el text del comando + un
+Solo si querés:
+- Latencia <1s (vs 5-10s del listener).
+- Disparar el bot desde **cualquier canal**, no uno específico.
+- Tener un flow tipo "comando" en vez de "mensaje en canal".
+
+**Trade-off:** requiere endpoint público (HTTPS). Eso significa **tunnel**
+(Cloudflare Tunnel / ngrok) o **deploy** (Fly.io). Más piezas.
+
+### Setup adicional (encima del simple)
+
+1. **Slack App** — además de los scopes del listener, agregá un slash
+   command:
+   - Sidebar → **Slash Commands** → **Create New Command**
+   - Command: `/reply`
+   - Request URL: la URL pública del endpoint (ej:
+     `https://tu-tunnel.tld/slack/reply`)
+   - Description: `Generar drafts de respuesta a un thread`
+   - Usage Hint: `@autor texto del thread`
+
+2. **Signing Secret** — desde **Basic Information** → **App Credentials**
+   → copiar el `Signing Secret`. Va a `.env` como
+   `SLACK_SIGNING_SECRET`.
+
+3. **Tunnel** — exponer `localhost:8001` a internet:
+
+   #### Cloudflare Tunnel (recomendado, gratis, persistente)
+   ```bash
+   # Instalar cloudflared (Windows): https://github.com/cloudflare/cloudflared/releases
+   cloudflared tunnel login
+   cloudflared tunnel create indigo-bot
+   cloudflared tunnel route dns indigo-bot bot.tu-dominio.com
+   cloudflared tunnel --url http://localhost:8001 run indigo-bot
+   ```
+
+   #### ngrok (más simple para probar, URL random gratis)
+   ```bash
+   ngrok http 8001
+   ```
+   Te da una URL `https://abc123.ngrok-free.app`. Pegala en el slash
+   command Request URL: `https://abc123.ngrok-free.app/slack/reply`.
+
+   > Limitación gratis de ngrok: la URL cambia cada vez que reiniciás
+   > (tenés que actualizar la app de Slack cada vez).
+
+4. **Correr el bot HTTP**:
+
+   ```bash
+   py -m pipeline.social.slack_bot
+   ```
+
+5. **Probar**:
+
+   En cualquier canal donde la app esté instalada:
+   ```
+   /reply @traderbearish jaja otro bot
+   ```
+
+### Cómo funciona internamente (slash command)
+
+1. Slack POSTea form-encoded a `/slack/reply` con el text + un
    `response_url` único válido por 30 minutos.
 2. El endpoint **verifica HMAC-SHA256** del request usando el signing
    secret. Si la firma no matchea o el timestamp es viejo (>5 min), 401.
 3. El endpoint responde **inmediatamente** (<3s) con un ack ephemeral
    ("Generando…") para que Slack no haga timeout.
-4. Un **background task** corre en paralelo: llama a `generate_post`
-   (engagement_reply, Haiku 4.5), después `review_draft` (Opus 4.7), y
-   POSTea el resultado al `response_url` del usuario con un Block Kit
-   formateado.
-5. Las propuestas y rationales se ven en el canal. El draft completo
-   queda persistido en `pipeline/outputs/social/drafts/`.
+4. Un **background task** corre la generación y POSTea al `response_url`.
 
 ---
 
-## Apagar el bot
+## ¿Cuál elijo?
 
-`Ctrl+C` en la terminal donde corre. El tunnel también — `Ctrl+C` en su
-terminal.
+| Criterio | Listener (simple) | Slash command (avanzado) |
+|---|---|---|
+| Setup | ~10 min | ~30 min |
+| Tunnel/endpoint público | NO | SÍ |
+| Firma HMAC | NO | SÍ |
+| Latencia | 5-10s | <1s |
+| Funciona en cualquier canal | NO (uno específico) | SÍ |
+| Comando explícito vs mensaje natural | mensaje | `/reply` |
 
-Cuando estás operando, conviene tener:
-- Una terminal con el bot corriendo
-- Otra terminal con el tunnel
-- (Opcional) Una con el dashboard Next.js
-
-O empacarlo en un solo script que abra las 3 (a futuro).
+**Empezá por el listener.** Si después de probarlo necesitás algo que no
+te da, migramos al slash command. Pero para responder chicanas en X, el
+listener es suficiente.
 
 ---
 
-## Costo por uso
+## Troubleshooting
 
-Cada `/reply` que dispara generación cuesta aprox:
+### "Channel '...' no encontrado"
 
-| Componente | Costo |
-|---|---|
-| `engagement_reply` (Haiku 4.5, light context) | ~$0.01-0.02 |
-| `regulatory_review` (Opus 4.7) | ~$0.02-0.05 |
-| **Total por reply** | **~$0.04-0.07** |
+El bot no está invitado al canal. En el canal: `/invite @Indigo Reply Bot`.
 
-Si hay cache caliente en la misma sesión, los costos bajan un ~50%
-(cache_read en vez de cache_write).
+### El bot no responde
+
+- Verificá que `py -m pipeline.social.slack_listener` siga corriendo.
+- Verificá que el mensaje no empiece con `//` (eso se ignora a propósito).
+- Verificá que el mensaje no sea tuyo si el bot es vos (loop check).
+- Mirá los logs del listener — debería loggear cada mensaje que ve.
+
+### "invalid_auth" o "not_authed"
+
+El `SLACK_BOT_TOKEN` está mal copiado o no tiene los scopes correctos.
+Volvé al paso 2 y revisá los scopes. Después **Reinstall to Workspace**.
+
+### Latencia mayor a 10s
+
+Normal en la primera generación porque el cache_write a Anthropic toma
+~5s. La segunda y siguientes son más rápidas.
+
+### El bot postea respuestas vacías o de baja calidad
+
+- Si tu mensaje no tiene `@account` al inicio, el LLM no sabe a quién le
+  hablás → calidad baja. Empezá con `@autor texto...`.
+- Si el thread es muy corto (<20 chars), el LLM no tiene contexto.
+  Pegá el thread completo.
