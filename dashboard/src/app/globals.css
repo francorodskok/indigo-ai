@@ -1,14 +1,23 @@
 @import "tailwindcss";
 
 :root {
-  --background: #09090b; /* zinc-950 */
-  --foreground: #e4e4e7; /* zinc-200 */
-  --muted: #a1a1aa; /* zinc-400 */
-  --border: #27272a; /* zinc-800 */
-  --accent: #818cf8; /* indigo-400 — color de marca, vivo sin saturar */
-  --accent-soft: #4f46e5; /* indigo-600 — variante para fondos */
-  --positive: #34d399; /* emerald-400 */
-  --negative: #f87171; /* rose-400 */
+  /* Paleta clara — fondo casi blanco con touch cálido. */
+  --background: #fafaf9;        /* stone-50 — más cálido que blanco puro */
+  --background-elevated: #ffffff; /* cards y elementos elevados */
+  --foreground: #0f172a;        /* slate-900 — texto principal */
+  --muted: #64748b;             /* slate-500 — texto secundario */
+  --muted-strong: #475569;      /* slate-600 — para uppercase labels */
+  --border: #e2e8f0;            /* slate-200 — bordes de cards/separadores */
+  --border-soft: #f1f5f9;       /* slate-100 — separadores muy sutiles */
+  --accent: #4f46e5;            /* indigo-600 — color de marca, contrastado */
+  --accent-soft: #6366f1;       /* indigo-500 — para hovers e inline */
+  --accent-bg: #eef2ff;         /* indigo-50 — fondo de pills */
+  --positive: #059669;          /* emerald-600 — para texto sobre fondo claro */
+  --positive-bg: #ecfdf5;       /* emerald-50 */
+  --negative: #dc2626;          /* red-600 */
+  --negative-bg: #fef2f2;       /* red-50 */
+  --warning: #d97706;           /* amber-600 */
+  --warning-bg: #fffbeb;        /* amber-50 */
 }
 
 @theme inline {
@@ -66,17 +75,18 @@ body {
 }
 .prose-indigo code {
   font-family: var(--font-geist-mono), ui-monospace, monospace;
-  background: #18181b;
+  background: var(--border-soft);
   padding: 0.1em 0.35em;
   border-radius: 0.25rem;
   font-size: 0.9em;
 }
 .prose-indigo pre {
-  background: #18181b;
+  background: var(--border-soft);
   padding: 1em;
   border-radius: 0.5rem;
   overflow-x: auto;
   margin: 1em 0;
+  border: 1px solid var(--border);
 }
 .prose-indigo pre code { background: transparent; padding: 0; }
 .prose-indigo table {
@@ -89,5 +99,6 @@ body {
   padding: 0.5em 0.75em;
   text-align: left;
 }
-.prose-indigo th { background: #18181b; font-weight: 600; }
-.prose-indigo a { color: #a5b4fc; text-decoration: underline; }
+.prose-indigo th { background: var(--border-soft); font-weight: 600; }
+.prose-indigo a { color: var(--accent); text-decoration: underline; }
+.prose-indigo a:hover { color: var(--accent-soft); }

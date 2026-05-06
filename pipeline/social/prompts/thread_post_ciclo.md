@@ -50,7 +50,31 @@ de fragmentar la idea.
   sharpe, vol_annualized_pct, max_drawdown_pct, alpha_vs_benchmark_pct,
   n_observations. Si n_observations < 5, las métricas son ruido —
   minimizalas, no son lo importante todavía.
+- `cycle_data.current_prices` — **mapa `{ticker: precio_actual_USD}`**
+  con los precios de mercado de HOY para cada holding y exit. Crítico
+  para no alucinar niveles. Puede venir vacío si yfinance falló — en
+  ese caso, evitá mencionar precios actuales.
 - `cycle_data.cycle_id` y fecha.
+
+## REGLA CRÍTICA: precios actuales vs. precios del rationale
+
+El rationale del constructor (en `portfolio.holdings[i].rationale`) y la
+tesis del analyst tienen el precio del **día que se ejecutó el ciclo**.
+Eso fue hace hasta 20 días — NO es el precio de hoy.
+
+Cuando hablés de niveles de precio en el thread:
+
+- **Si necesitás el precio actual** para narrar (ej: "PGR cotiza hoy
+  a $X"), usá EXCLUSIVAMENTE `cycle_data.current_prices[ticker]`.
+- **Si `current_prices` no tiene el ticker** o está vacío, NO inventes
+  el precio. Hablá en términos relativos ("entró con descuento del 8%
+  sobre mi precio_objetivo") o omití la referencia.
+- **NUNCA copies un precio del rationale** y lo presentes como precio
+  actual. Caso real evitable: PGR rationale decía "esperando a $220",
+  precio actual era $190 — el thread dijo "esperar a $220" sin saber
+  que ya había cruzado debajo.
+- El precio del rationale es **histórico** (precio de entrada, target).
+  El precio de `current_prices` es **vigente**. No los mezcles.
 
 ## Estructura sugerida (4 a 7 tweets, cada uno desarrollado)
 

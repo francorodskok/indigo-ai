@@ -35,19 +35,19 @@ const TYPE_LABELS: Record<string, string> = {
 const APPROACH_LABELS: Record<string, { label: string; className: string }> = {
   complement: {
     label: "complement",
-    className: "border-sky-400/40 text-sky-300 bg-sky-400/10",
+    className: "border-sky-200 text-sky-700 bg-sky-50",
   },
   disagree: {
     label: "disagree",
-    className: "border-rose-400/40 text-rose-300 bg-rose-400/10",
+    className: "border-red-200 text-red-700 bg-red-50",
   },
   extend: {
     label: "extend",
-    className: "border-emerald-400/40 text-emerald-300 bg-emerald-400/10",
+    className: "border-emerald-200 text-emerald-700 bg-emerald-50",
   },
   data_add: {
     label: "data_add",
-    className: "border-amber-400/40 text-amber-300 bg-amber-400/10",
+    className: "border-amber-200 text-amber-700 bg-amber-50",
   },
 };
 
@@ -63,17 +63,17 @@ function statusBadge(status: string): { label: string; className: string } {
     case "green":
       return {
         label: "GREEN",
-        className: "border-emerald-400/40 text-emerald-300 bg-emerald-400/10",
+        className: "border-emerald-200 text-emerald-700 bg-emerald-50",
       };
     case "yellow":
       return {
         label: "YELLOW",
-        className: "border-amber-400/40 text-amber-300 bg-amber-400/10",
+        className: "border-amber-200 text-amber-700 bg-amber-50",
       };
     case "red":
       return {
         label: "RED",
-        className: "border-rose-400/40 text-rose-300 bg-rose-400/10",
+        className: "border-red-200 text-red-700 bg-red-50",
       };
     case "pending":
     default:
@@ -85,8 +85,8 @@ function statusBadge(status: string): { label: string; className: string } {
 }
 
 function severityClassName(sev: string): string {
-  if (sev === "high") return "text-rose-400 font-semibold";
-  if (sev === "medium") return "text-amber-400 font-semibold";
+  if (sev === "high") return "text-red-700 font-semibold";
+  if (sev === "medium") return "text-amber-700 font-semibold";
   return "text-[color:var(--muted)]";
 }
 
@@ -106,7 +106,7 @@ function ViolationsList({ violations }: { violations: SocialViolation[] }) {
         {violations.map((v, i) => (
           <li
             key={i}
-            className="border border-rose-400/30 bg-rose-400/5 rounded p-3 text-sm space-y-1"
+            className="border border-red-200 bg-red-50/60 rounded p-3 text-sm space-y-1"
           >
             <div className="flex flex-wrap gap-2 items-baseline">
               <span className={`text-xs uppercase tracking-wider mono ${severityClassName(v.severity)}`}>
@@ -125,8 +125,8 @@ function ViolationsList({ violations }: { violations: SocialViolation[] }) {
               </p>
             )}
             {v.suggested_fix && (
-              <p className="text-xs text-emerald-300/90 leading-relaxed">
-                <span className="text-emerald-400 font-semibold">Fix sugerido:</span>{" "}
+              <p className="text-xs text-emerald-700/90 leading-relaxed">
+                <span className="text-emerald-700 font-semibold">Fix sugerido:</span>{" "}
                 {v.suggested_fix}
               </p>
             )}
@@ -148,9 +148,9 @@ function ToneIssuesList({ issues }: { issues: SocialToneIssue[] }) {
         {issues.map((t, i) => (
           <li
             key={i}
-            className="border border-amber-400/30 bg-amber-400/5 rounded p-3 text-sm space-y-1"
+            className="border border-amber-200 bg-amber-50/60 rounded p-3 text-sm space-y-1"
           >
-            <div className="text-xs text-amber-300 mono">{t.category}</div>
+            <div className="text-xs text-amber-700 mono">{t.category}</div>
             {t.fragment && (
               <div className="text-[color:var(--foreground)]/85 italic">
                 &ldquo;{t.fragment}&rdquo;
@@ -179,13 +179,13 @@ function RegulatoryPanel({ regulatory }: { regulatory: SocialRegulatory }) {
           {badge.label}
         </span>
         {regulatory.publishable_as_is === true && regulatory.status === "green" && (
-          <span className="text-xs text-emerald-300">Publicable as-is</span>
+          <span className="text-xs text-emerald-700">Publicable as-is</span>
         )}
         {regulatory.publishable_as_is === false && regulatory.status !== "pending" && (
           <span className="text-xs text-[color:var(--muted)]">Requiere review humana</span>
         )}
         {regulatory.review_dry_run && (
-          <span className="text-xs text-amber-400 mono">[review: dry-run]</span>
+          <span className="text-xs text-amber-700 mono">[review: dry-run]</span>
         )}
         {regulatory.reviewed_at && (
           <span className="text-xs text-[color:var(--muted)]">
@@ -221,7 +221,7 @@ function TweetCard({ text, idx }: { text: string; idx: number }) {
     <div className="border border-[color:var(--border)] rounded-lg p-3 space-y-1">
       <div className="flex items-baseline justify-between text-[10px] uppercase tracking-wider text-[color:var(--muted)]">
         <span>tweet {idx + 1}</span>
-        <span className={`mono ${overLimit ? "text-rose-400 font-semibold" : ""}`}>
+        <span className={`mono ${overLimit ? "text-red-700 font-semibold" : ""}`}>
           {len}/280
         </span>
       </div>
@@ -320,7 +320,7 @@ function EngagementReplyCard({ draft }: { draft: SocialDraft }) {
                     )}
                   </div>
                   <span
-                    className={`text-[10px] mono ${overLimit ? "text-rose-400 font-semibold" : "text-[color:var(--muted)]"}`}
+                    className={`text-[10px] mono ${overLimit ? "text-red-700 font-semibold" : "text-[color:var(--muted)]"}`}
                   >
                     {len}/280
                   </span>
@@ -366,7 +366,7 @@ function NewsletterCard({ draft }: { draft: SocialDraft }) {
             {wc != null && (
               <span
                 className={`mono ${
-                  wc < 1000 || wc > 1500 ? "text-rose-400 font-semibold" : ""
+                  wc < 1000 || wc > 1500 ? "text-red-700 font-semibold" : ""
                 }`}
               >
                 ~{wc} palabras (1000–1500)
@@ -430,7 +430,7 @@ function LinkedInPostCard({ draft }: { draft: SocialDraft }) {
         {wc != null && (
           <span
             className={`mono ${
-              wc < 200 || wc > 400 ? "text-rose-400 font-semibold" : ""
+              wc < 200 || wc > 400 ? "text-red-700 font-semibold" : ""
             }`}
           >
             ~{wc} palabras (200-400)
@@ -544,7 +544,7 @@ function DraftCard({
             </span>
           )}
           {draft.metadata?.dry_run && (
-            <span className="text-xs text-amber-400 mono">[dry-run]</span>
+            <span className="text-xs text-amber-700 mono">[dry-run]</span>
           )}
         </div>
         <div className="flex items-center gap-3 text-xs text-[color:var(--muted)] mono">
@@ -607,8 +607,8 @@ function DraftCard({
       </div>
 
       {draft.metadata?.validation_issues && draft.metadata.validation_issues.length > 0 && (
-        <div className="border border-amber-400/30 bg-amber-400/5 rounded p-3 text-xs space-y-1">
-          <div className="text-amber-300 font-semibold uppercase tracking-wider">
+        <div className="border border-amber-200 bg-amber-50/60 rounded p-3 text-xs space-y-1">
+          <div className="text-amber-700 font-semibold uppercase tracking-wider">
             Validation issues del generador
           </div>
           <ul className="list-disc list-inside text-[color:var(--foreground)]/85">
@@ -665,27 +665,27 @@ export default async function SocialPage() {
             </div>
             <div className="mono text-2xl font-semibold mt-1">{stats.drafts_count}</div>
           </div>
-          <div className="border border-emerald-400/30 bg-emerald-400/5 rounded-lg p-3">
-            <div className="text-[10px] uppercase tracking-wider text-emerald-300">
+          <div className="border border-emerald-200 bg-emerald-50/60 rounded-lg p-3">
+            <div className="text-[10px] uppercase tracking-wider text-emerald-700">
               Green
             </div>
-            <div className="mono text-2xl font-semibold mt-1 text-emerald-300">
+            <div className="mono text-2xl font-semibold mt-1 text-emerald-700">
               {stats.green}
             </div>
           </div>
-          <div className="border border-amber-400/30 bg-amber-400/5 rounded-lg p-3">
-            <div className="text-[10px] uppercase tracking-wider text-amber-300">
+          <div className="border border-amber-200 bg-amber-50/60 rounded-lg p-3">
+            <div className="text-[10px] uppercase tracking-wider text-amber-700">
               Yellow
             </div>
-            <div className="mono text-2xl font-semibold mt-1 text-amber-300">
+            <div className="mono text-2xl font-semibold mt-1 text-amber-700">
               {stats.yellow}
             </div>
           </div>
-          <div className="border border-rose-400/30 bg-rose-400/5 rounded-lg p-3">
-            <div className="text-[10px] uppercase tracking-wider text-rose-300">
+          <div className="border border-red-200 bg-red-50/60 rounded-lg p-3">
+            <div className="text-[10px] uppercase tracking-wider text-red-700">
               Red
             </div>
-            <div className="mono text-2xl font-semibold mt-1 text-rose-300">{stats.red}</div>
+            <div className="mono text-2xl font-semibold mt-1 text-red-700">{stats.red}</div>
           </div>
           <div className="border border-[color:var(--border)] rounded-lg p-3">
             <div className="text-[10px] uppercase tracking-wider text-[color:var(--muted)]">

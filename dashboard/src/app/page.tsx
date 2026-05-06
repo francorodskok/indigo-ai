@@ -41,22 +41,22 @@ function actionBadge(a: HoldingAction | undefined): { label: string; className: 
     case "trim":
       return {
         label: "TRIM",
-        className: "border-amber-400/40 text-amber-300 bg-amber-400/10",
+        className: "border-amber-200 text-amber-700 bg-amber-50",
       };
     case "add":
       return {
         label: "ADD",
-        className: "border-sky-400/40 text-sky-300 bg-sky-400/10",
+        className: "border-sky-200 text-sky-700 bg-sky-50",
       };
     case "new":
       return {
         label: "NEW",
-        className: "border-emerald-400/40 text-emerald-300 bg-emerald-400/10",
+        className: "border-emerald-200 text-emerald-700 bg-emerald-50",
       };
     case "exit":
       return {
         label: "EXIT",
-        className: "border-rose-400/40 text-rose-300 bg-rose-400/10",
+        className: "border-red-200 text-red-700 bg-red-50",
       };
     default:
       return null;
@@ -329,8 +329,8 @@ export default async function HomePage() {
 
         {/* Exits de este ciclo (Paso D — memoria entre ciclos) */}
         {portfolio?.exits && portfolio.exits.length > 0 && (
-          <div className="border border-rose-400/30 bg-rose-400/5 rounded-lg p-4 text-sm">
-            <span className="font-semibold text-xs uppercase tracking-wider text-rose-400 block mb-2">
+          <div className="border border-red-200 bg-red-50/60 rounded-lg p-4 text-sm">
+            <span className="font-semibold text-xs uppercase tracking-wider text-red-700 block mb-2">
               Exits de este ciclo
             </span>
             <ul className="space-y-2">

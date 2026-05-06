@@ -274,21 +274,36 @@ def should_process_message(msg: dict[str, Any], bot_user_id: str) -> bool:
       - No tiene `subtype` raro (mensaje editado, eliminado, channel_join, etc.)
       - No empieza con IGNORE_PREFIX (escape para hablar sin disparar)
       - No es vacío
+
+    Cuando filtra, loggea la razón a INFO para facilitar debugging.
     """
+    ts = msg.get("ts", "?")
+    text_preview = (msg.get("text") or "")[:60]
+
     if msg.get("type") != "message":
+        log.info("Filtrado [%s]: type=%r != 'message'", ts, msg.get("type"))
         return False
-    if msg.get("subtype"):  # cualquier subtype: edited, joined, file_share, etc.
-        # Edited messages tienen subtype "message_changed". Los ignoramos
-        # para no procesar dos veces.
+    if msg.get("subtype"):
+        log.info(
+            "Filtrado [%s]: subtype=%r (text=%r)",
+            ts, msg.get("subtype"), text_preview,
+        )
         return False
     if msg.get("user") == bot_user_id:
+        log.info("Filtrado [%s]: es mensaje del bot mismo", ts)
         return False
-    if msg.get("bot_id"):  # otro bot
+    if msg.get("bot_id"):
+        log.info(
+            "Filtrado [%s]: bot_id=%r (otro bot — text=%r)",
+            ts, msg.get("bot_id"), text_preview,
+        )
         return False
     text = (msg.get("text") or "").strip()
     if not text:
+        log.info("Filtrado [%s]: texto vacío", ts)
         return False
     if text.startswith(IGNORE_PREFIX):
+        log.info("Filtrado [%s]: empieza con IGNORE_PREFIX (//)", ts)
         return False
     return True
 

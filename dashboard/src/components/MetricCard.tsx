@@ -8,8 +8,8 @@ import type { ReactNode } from "react";
 type Tone = "positive" | "negative" | "neutral" | "accent";
 
 const TONE_CLASSES: Record<Tone, string> = {
-  positive: "text-emerald-400",
-  negative: "text-rose-400",
+  positive: "text-[color:var(--positive)]",
+  negative: "text-[color:var(--negative)]",
   accent: "text-[color:var(--accent)]",
   neutral: "text-[color:var(--foreground)]",
 };
@@ -36,10 +36,10 @@ export function MetricCard({
 }: MetricCardProps) {
   const borderClass = empty
     ? "border-dashed border-[color:var(--border)]"
-    : "border-[color:var(--border)]";
+    : "border-[color:var(--border)] bg-[color:var(--background-elevated)]";
   return (
-    <div className={`border ${borderClass} rounded-lg p-4 flex flex-col gap-1`}>
-      <div className="text-[10px] uppercase tracking-wider text-[color:var(--muted)] font-semibold">
+    <div className={`border ${borderClass} rounded-lg p-4 flex flex-col gap-1 shadow-sm`}>
+      <div className="text-[10px] uppercase tracking-[0.1em] text-[color:var(--muted-strong)] font-semibold">
         {label}
       </div>
       <div className={`mono text-2xl font-semibold leading-tight ${TONE_CLASSES[tone]}`}>

@@ -69,8 +69,11 @@ log = logging.getLogger(__name__)
 ROOT = Path(__file__).parent.parent
 OUTPUTS_DIR = Path(__file__).parent / "outputs"
 STATE_DIR = Path(__file__).parent / "state"
+LESSONS_DIR = ROOT / "philosophy" / "lessons"
 
-# Archivos que SÍ se archivan (test cycle artifacts)
+# Archivos que SÍ se archivan (test cycle artifacts).
+# Cubrimos todo lo que un agente del próximo ciclo podría leer y tomar como
+# "memoria": outputs por ciclo + logs de proceso + dashboard render anterior.
 ARCHIVED_PREFIXES = (
     "analysis_",
     "debate_",
@@ -78,7 +81,9 @@ ARCHIVED_PREFIXES = (
     "orders_",
     "execution_report_",
     "filtered_",
-    "analyst_",  # analyst_run.log, analyst_retry*.log
+    "analyst_",      # analyst_run.log, analyst_retry*.log
+    "postmortem_",   # postmortem_YYYY-MM-DD.json (si el test cycle generó alguno)
+    "dashboard.",    # dashboard.html — render del estado anterior
 )
 
 # Archivos del state interno que SÍ se borran
@@ -86,6 +91,13 @@ STATE_FILES_TO_RESET = (
     "current_holdings.json",
     "last_cycle.json",  # si existe
 )
+
+# Lecciones generadas por postmortems anteriores que se inyectan en el
+# system_suffix de los agentes (analyst/constructor/debate). Si quedan
+# lecciones del test cycle, los agentes del ciclo real las leen y dejan
+# rastro. Por eso archivamos también `lesson_*.md` de philosophy/lessons/.
+# El .gitkeep se preserva.
+LESSON_FILE_PATTERN = "lesson_*.md"
 
 
 # ── Resultado de cada paso ────────────────────────────────────────────────────
@@ -286,8 +298,40 @@ def archive_cycle_outputs(
             log.warning("No pude filtrar nav_history.jsonl: %s", e)
             result.details.append(f"nav_history.jsonl: filtrado falló ({e})")
 
+    # Archivar lecciones del philosophy/lessons. Las lecciones se inyectan en
+    # los prompts de los agentes — si quedan del test cycle, dejan rastro.
+    lessons_archived = _archive_lessons(archive_dir, dry_run=False)
+    if lessons_archived > 0:
+        result.details.append(
+            f"philosophy/lessons: {lessons_archived} lesson_*.md archivados"
+        )
+    elif lessons_archived == 0:
+        result.details.append(
+            "philosophy/lessons: no hay lessons que archivar (vacío o solo .gitkeep)"
+        )
+
     log.info("[reset/archive] %d artifacts movidos a %s", len(candidates), archive_dir)
     return result
+
+
+def _archive_lessons(archive_dir: Path, *, dry_run: bool = False) -> int:
+    """
+    Mueve `philosophy/lessons/lesson_*.md` al archive del ciclo. Preserva
+    `.gitkeep`. Devuelve cuántos archivos se movieron.
+    """
+    if not LESSONS_DIR.exists():
+        return 0
+    lessons = list(LESSONS_DIR.glob(LESSON_FILE_PATTERN))
+    if not lessons:
+        return 0
+    if dry_run:
+        return len(lessons)
+
+    target_dir = archive_dir / "philosophy_lessons"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    for lesson in lessons:
+        shutil.move(str(lesson), str(target_dir / lesson.name))
+    return len(lessons)
 
 
 def _strip_equity_from_nav_history(nav_file: Path) -> int:

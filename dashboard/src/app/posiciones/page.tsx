@@ -65,13 +65,13 @@ function actionBadge(a: HoldingAction | undefined): { label: string; className: 
     case "hold":
       return { label: "HOLD", className: "border-[color:var(--border)] text-[color:var(--muted)] bg-[color:var(--border)]/20" };
     case "trim":
-      return { label: "TRIM", className: "border-amber-400/40 text-amber-300 bg-amber-400/10" };
+      return { label: "TRIM", className: "border-amber-200 text-amber-700 bg-amber-50" };
     case "add":
-      return { label: "ADD", className: "border-sky-400/40 text-sky-300 bg-sky-400/10" };
+      return { label: "ADD", className: "border-sky-200 text-sky-700 bg-sky-50" };
     case "new":
-      return { label: "NEW", className: "border-emerald-400/40 text-emerald-300 bg-emerald-400/10" };
+      return { label: "NEW", className: "border-emerald-200 text-emerald-700 bg-emerald-50" };
     case "exit":
-      return { label: "EXIT", className: "border-rose-400/40 text-rose-300 bg-rose-400/10" };
+      return { label: "EXIT", className: "border-red-200 text-red-700 bg-red-50" };
     default:
       return null;
   }
@@ -79,9 +79,9 @@ function actionBadge(a: HoldingAction | undefined): { label: string; className: 
 
 function decisionLabel(d: string | undefined): { label: string; color: string } {
   const s = (d ?? "").toLowerCase();
-  if (s.includes("invertir") && !s.includes("no")) return { label: "invertir", color: "text-emerald-400" };
-  if (s.includes("no_invertir") || s === "no invertir") return { label: "no invertir", color: "text-rose-400" };
-  if (s.includes("esperar") || s.includes("watch")) return { label: "esperar", color: "text-amber-400" };
+  if (s.includes("invertir") && !s.includes("no")) return { label: "invertir", color: "text-emerald-700" };
+  if (s.includes("no_invertir") || s === "no invertir") return { label: "no invertir", color: "text-red-700" };
+  if (s.includes("esperar") || s.includes("watch")) return { label: "esperar", color: "text-amber-700" };
   return { label: s || "—", color: "text-[color:var(--muted)]" };
 }
 
@@ -249,8 +249,8 @@ export default async function PosicionesPage() {
                     </h4>
                     <div className="grid md:grid-cols-2 gap-3">
                       {d.bull_argument && (
-                        <div className="border border-emerald-400/30 bg-emerald-400/5 rounded-lg p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-emerald-400 font-semibold mb-1">
+                        <div className="border border-emerald-200 bg-emerald-50/60 rounded-lg p-3">
+                          <div className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold mb-1">
                             Bull
                           </div>
                           <p className="text-sm text-[color:var(--foreground)]/90 leading-relaxed whitespace-pre-line">
@@ -259,8 +259,8 @@ export default async function PosicionesPage() {
                         </div>
                       )}
                       {d.bear_argument && (
-                        <div className="border border-rose-400/30 bg-rose-400/5 rounded-lg p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-rose-400 font-semibold mb-1">
+                        <div className="border border-red-200 bg-red-50/60 rounded-lg p-3">
+                          <div className="text-[10px] uppercase tracking-wider text-red-700 font-semibold mb-1">
                             Bear
                           </div>
                           <p className="text-sm text-[color:var(--foreground)]/90 leading-relaxed whitespace-pre-line">

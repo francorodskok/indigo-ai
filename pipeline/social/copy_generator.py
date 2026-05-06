@@ -125,11 +125,19 @@ def _safe_load_json(path: Path) -> dict | None:
 def _load_cycle_data() -> dict[str, Any]:
     """
     Junta los inputs del último ciclo: portfolio, debate, portfolio anterior,
-    y un nav_summary calculado on-the-fly desde nav_history.jsonl.
+    nav_summary y precios actuales del mercado para los holdings.
+
+    Los precios actuales (vía yfinance) son críticos: sin ellos el LLM
+    aluciona niveles de entrada/salida basándose en lo que ve en el
+    rationale del constructor (que tiene precio del día del ciclo, no
+    de hoy). Caso real: PGR rationale decía "esperar a $220", precio
+    actual $190 → el thread post-ciclo decía "esperar a $220" sin
+    saber que ya estaba debajo.
 
     Devuelve siempre un dict (con keys posiblemente null) para que el modelo
     pueda razonar sobre lo disponible. Nunca raisea por archivos faltantes —
-    el ciclo arranca de cero alguna vez.
+    el ciclo arranca de cero alguna vez. Si yfinance falla, current_prices
+    queda en None y el prompt instruye al LLM a no especular sobre niveles.
     """
     portfolios = sorted(PIPELINE_OUTPUTS.glob("portfolio_*.json"))
     portfolio = _safe_load_json(portfolios[-1]) if portfolios else None
@@ -138,6 +146,21 @@ def _load_cycle_data() -> dict[str, Any]:
     debate = _safe_load_json(_pick_latest_by_prefix("debate_", ".json"))
 
     nav_summary = _compute_nav_summary()
+
+    # Fetch precios actuales de los holdings + tickers del debate (top N).
+    # Sirven para que el LLM diga "PGR cotiza hoy a $190" en vez de
+    # repetir el "$220" que ve en el rationale histórico.
+    tickers_to_fetch: set[str] = set()
+    if portfolio:
+        for h in portfolio.get("holdings", []):
+            t = h.get("ticker")
+            if t:
+                tickers_to_fetch.add(t)
+        for e in portfolio.get("exits", []):
+            t = e.get("ticker")
+            if t:
+                tickers_to_fetch.add(t)
+    current_prices = _fetch_current_prices(sorted(tickers_to_fetch))
 
     cycle_id = portfolio.get("cycle_id") if portfolio else None
     cycle_date = None
@@ -152,11 +175,56 @@ def _load_cycle_data() -> dict[str, Any]:
         "previous_portfolio": previous,
         "debate": debate,
         "nav_summary": nav_summary,
+        "current_prices": current_prices,
         "_source_files": [
             p.name for p in (portfolios[-1:] + ([_pick_latest_by_prefix("debate_", ".json")] if debate else []))
             if p
         ],
     }
+
+
+def _fetch_current_prices(tickers: list[str]) -> dict[str, float] | None:
+    """
+    Fetcha precio de cierre del último día hábil para cada ticker via yfinance.
+    Devuelve {ticker: price} o None si yfinance no está disponible / falla.
+
+    No bloquea la generación: si falla, devuelve None y el prompt sabe
+    que tiene que evitar especular sobre niveles. NUNCA raisea.
+    """
+    if not tickers:
+        return {}
+    try:
+        import yfinance as yf
+    except ImportError:
+        log.warning("yfinance no disponible — current_prices=None")
+        return None
+
+    out: dict[str, float] = {}
+    for ticker in tickers:
+        try:
+            t = yf.Ticker(ticker)
+            # `fast_info` es más rápido que `info` y suficiente para precio actual.
+            price = None
+            try:
+                price = t.fast_info.get("last_price") or t.fast_info.get("lastPrice")
+            except Exception:  # pragma: no cover — fast_info puede fallar
+                pass
+            if price is None:
+                # Fallback: history del último día.
+                hist = t.history(period="1d", auto_adjust=False)
+                if not hist.empty:
+                    price = float(hist["Close"].iloc[-1])
+            if price is not None and price > 0:
+                out[ticker] = round(float(price), 2)
+        except Exception as e:
+            log.warning("Fetch precio actual de %s falló: %s", ticker, e)
+            continue
+
+    if not out:
+        log.warning("No pude obtener precio de ningún ticker — current_prices=None")
+        return None
+    log.info("current_prices fetched para %d/%d tickers", len(out), len(tickers))
+    return out
 
 
 def _compute_nav_summary() -> dict[str, Any] | None:

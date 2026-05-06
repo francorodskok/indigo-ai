@@ -58,12 +58,16 @@ export default async function RootLayout({
   return (
     <html
       lang="es"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[color:var(--background)] text-[color:var(--foreground)]">
-        <header className="border-b border-[color:var(--border)]">
+        <header className="border-b border-[color:var(--border)] bg-[color:var(--background-elevated)] sticky top-0 z-10 backdrop-blur-sm bg-white/80">
           <nav className="max-w-5xl mx-auto flex items-center justify-between px-6 py-4">
-            <Link href="/" className="font-semibold tracking-tight text-lg">
+            <Link
+              href="/"
+              className="font-semibold tracking-tight text-lg flex items-center gap-2"
+            >
+              <span className="inline-block h-2 w-2 rounded-full bg-[color:var(--accent)]" />
               Indigo AI
             </Link>
             <ul className="flex gap-5 text-sm">
@@ -71,7 +75,7 @@ export default async function RootLayout({
                 <li key={item.href}>
                   <Link
                     href={item.href}
-                    className="text-[color:var(--muted)] hover:text-[color:var(--accent)] transition-colors"
+                    className="text-[color:var(--muted)] hover:text-[color:var(--accent)] transition-colors font-medium"
                   >
                     {item.label}
                   </Link>

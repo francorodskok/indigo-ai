@@ -69,7 +69,7 @@ export default async function CyclesPage() {
                   className={`text-sm font-normal ${
                     daysUntilNext > 0
                       ? "text-[color:var(--muted)]"
-                      : "text-amber-400"
+                      : "text-amber-700"
                   }`}
                 >
                   {daysUntilNext > 0
@@ -114,7 +114,7 @@ export default async function CyclesPage() {
                   <div className="flex items-baseline gap-3 flex-wrap">
                     <h2 className="mono font-bold text-xl">{c._dateISO}</h2>
                     {idx === 0 && (
-                      <span className="border border-emerald-400/40 text-emerald-300 bg-emerald-400/10 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wider mono">
+                      <span className="border border-emerald-200 text-emerald-700 bg-emerald-50 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wider mono">
                         ACTUAL
                       </span>
                     )}
@@ -173,7 +173,7 @@ export default async function CyclesPage() {
                 {/* Exits */}
                 {exits.length > 0 && (
                   <div className="border-t border-[color:var(--border)] pt-3">
-                    <div className="text-[10px] uppercase tracking-wider text-rose-400 font-semibold mb-1">
+                    <div className="text-[10px] uppercase tracking-wider text-red-700 font-semibold mb-1">
                       Exits
                     </div>
                     <ul className="text-sm space-y-1">
