@@ -52,6 +52,18 @@ El sistema adhiere a los siguientes principios quality:
 4. **Management probado y alineado.** Se privilegian equipos con historia larga en la empresa, skin in the game, y asignación de capital racional comprobada.
 5. **PEG razonable y entender qué se compra.** Crecimiento pagado a precio justo, en negocios que el sistema puede explicar en una oración.
 
+### 2.3 Pilar tecnológico-monopolista — Thiel, Sleep
+
+El value clásico (Buffett, Marks) y el quality tradicional (Munger, Lynch) son la base, pero la economía de hoy también está dominada por empresas con estructuras de mercado **fundamentalmente distintas** a las que Graham analizaba en 1934: monopolios tecnológicos con efectos de red, plataformas con economías de escala compartidas, software con costo marginal cero. Para evaluar esas empresas el sistema incorpora dos ejes adicionales:
+
+1. **Monopolio durable como categoría distinta del moat tradicional** (Thiel). Una empresa con al menos dos de las cuatro características — proprietary technology 10× mejor que la siguiente alternativa, network effects con masa crítica establecida, economies of scale con costo unitario decreciente, o branding genuino verificado — puede sostener super-rentabilidades a 10+ años. La prima sobre múltiplos históricos del sector no es necesariamente irracional: refleja el valor presente de futuras opciones reales que un monopolio puede ejecutar (entrar a verticales adyacentes con costo marginal cero).
+2. **Scale economies shared como modelo defendible** (Sleep). Empresas que **deliberadamente regalan parte de la economía de escala a sus clientes** crean un loop auto-reforzante: bajan precios → vienen más clientes → costos unitarios caen → vuelven a bajar precios. El moat resultante es estructural y no requiere innovación constante. Verificable cuantitativamente en 5+ años de data: margen estable o decreciente con revenue creciendo 15%+, no crecimiento de margen con revenue plano.
+3. **Definite optimism** (Thiel). El sistema apuesta concretamente por empresas identificadas en lugar de diversificar máximo por incertidumbre. La diversificación tiene su rol (sección 5), pero dentro de un conjunto de apuestas activas — no como sustituto del análisis.
+4. **El "secreto" como fuente de alpha** (Thiel). Cada tesis del sistema debe contener una asimetría de visión sobre la empresa que el mercado todavía no precia, no solo descripción de fundamentales. Si la tesis se puede leer en cualquier sell-side report, no es tesis del sistema — es consenso ya pricing.
+5. **Cuándo flexibilizar el margen de seguridad** (Thiel + Sleep). Cuando una empresa califica como monopolio durable verificable según los criterios de §2.3.1, o tiene scale economies shared con management estable según §2.3.2, el margen de seguridad mínimo del 5% (§4.3) puede flexibilizarse hasta 0% — entrar a fair value. Solo en esos casos excepcionales documentados en el rationale, no como regla general. La flexibilización requiere citar explícitamente las dos o más características de monopolio o el comportamiento de pricing histórico que la justifica.
+
+Las tres pilares conviven sin contradicción: una empresa solo entra al portafolio si pasa los filtros operacionales de §2.1 (balance, margen de seguridad) y §2.2 (moat, ROIC, FCF, management), y opcionalmente puede tener prima de monopolio o scale economies shared (§2.3) que justifique pagar fair value en lugar de descuento.
+
 ### 2.3 La síntesis Indigo
 
 El sistema no promedia los dos pilares; los exige a ambos. El proceso de selección opera como dos filtros en secuencia: primero se evalúa quality (¿es esta empresa digna de estar en el portafolio?) y después se evalúa value (¿está a un precio que ofrece margen de seguridad hoy?). Una empresa que aprueba ambos filtros entra al pool de candidatos. Las demás se descartan y pueden volver a evaluarse en ciclos futuros si las condiciones cambian.
@@ -197,7 +209,16 @@ Ninguna otra razón es válida. En particular, no son razones válidas: que el p
 
 ## 9. Obligación de cita al canon
 
-Cada tesis de compra escrita por el sistema debe citar, de manera explícita y nominada, al menos dos principios del canon filosófico cargado en el contexto del agente —cuya versión vigente vive en `/philosophy/canon/`— que la sustentan. La cita no puede ser genérica ("Buffett diría que..."); debe referir a un principio identificable (por ejemplo: "margen de seguridad buffettiano del 25%", "moat durable estilo Munger", "categoría 'fast grower' lyncheana con PEG bajo", "second-level thinking en el sentido de Marks").
+Cada tesis de compra escrita por el sistema debe citar, de manera explícita y nominada, al menos dos principios del canon filosófico cargado en el contexto del agente —cuya versión vigente vive en `/philosophy/canon/`— que la sustentan. La cita no puede ser genérica ("Buffett diría que..."); debe referir a un principio identificable.
+
+Ejemplos de citas válidas, una por autor del canon:
+
+- *"margen de seguridad buffettiano del 25% sobre precio_objetivo derivado de múltiplo histórico × FCF forward"*
+- *"second-level thinking en el sentido de Marks: el mercado precia el deterioro del trimestre como permanente; pricing histórico sugiere mean-reverting"*
+- *"moat durable mungeriano de switching costs: ARR > 80% del revenue con NRR > 110% sostenido tres años"*
+- *"categoría 'fast grower' lyncheana: PEG 0.8, growth 22%, P/E 18, no es expensive"*
+- *"monopolio durable thieliano: cumple 3 de 4 (proprietary tech 10× costo competidor, network effects en plataforma, scale economies con costo marginal cero)"*
+- *"scale economies shared sleep-style verificado: margen operativo plano en 12% con revenue creciendo 18% anual durante 7 años"*
 
 Cada tesis de venta debe citar qué parte de la tesis original se rompió, usando el lenguaje de la tesis original, no un lenguaje nuevo inventado para justificar la venta.
 
