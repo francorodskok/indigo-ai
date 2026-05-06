@@ -146,7 +146,11 @@ def _format_debate_line(i: int, debate: dict) -> str:
     return line
 
 
-def build_constructor_prompt(debate_data: dict, current_state: dict | None = None) -> str:
+def build_constructor_prompt(
+    debate_data: dict,
+    current_state: dict | None = None,
+    macro_decision: dict | None = None,
+) -> str:
     """
     Construye el prompt de usuario para el constructor.
 
@@ -156,8 +160,13 @@ def build_constructor_prompt(debate_data: dict, current_state: dict | None = Non
             pipeline.state.load_current_holdings). Si None, el loader se
             llama internamente; si el archivo no existe (primer ciclo),
             se devuelve estado vacío y no se agrega bloque al prompt.
+        macro_decision: dict del macro_agent (post-auditoría 2026-05-06).
+            Si se pasa, se inyecta como contexto al inicio del prompt y
+            el constructor sigue su guía de cash level. Si None, el
+            constructor decide cash sin guía dedicada (modo legacy).
 
     El prompt queda:
+        [CONTEXTO MACRO]                              ← solo si macro_decision está
         [CARTERA ACTUAL con reglas de rebalanceo]    ← solo si hay holdings previos
         [VEREDICTOS DEL DEBATE — CANDIDATOS]         ← decision ∈ {comprar, posicion_pequeña}
         [VEREDICTOS DEL DEBATE — EXCLUIDOS]          ← decision = no_invertir (solo si hay)
@@ -192,6 +201,13 @@ def build_constructor_prompt(debate_data: dict, current_state: dict | None = Non
     )
 
     lines: list[str] = []
+
+    # ── Contexto macro del agente macro previo ───────────────────────────────
+    if macro_decision:
+        from pipeline.macro_agent import format_for_constructor
+        lines.append(format_for_constructor(macro_decision))
+        lines.append("")
+
     if holdings_block:
         lines.append(holdings_block)
         lines.append("")
@@ -495,12 +511,16 @@ def _build_dry_run_portfolio(debate_tickers: list[str], sector_map: dict[str, st
 # ── Función principal ─────────────────────────────────────────────────────────
 
 
-def run(dry_run: bool = False) -> Path:
+def run(dry_run: bool = False, *, with_macro: bool = True) -> Path:
     """
     Ejecuta el constructor del portfolio (Paso 8).
 
     Args:
         dry_run: Si True, retorna un portfolio sintético válido sin llamar a la API.
+        with_macro: Si True (default, post-auditoría 2026-05-06), corre el
+            agente macro previo (Haiku, ~$0.005) que decide el régimen y le
+            pasa el contexto al constructor. Si False, modo legacy: el
+            constructor decide el régimen solo.
 
     Returns:
         Path al archivo portfolio_YYYY-MM-DD.json generado.
@@ -532,6 +552,26 @@ def run(dry_run: bool = False) -> Path:
     else:
         log.info("Sin cartera previa — primer ciclo, todos los holdings serán 'new'.")
 
+    # Agente macro previo: decide régimen (cash level) leyendo indicadores
+    # objetivos. Descarga ese pensamiento del constructor para que dedique
+    # su atención cognitiva a stock selection.
+    macro_decision = None
+    if with_macro and not dry_run:
+        try:
+            from pipeline.macro_agent import decide_macro_regime
+            macro_decision = decide_macro_regime(dry_run=False)
+            log.info(
+                "Macro previo: régimen=%s, cash sugerido=%.1f%%, costo=$%.4f",
+                macro_decision.get("regime", "?"),
+                macro_decision.get("cash_pct_recommended", 0.0) * 100,
+                macro_decision.get("cost_usd", 0.0),
+            )
+        except Exception as e:
+            log.warning(
+                "Macro agent falló: %s. Constructor decide régimen sin guía.", e
+            )
+            macro_decision = None
+
     if dry_run:
         log.info("DRY RUN activado — generando portfolio sintético.")
         # Ordenar tickers por conviccion_ajustada desc para consistencia.
@@ -550,7 +590,11 @@ def run(dry_run: bool = False) -> Path:
         model_used = CONSTRUCTOR_MODEL
         cost_usd = 0.0
     else:
-        prompt = build_constructor_prompt(debate_data, current_state=current_state)
+        prompt = build_constructor_prompt(
+            debate_data,
+            current_state=current_state,
+            macro_decision=macro_decision,
+        )
         log.info(
             f"Llamando al constructor ({CONSTRUCTOR_MODEL}, effort={CONSTRUCTOR_EFFORT}, "
             f"budget={CONSTRUCTOR_TASK_BUDGET_TOKENS} tokens)."
@@ -618,6 +662,48 @@ def run(dry_run: bool = False) -> Path:
         "total_invested_pct": round(total_invested_pct, 6),
         "validated": True,
     }
+
+    # ── Macro audit ───────────────────────────────────────────────────────────
+    if macro_decision:
+        # Adjuntar el output del macro_agent al portfolio para audit.
+        # Quitamos `raw_indicators` para no engordar el JSON (vive en el log).
+        macro_audit = {
+            k: v for k, v in macro_decision.items() if k != "raw_indicators"
+        }
+        output["macro_decision"] = macro_audit
+
+    # ── Judge layer (post-auditoría 2026-05-06) ───────────────────────────────
+    # Verificación independiente con Sonnet 4.6: busca alucinaciones, citas
+    # vacías al canon, inconsistencias. NO bloquea ejecución — flagea para
+    # revisión humana si encuentra issues.
+    if not dry_run:
+        try:
+            from pipeline.judge import judge_portfolio
+            judge_result = judge_portfolio(
+                output,
+                debate_data,
+                macro_decision=macro_decision,
+                dry_run=False,
+            )
+            output["judge"] = judge_result
+            if judge_result.get("needs_human_review"):
+                log.warning(
+                    "JUDGE: %s — %d issues. Revisar antes de ejecutar.",
+                    judge_result.get("verdict"),
+                    len(judge_result.get("issues", [])),
+                )
+            else:
+                log.info("JUDGE: %s, sin issues bloqueantes.", judge_result.get("verdict"))
+        except Exception as e:
+            log.warning("Judge falló: %s. Portfolio guardado sin verificación.", e)
+            output["judge"] = {
+                "verdict": "concern",
+                "needs_human_review": True,
+                "issues": [],
+                "observations": [f"Judge falló al ejecutar: {e}"],
+                "summary": "El judge no pudo verificar el portfolio.",
+                "cost_usd": 0.0,
+            }
 
     # ── Guardar ───────────────────────────────────────────────────────────────
     today = date.today().isoformat()

@@ -75,14 +75,36 @@ SYNTHESIS_BATCH_MAX_TOKENS = 800
 
 # System suffix para cada rol — los mismos para batch y sequential.
 BULL_SUFFIX = (
-    "Sos el abogado del diablo optimista. Argumentá con datos concretos por qué esta empresa "
-    "merece ser comprada. Sé específico sobre el moat, el crecimiento y la valuación. "
-    "Máximo 300 palabras."
+    "Sos el abogado del diablo optimista. Tu tarea: argumentar por qué "
+    "comprar esta empresa con la convicción más alta posible.\n\n"
+    "Reglas duras:\n"
+    "- USÁ EXCLUSIVAMENTE los datos del bloque 'FUNDAMENTALES RAW' y "
+    "'VALUACIÓN'. NO inventes ratios. NO asumas datos no provistos.\n"
+    "- Citá explícitamente al menos 2 cifras concretas del bloque "
+    "(ej: 'ROIC proxy 22.4%', 'P/E vs avg 5y -8%').\n"
+    "- Si una cifra dice 'N/D', NO te la inventes — flagealo como debilidad.\n"
+    "- Citá al menos 1 principio del canon (Buffett, Marks, Munger, Lynch, "
+    "Thiel, Sleep) que sustente tu argumento.\n"
+    "- Máximo 300 palabras. Cada palabra que no aporta datos concretos "
+    "está restando."
 )
 BEAR_SUFFIX = (
-    "Sos el abogado del diablo pesimista. Argumentá con datos concretos por qué esta empresa "
-    "NO debería comprarse. Identificá riesgos reales, señales de deterioro, o valuación excesiva. "
-    "Máximo 300 palabras."
+    "Sos el abogado del diablo pesimista, MUY adversario. Asumí mala fe del "
+    "management. Asumí que el moat es ilusorio. Tu tarea: destruir la tesis "
+    "con datos concretos, no con generalidades de risk-off.\n\n"
+    "Reglas duras:\n"
+    "- USÁ EXCLUSIVAMENTE los datos del bloque 'FUNDAMENTALES RAW' y "
+    "'VALUACIÓN'. NO inventes números. NO asumas data no provista.\n"
+    "- Atacá específicamente: si el ROIC es 22%, sospechá que es por "
+    "buyback de outliers; si el P/E forward es bajo, sospechá earnings "
+    "deterioration anticipado; si el FCF yield es alto, sospechá one-off.\n"
+    "- Citá explícitamente al menos 2 cifras del bloque que soportan tu "
+    "ataque.\n"
+    "- Si la tesis del analyst usa lenguaje vago ('moat fuerte', "
+    "'compounder de calidad'), atacá ese vagueza con dato concreto.\n"
+    "- Citá al menos 1 principio del canon que sustente el ataque "
+    "(ej: anti-narrative de Marks, anti-recency, value trap de Klarman).\n"
+    "- Máximo 300 palabras. Sin diplomacy: el rol es destruir la tesis."
 )
 ANALYST_SUFFIX = (
     'Leíste los argumentos bull y bear. Producí un veredicto en JSON con este formato exacto, '
@@ -125,7 +147,16 @@ def load_top_tickers(analysis_path: Path, top_n: int) -> list[dict]:
 def build_debate_prompt(ticker_data: dict) -> str:
     """
     Construye el prompt de usuario para el debate (bull o bear).
-    Incluye ticker, tesis original y lista de riesgos.
+
+    Versión 2 (post-auditoría 2026-05-06): incluye no solo la tesis y los
+    riesgos, sino TODOS los fundamentales raw que vio el analyst. Antes
+    el bull/bear debatían sobre la *interpretación* del analyst, no sobre
+    la empresa — si el analyst se sesgaba, el sesgo se amplificaba. Ahora
+    bull/bear pueden cuestionar incluso la cita interpretativa del analyst
+    contra los datos crudos.
+
+    Anti-alucinación: el prompt usa SOLO datos del bloque, nunca inventa
+    ratios o números que no estén explícitos.
     """
     ticker = ticker_data.get("ticker", "")
     name = ticker_data.get("name", ticker)
@@ -134,8 +165,26 @@ def build_debate_prompt(ticker_data: dict) -> str:
     precio_objetivo = ticker_data.get("precio_objetivo", "N/A")
     conviccion = ticker_data.get("conviccion", "N/A")
     sector = ticker_data.get("sector", "N/A")
+    industry = ticker_data.get("industry", "N/A")
     market_cap = ticker_data.get("market_cap", "N/A")
     revenue_cagr = ticker_data.get("revenue_cagr", "N/A")
+
+    # Fundamentales raw que el analyst vio — para que bull/bear los miren
+    # de primera mano, no a través del filtro interpretativo del analyst.
+    roic = ticker_data.get("roic_proxy_pct")
+    net_debt_ebitda = ticker_data.get("net_debt_ebitda")
+    op_margin = ticker_data.get("op_margin_3y_positive")
+    pe_forward = ticker_data.get("pe_forward")
+    pe_avg_5y = ticker_data.get("pe_avg_5y")
+    pe_min_5y = ticker_data.get("pe_min_5y")
+    pe_max_5y = ticker_data.get("pe_max_5y")
+    pe_vs_avg_pct = ticker_data.get("pe_vs_avg_pct")
+    fcf_yield = ticker_data.get("fcf_yield_pct") or ticker_data.get("fcf_yield")
+    price_percentile_5y = ticker_data.get("price_percentile_5y")
+    pb_ratio = ticker_data.get("pb_ratio")
+    ev_ebitda = ticker_data.get("ev_ebitda")
+    peg_ratio = ticker_data.get("peg_ratio")
+    treasury_10y_yield = ticker_data.get("treasury_10y_yield")
 
     riesgos_str = "\n".join(f"  - {r}" for r in riesgos) if riesgos else "  - No especificados"
 
@@ -146,15 +195,47 @@ def build_debate_prompt(ticker_data: dict) -> str:
         f"{revenue_cagr:.1%}" if isinstance(revenue_cagr, float) else str(revenue_cagr)
     )
 
+    def _fmt(val, suffix="", precision=2):
+        if val is None or val == "N/A":
+            return "N/D"
+        if isinstance(val, (int, float)):
+            return f"{val:.{precision}f}{suffix}"
+        return f"{val}{suffix}"
+
+    op_margin_str = "positivo 3 años consecutivos" if op_margin else (
+        "mixto / no consistente" if op_margin is not None else "N/D"
+    )
+
     prompt = (
         f"TICKER: {ticker} ({name})\n"
-        f"SECTOR: {sector}\n"
-        f"MARKET CAP: {market_cap_str}\n"
-        f"REVENUE CAGR 3A: {revenue_cagr_str}\n"
+        f"SECTOR: {sector} · INDUSTRIA: {industry}\n"
+        f"MARKET CAP: {market_cap_str}\n\n"
+        f"## FUNDAMENTALES RAW (los mismos datos que vio el analyst)\n"
+        f"Revenue CAGR 3a: {revenue_cagr_str}\n"
+        f"Margen operativo: {op_margin_str}\n"
+        f"ROIC proxy: {_fmt(roic, '%', 1)}\n"
+        f"Deuda neta / EBITDA: {_fmt(net_debt_ebitda, 'x', 2)}\n"
+        f"\n"
+        f"## VALUACIÓN\n"
+        f"P/E forward: {_fmt(pe_forward, 'x', 2)}\n"
+        f"P/E avg 5y: {_fmt(pe_avg_5y, 'x', 2)}  (rango {_fmt(pe_min_5y, 'x', 2)} – {_fmt(pe_max_5y, 'x', 2)})\n"
+        f"P/E vs avg 5y: {_fmt(pe_vs_avg_pct, '%', 1)}\n"
+        f"P/B: {_fmt(pb_ratio, 'x', 2)}\n"
+        f"EV/EBITDA: {_fmt(ev_ebitda, 'x', 2)}\n"
+        f"PEG: {_fmt(peg_ratio, 'x', 2)}\n"
+        f"FCF yield: {_fmt(fcf_yield, '%', 2)}  (vs Treasury 10y {_fmt(treasury_10y_yield, '%', 2)})\n"
+        f"Precio actual percentil 5y: {_fmt(price_percentile_5y, '%', 0)}\n"
+        f"\n"
+        f"## INPUT DEL ANALYST\n"
         f"PRECIO OBJETIVO ANALISTA: {precio_objetivo}\n"
         f"CONVICCIÓN INICIAL: {conviccion}/10\n\n"
         f"TESIS ORIGINAL:\n{tesis}\n\n"
-        f"RIESGOS IDENTIFICADOS:\n{riesgos_str}\n"
+        f"RIESGOS IDENTIFICADOS:\n{riesgos_str}\n\n"
+        f"## TU TAREA\n"
+        f"Argumentá tu posición usando EXCLUSIVAMENTE los datos arriba más tu\n"
+        f"conocimiento general de la empresa. NO inventes ratios ni números\n"
+        f"que no estén en el bloque. Si necesitás un dato que no está, decí\n"
+        f"explícitamente 'sin data sobre X' en vez de estimarlo.\n"
     )
     return prompt
 

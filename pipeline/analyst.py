@@ -408,19 +408,41 @@ def save_results(df: pd.DataFrame, results: list[dict], date_str: str) -> Path:
     OUTPUTS.mkdir(parents=True, exist_ok=True)
     out_path = OUTPUTS / f"analysis_{date_str}.json"
 
-    # Indexar metadata por ticker
-    meta = {
-        row["ticker"]: {
-            "name": row.get("name", row["ticker"]),
+    # Indexar metadata por ticker. Persistimos TODOS los fundamentales que
+    # vio el analyst — el debate (post-auditoría 2026-05-06) los necesita
+    # para que bull/bear razonen sobre datos crudos, no solo sobre la
+    # interpretación destilada del analyst.
+    def _coerce(v):
+        """NaN → None para que el JSON sea válido."""
+        if v is None:
+            return None
+        if isinstance(v, float) and v != v:  # NaN check
+            return None
+        return v
+
+    fund_fields = (
+        "name", "industry", "market_cap",
+        "revenue_cagr", "op_margin_3y_positive",
+        "roic_proxy_pct", "net_debt_ebitda",
+        # Valuación raw — múltiplos forward
+        "pe_forward", "pb_ratio", "ev_ebitda", "peg_ratio", "fcf_yield_pct",
+        # Ancla histórica de 5 años
+        "pe_avg_5y", "pe_min_5y", "pe_max_5y", "pe_vs_avg_pct",
+        "price_avg_5y", "price_percentile_5y", "pe_samples",
+        # Costo de oportunidad
+        "treasury_10y_yield",
+    )
+    meta = {}
+    for _, row in df.iterrows():
+        ticker = row["ticker"]
+        entry = {
+            "name": row.get("name", ticker),
             "sector": row.get("sp500_sector") or row.get("sector", ""),
-            "industry": row.get("industry", ""),
-            "market_cap": row.get("market_cap"),
-            "revenue_cagr": row.get("revenue_cagr"),
-            "roic_proxy_pct": row.get("roic_proxy_pct"),
-            "net_debt_ebitda": row.get("net_debt_ebitda"),
         }
-        for _, row in df.iterrows()
-    }
+        for f in fund_fields:
+            if f in row.index:
+                entry[f] = _coerce(row.get(f))
+        meta[ticker] = entry
 
     output = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
