@@ -299,14 +299,59 @@ class TestValidatePortfolio:
         with pytest.raises(ValueError, match="16 holdings"):
             validate_portfolio(portfolio, sector_map, debate_tickers)
 
-    # ── Test 4: peso por encima del máximo ───────────────────────────────────
-    def test_weight_above_max_raises(self):
-        """Un peso > 10% debe lanzar ValueError."""
+    # ── Test 4: peso por encima del máximo (default cap 10%) ────────────────
+    def test_weight_above_max_default_cap_raises(self):
+        """Un peso > 10% con conviction < 8 (cap default) debe lanzar ValueError."""
         tickers = self.VALID_TICKERS_12
         portfolio = self._make_portfolio_from_list(tickers, cash=0.05)
-        # Forzar un peso por encima del máximo
+        # Forzar un peso por encima del default cap, con conviction baja
         portfolio["holdings"][0]["weight"] = 0.11
+        portfolio["holdings"][0]["conviction"] = 7  # < 8 → cap default 10%
         # Ajustar el último para mantener la suma
+        portfolio["holdings"][-1]["weight"] -= 0.01
+        sector_map = self._make_sector_map_from_list(tickers)
+        debate_tickers = self._make_debate_tickers(tickers)
+        with pytest.raises(ValueError, match="excede el máximo"):
+            validate_portfolio(portfolio, sector_map, debate_tickers)
+
+    def test_high_conviction_allows_up_to_14pct(self):
+        """Conviction >= 8 desbloquea cap de 14%, peso 0.13 debe pasar."""
+        tickers = self.VALID_TICKERS_12
+        portfolio = self._make_portfolio_from_list(tickers, cash=0.05)
+        # Subir uno a 13% con conviction 9 (high conviction)
+        portfolio["holdings"][0]["weight"] = 0.13
+        portfolio["holdings"][0]["conviction"] = 9
+        # Compensar bajando otro proporcionalmente
+        delta = 0.13 - portfolio["holdings"][1]["weight"]
+        # Distribuir la sobre-asignación entre el resto
+        n_others = len(portfolio["holdings"]) - 1
+        for h in portfolio["holdings"][1:]:
+            h["weight"] = round(h["weight"] - delta / n_others, 6)
+        # Ajustar último para suma exacta
+        total = sum(h["weight"] for h in portfolio["holdings"])
+        portfolio["holdings"][-1]["weight"] += round(0.95 - total, 6)
+        sector_map = self._make_sector_map_from_list(tickers)
+        debate_tickers = self._make_debate_tickers(tickers)
+        validate_portfolio(portfolio, sector_map, debate_tickers)  # No raisea
+
+    def test_weight_above_high_conviction_cap_raises(self):
+        """Conviction >= 8 pero peso > 14% debe lanzar ValueError igual."""
+        tickers = self.VALID_TICKERS_12
+        portfolio = self._make_portfolio_from_list(tickers, cash=0.05)
+        portfolio["holdings"][0]["weight"] = 0.15  # > 14%
+        portfolio["holdings"][0]["conviction"] = 9  # high conviction
+        portfolio["holdings"][-1]["weight"] -= 0.05
+        sector_map = self._make_sector_map_from_list(tickers)
+        debate_tickers = self._make_debate_tickers(tickers)
+        with pytest.raises(ValueError, match="excede el máximo"):
+            validate_portfolio(portfolio, sector_map, debate_tickers)
+
+    def test_position_at_11pct_with_low_conviction_fails(self):
+        """conviction = 7 (default cap), peso 11% → debe fallar."""
+        tickers = self.VALID_TICKERS_12
+        portfolio = self._make_portfolio_from_list(tickers, cash=0.05)
+        portfolio["holdings"][0]["weight"] = 0.11
+        portfolio["holdings"][0]["conviction"] = 7
         portfolio["holdings"][-1]["weight"] -= 0.01
         sector_map = self._make_sector_map_from_list(tickers)
         debate_tickers = self._make_debate_tickers(tickers)

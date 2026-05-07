@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { getCostStats, getLatestOutputTimestamp } from "@/lib/data";
+import { getLatestOutputTimestamp } from "@/lib/data";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,7 +28,6 @@ const NAV = [
   { href: "/cycles", label: "Ciclos" },
   { href: "/trades", label: "Trades" },
   { href: "/constitution", label: "Constitución" },
-  { href: "/about", label: "Acerca" },
 ];
 
 function formatTimestamp(iso: string | null): string {
@@ -42,19 +41,12 @@ function formatTimestamp(iso: string | null): string {
   }
 }
 
-function formatUsd(n: number): string {
-  return "$" + n.toLocaleString("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
-}
-
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const [latest, cost] = await Promise.all([
-    getLatestOutputTimestamp(),
-    getCostStats(),
-  ]);
+  const latest = await getLatestOutputTimestamp();
   return (
     <html
       lang="es"
@@ -92,14 +84,7 @@ export default async function RootLayout({
         <footer className="border-t border-[color:var(--border)] mt-8">
           <div className="max-w-5xl mx-auto px-6 py-5 text-xs text-[color:var(--muted)] flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span>Experimento autónomo. No es asesoramiento financiero.</span>
-            <span className="mono flex flex-wrap gap-x-4 gap-y-1 sm:justify-end">
-              {cost.n_calls > 0 && (
-                <span title={`${cost.n_calls} llamadas a la API de Anthropic`}>
-                  API: {formatUsd(cost.total_usd)}
-                </span>
-              )}
-              <span>Última actualización: {formatTimestamp(latest)}</span>
-            </span>
+            <span className="mono">Última actualización: {formatTimestamp(latest)}</span>
           </div>
         </footer>
       </body>

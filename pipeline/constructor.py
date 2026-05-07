@@ -21,6 +21,8 @@ from pipeline.config import (
     CONSTRUCTOR_EFFORT,
     CONSTRUCTOR_MODEL,
     CONSTRUCTOR_TASK_BUDGET_TOKENS,
+    PORTFOLIO_HIGH_CONVICTION_MAX_PCT,
+    PORTFOLIO_HIGH_CONVICTION_THRESHOLD,
     PORTFOLIO_MAX_CASH_PCT,
     PORTFOLIO_MAX_POSITION_PCT,
     PORTFOLIO_MAX_POSITIONS,
@@ -74,7 +76,12 @@ Valores permitidos para "action":
 
 Restricciones DURAS que debés respetar:
 - Entre 12 y 15 holdings
-- Ninguna posición > 10% del portfolio
+- **Pesos por posición**: default máximo 10%. Excepción high conviction:
+  hasta 14% si `conviction >= 8`. El cap alto del 14% es para nombres
+  con tesis excepcional, no para todas las posiciones top. Justificá en
+  el rationale cuando uses el cap alto (citá la convicción + 1-2 razones
+  estructurales: monopolio durable, scale economies shared, margen de
+  seguridad >=20%, etc.).
 - Ninguna posición < 3% del portfolio
 - sum(holdings weights) + cash_weight = 1.0 (exactamente)
 - cash_weight entre 0% y 25% (cap duro). Régimen normal: 0-5%. Régimen cauteloso: 5-15% (cuando hay 2+ indicadores macro estresados). Régimen defensivo: 15-25% (cuando hay 3+ indicadores estresados). Justificá el régimen elegido en `decision_summary` cuando cash > 5%.
@@ -366,13 +373,29 @@ def validate_portfolio(
         )
 
     # ── 2 & 3. Peso por posición ──────────────────────────────────────────────
+    # Default: max 10%. Excepción high conviction (conviction >= 8): max 14%.
+    # Min: 3% siempre. Posición fuera de rango → ValueError.
     for h in holdings:
         ticker = h.get("ticker", "?")
         weight = h.get("weight", 0.0)
-        if weight > PORTFOLIO_MAX_POSITION_PCT:
+        conviction = h.get("conviction", 0) or 0
+        # Si conviction >= threshold, accede al cap alto (14%). Si no, default (10%).
+        if conviction >= PORTFOLIO_HIGH_CONVICTION_THRESHOLD:
+            max_allowed = PORTFOLIO_HIGH_CONVICTION_MAX_PCT
+            cap_label = (
+                f"{PORTFOLIO_HIGH_CONVICTION_MAX_PCT:.0%} "
+                f"(high conviction, conviction>={PORTFOLIO_HIGH_CONVICTION_THRESHOLD})"
+            )
+        else:
+            max_allowed = PORTFOLIO_MAX_POSITION_PCT
+            cap_label = (
+                f"{PORTFOLIO_MAX_POSITION_PCT:.0%} (default, "
+                f"conviction<{PORTFOLIO_HIGH_CONVICTION_THRESHOLD})"
+            )
+        if weight > max_allowed:
             raise ValueError(
                 f"Ticker {ticker}: peso {weight:.4f} excede el máximo permitido "
-                f"de {PORTFOLIO_MAX_POSITION_PCT:.0%}."
+                f"de {cap_label}."
             )
         if weight < PORTFOLIO_MIN_POSITION_PCT:
             raise ValueError(

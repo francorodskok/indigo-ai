@@ -129,8 +129,9 @@ Si el descuento es menor al 5% pero el nombre es excepcional en los criterios cu
 
 ### 5.1 Posiciones individuales
 
-- Ninguna posición individual puede exceder el 10% del portafolio al momento de la construcción.
-- Si una posición existente supera el 10% por apreciación, se recorta al 10% en el siguiente ciclo de rebalanceo, no antes.
+- Ninguna posición individual puede exceder el **10% del portafolio** como cap default al momento de la construcción.
+- **Excepción de high conviction**: posiciones con `conviction >= 8/10` pueden alcanzar hasta el **14% del portafolio**. Esta excepción es para nombres con tesis excepcional —monopolio durable verificable, scale economies shared con management estable, margen de seguridad ≥ 20%, o combinación de varios de estos—, no para todas las posiciones top. El rationale debe citar explícitamente las razones estructurales que justifican el cap alto, no solo "convicción 9/10".
+- Si una posición existente supera su cap (10% o 14% según corresponda) por apreciación, se recorta en el siguiente ciclo de rebalanceo, no antes.
 - El número total de posiciones se mantiene entre 12 y 15. Menos de 12 implica concentración excesiva; más de 15 implica dilución de convicción.
 - Ninguna posición inicial puede ser menor al 3% del portafolio. Entrar chico es no entrar.
 
@@ -252,32 +253,16 @@ El contenido completo vive en `/philosophy/exclusions.md`. Los criterios resumid
 
 ## 12. Transparencia radical
 
-Todo lo que el sistema decide se publica. Todo lo que el sistema gasta se publica. Todo error del sistema se publica con la misma velocidad y el mismo formato con que se publicaría un acierto.
+Todo lo que el sistema decide se publica. Todo error del sistema se publica con la misma velocidad y el mismo formato con que se publicaría un acierto.
 
-- El código del sistema es público en GitHub.
-- La constitución es pública en GitHub y en el dashboard del sitio.
-- Cada ciclo de rebalanceo (~20 días) publica el portafolio resultante con su rationale completo, las tesis de cada nueva posición, los debates bull/bear que las sustentan, y los trades ejecutados en Alpaca paper.
+- La constitución entera es pública en el dashboard del sitio.
+- Cada ciclo de rebalanceo (~20 días) publica el portafolio resultante con su rationale completo, las tesis de cada nueva posición, los debates bull/bear que las sustentan, y los trades ejecutados.
 - El postmortem cada noventa días analiza qué predijo bien el sistema, qué falló, y propone qué cambia en la doctrina si corresponde. Incluye al menos una "decisión que no salió como esperábamos".
 - No se edita ni se oculta ningún rationale ni postmortem después de publicado. Correcciones se hacen en posts separados, con fecha.
 
 ---
 
-## 13. Prevalencia y jerarquía normativa
-
-En caso de conflicto, la jerarquía de normas del sistema es, en orden descendente:
-
-1. Esta constitución.
-2. La ley argentina y la regulación de la CNV aplicable.
-3. La ley estadounidense aplicable al broker (Alpaca) y al mercado (SEC).
-4. Las exclusiones detalladas en `/philosophy/exclusions.md`.
-5. El canon filosófico (`/philosophy/canon/`).
-6. El juicio del agente en el ciclo en curso.
-
-Si el canon y la constitución se contradicen en un caso concreto, gana la constitución y se registra el conflicto para consideración en la próxima revisión trimestral.
-
----
-
-## 14. Enmiendas y versionado
+## 13. Enmiendas y versionado
 
 Esta constitución es un documento vivo, pero no improvisado.
 

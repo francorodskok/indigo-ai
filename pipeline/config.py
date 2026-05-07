@@ -44,7 +44,9 @@ FILTER_CACHE_HOURS = 24                      # horas de cache de datos de yfinan
 # ── Construcción de cartera ───────────────────────────────────────────────────
 PORTFOLIO_MIN_POSITIONS = 12
 PORTFOLIO_MAX_POSITIONS = 15
-PORTFOLIO_MAX_POSITION_PCT = 0.10            # 10% máximo por posición
+PORTFOLIO_MAX_POSITION_PCT = 0.10            # 10% máximo por posición (default)
+PORTFOLIO_HIGH_CONVICTION_MAX_PCT = 0.14     # 14% máximo si conviction >= 8 (excepción documentada)
+PORTFOLIO_HIGH_CONVICTION_THRESHOLD = 8      # conviction mínima para cap 14%
 PORTFOLIO_MIN_POSITION_PCT = 0.03            # 3% mínimo por posición
 PORTFOLIO_MAX_SECTOR_PCT = 0.30              # 30% máximo por sector GICS
 PORTFOLIO_MAX_CASH_PCT = 0.25               # 25% máximo de cash (régimen defensivo)
