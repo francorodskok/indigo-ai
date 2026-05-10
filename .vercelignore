@@ -1,0 +1,26 @@
+# Vercel deploya el dashboard de Next.js que vive en `dashboard/`.
+# La raíz del repo NO es lo que se sirve — Vercel debería tener
+# "Root Directory" = `dashboard` en Project Settings.
+#
+# Este .vercelignore es defensa en profundidad por si alguien (o un
+# preset auto-detect) intenta buildear desde la raíz: ignoramos todos
+# los archivos Python del pipeline para que Vercel no se confunda
+# pensando que esto es un proyecto FastAPI.
+
+# Backend Python — Vercel no debe verlo
+pipeline/
+philosophy/
+docs/
+infra/
+raw/
+*.py
+requirements.txt
+pytest.ini
+Dockerfile
+.dockerignore
+TODO.md
+CLAUDE.md
+
+# Tests / dev tooling
+.pytest_cache/
+.python-version
