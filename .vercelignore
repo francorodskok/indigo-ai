@@ -1,26 +1,44 @@
 # Vercel deploya el dashboard de Next.js que vive en `dashboard/`.
-# La raíz del repo NO es lo que se sirve — Vercel debería tener
-# "Root Directory" = `dashboard` en Project Settings.
+# Root Directory está configurado a `dashboard` en Project Settings, pero
+# Vercel sigue clonando el repo entero — entonces tenemos que excluir aquí
+# lo que NO debe llegar al deployment.
 #
-# Este .vercelignore es defensa en profundidad por si alguien (o un
-# preset auto-detect) intenta buildear desde la raíz: ignoramos todos
-# los archivos Python del pipeline para que Vercel no se confunda
-# pensando que esto es un proyecto FastAPI.
+# El dashboard SÍ necesita:
+#   - philosophy/constitution.md y exclusions.md
+#   - pipeline/outputs/*.json, *.jsonl
+#   - pipeline/outputs/social/
+#
+# El dashboard NO necesita:
+#   - Backend Python (todos los .py)
+#   - philosophy/canon/* (1.5MB+ por autor, total ~9MB)
+#   - Archive de ciclos viejos
+#   - Tests, docs, infra
 
-# Backend Python — Vercel no debe verlo
-pipeline/
-philosophy/
-docs/
-infra/
-raw/
-*.py
+# ── Backend Python ────────────────────────────────────────────────────────────
+**/*.py
+**/__pycache__/
+pipeline/tests/
 requirements.txt
 pytest.ini
+
+# ── Infra / docs / raw que el dashboard no consume ───────────────────────────
 Dockerfile
 .dockerignore
-TODO.md
-CLAUDE.md
+infra/
+raw/
+docs/
 
-# Tests / dev tooling
+# ── Canon de filosofía (1.5MB+ cada autor, irrelevante para el dashboard) ───
+philosophy/canon/
+
+# ── Outputs internos que no se sirven ────────────────────────────────────────
+pipeline/outputs/archive/
+pipeline/outputs/renders/
+pipeline/outputs/**/*.csv
+pipeline/outputs/**/*.log
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
 .pytest_cache/
 .python-version
+TODO.md
+CLAUDE.md
