@@ -12,9 +12,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { SocialDraft } from "./types";
+import { socialDir } from "./paths";
 
-const REPO_ROOT = path.resolve(process.cwd(), "..");
-const SOCIAL_DIR = path.join(REPO_ROOT, "pipeline", "outputs", "social");
+const SOCIAL_DIR = socialDir();
 const DRAFTS_DIR = path.join(SOCIAL_DIR, "drafts");
 const APPROVED_DIR = path.join(SOCIAL_DIR, "approved");
 

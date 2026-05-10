@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "copy-data": "node scripts/copy-data.js",
+    "predev": "node scripts/copy-data.js",
+    "prebuild": "node scripts/copy-data.js",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

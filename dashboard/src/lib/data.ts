@@ -12,11 +12,12 @@ import type {
   PortfolioFile,
   Trade,
 } from "./types";
+import { outputsDir, philosophyDir } from "./paths";
 
-// The dashboard lives at <repo>/dashboard. Resolve once from cwd.
-const REPO_ROOT = path.resolve(process.cwd(), "..");
-const OUTPUTS_DIR = path.join(REPO_ROOT, "pipeline", "outputs");
-const PHILOSOPHY_DIR = path.join(REPO_ROOT, "philosophy");
+// Lazy-resolved paths: usa `.indigo-data/` si existe (build de Vercel),
+// si no usa el layout local `../pipeline/outputs/` y `../philosophy/`.
+const OUTPUTS_DIR = outputsDir();
+const PHILOSOPHY_DIR = philosophyDir();
 
 // YYYY-MM-DD suffix matcher.
 const DATE_RE = /(\d{4}-\d{2}-\d{2})/;

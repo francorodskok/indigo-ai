@@ -17,6 +17,10 @@
 /.next/
 /out/
 
+# Datos del pipeline copiados por scripts/copy-data.js
+# Se regeneran en cada build, no se versionan.
+/.indigo-data/
+
 # production
 /build
 

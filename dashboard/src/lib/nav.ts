@@ -10,14 +10,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { NavEntry } from "./types";
+import { outputsDir } from "./paths";
 
-const REPO_ROOT = path.resolve(process.cwd(), "..");
-const NAV_HISTORY_FILE = path.join(
-  REPO_ROOT,
-  "pipeline",
-  "outputs",
-  "nav_history.jsonl",
-);
+const NAV_HISTORY_FILE = path.join(outputsDir(), "nav_history.jsonl");
 
 /**
  * Carga el historial NAV. Si el archivo no existe (primer ciclo), devuelve [].
