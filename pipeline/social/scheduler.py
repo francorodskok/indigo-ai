@@ -81,6 +81,14 @@ CYCLE_SCHEDULE: dict[int, list[dict[str, Any]]] = {
     20: [{"kind": "newsletter_bicycle"}],  # solo si toca newsletter
 }
 
+# Calendario semanal — independiente del día del ciclo. Indexado por
+# `date.weekday()`: 0 = lunes, 6 = domingo.
+WEEKLY_SCHEDULE: dict[int, list[dict[str, Any]]] = {
+    0: [  # Lunes
+        {"kind": "agenda_semanal"},
+    ],
+}
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers de ciclo y estado
@@ -375,13 +383,21 @@ def run_today(
         summary["skipped"].append("no-cycle-anchor")
         return summary
 
-    tasks = CYCLE_SCHEDULE.get(doc, [])
+    # Tareas del calendario del ciclo + tareas del calendario semanal.
+    # El weekday (lunes=0) determina las weekly; doc determina las cycle.
+    cycle_tasks = CYCLE_SCHEDULE.get(doc, [])
+    weekly_tasks = WEEKLY_SCHEDULE.get(today.weekday(), [])
+    tasks = cycle_tasks + weekly_tasks
+
     if not tasks:
         log.info("[scheduler] día %d del ciclo: nada planificado para hoy.", doc)
         return summary
 
-    log.info("[scheduler] día %d/%d del ciclo: %d tareas",
-             doc, CYCLE_INTERVAL_DAYS, len(tasks))
+    log.info(
+        "[scheduler] día %d/%d del ciclo (weekday=%d): %d tareas (%d cycle + %d weekly)",
+        doc, CYCLE_INTERVAL_DAYS, today.weekday(),
+        len(tasks), len(cycle_tasks), len(weekly_tasks),
+    )
 
     for task in tasks:
         kind = task["kind"]
@@ -482,6 +498,24 @@ def run_today(
                 )
                 summary["drafts_generated"].append({
                     "type": "newsletter",
+                    "file": d.get("_fileName"),
+                })
+
+            elif kind == "agenda_semanal":
+                # Calendario semanal — lunes a la mañana.
+                if _draft_exists_today("agenda_semanal", today):
+                    log.info("[scheduler] agenda_semanal ya generada para hoy. Skip.")
+                    summary["skipped"].append("agenda_semanal:exists")
+                    continue
+                d = _run_generate(
+                    "agenda_semanal",
+                    target_date=today,
+                    review=review,
+                    notify=notify,
+                    dry_run=dry_run,
+                )
+                summary["drafts_generated"].append({
+                    "type": "agenda_semanal",
                     "file": d.get("_fileName"),
                 })
 

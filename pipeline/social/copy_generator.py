@@ -432,14 +432,25 @@ def _validate_linkedin(parsed: dict) -> list[str]:
 
 
 def _validate_engagement_reply(parsed: dict) -> list[str]:
-    """Validador para drafts de respuesta a threads ajenos."""
+    """
+    Validador para drafts de respuesta a threads ajenos.
+
+    Regla dura post-2026-05-11: SIEMPRE tiene que haber al menos 1 reply.
+    El usuario le mandó el thread porque quiere respuesta; el modelo no
+    puede decidir "no responder". Si replies viene vacío, se flagea como
+    issue (no como warning informativo).
+    """
     issues: list[str] = []
     replies = parsed.get("replies")
     if not isinstance(replies, list):
-        issues.append("missing 'replies' (list, puede ser vacía)")
+        issues.append("missing 'replies' (list)")
         return issues
-    # `replies` vacío es OK — significa "no responder, no aporta valor".
-    # Validamos el shape de las que vengan.
+    if len(replies) == 0:
+        issues.append(
+            "replies vacío — el sistema debe SIEMPRE responder cuando se le "
+            "pasa un thread. Si no hay ángulo brillante, responder con "
+            "complemento general o tono amistoso, nunca callarse."
+        )
     valid_approaches = {"complement", "disagree", "extend", "data_add", "joda"}
     for i, r in enumerate(replies):
         if not isinstance(r, dict):

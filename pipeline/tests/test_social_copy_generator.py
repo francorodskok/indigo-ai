@@ -693,12 +693,14 @@ class TestGenerateNewsletter:
 
 
 class TestValidateEngagementReply:
-    def test_empty_replies_with_summary_is_ok(self):
-        # Cero replies = "no aporta valor responder" → válido si hay summary.
-        assert _validate_engagement_reply({
+    def test_empty_replies_is_flagged(self):
+        # Regla dura post-2026-05-11: replies vacío siempre se flagea.
+        # El sistema debe SIEMPRE responder cuando le pasan un thread.
+        issues = _validate_engagement_reply({
             "replies": [],
-            "decision_summary": "el thread ya tiene 200+ respuestas y nuestra observación se pierde",
-        }) == []
+            "decision_summary": "el thread ya tiene 200+ respuestas",
+        })
+        assert any("replies vacío" in i or "SIEMPRE responder" in i for i in issues)
 
     def test_missing_replies_field(self):
         issues = _validate_engagement_reply({"decision_summary": "x"})
