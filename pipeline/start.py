@@ -52,16 +52,19 @@ PYTHON_EXECUTABLE = sys.executable
 # ── Tareas de Task Scheduler ──────────────────────────────────────────────────
 
 # Cada entrada: (task_name, cron_time_HH_MM, module_to_run, descripción)
+# A las 10:45 arranca el daily_tasks (NAV + social, ~10 segundos), 5 min
+# despues a las 10:50 arranca orchestrate (ciclo si toca cada 20 dias).
+# Esa secuencia es la que pidio el usuario para el lanzamiento.
 SCHEDULED_TASKS: list[dict[str, str]] = [
     {
         "name": "Indigo Daily Tasks",
-        "time": "10:00",
+        "time": "10:45",
         "module": "pipeline.daily_tasks",
         "description": "NAV snapshot diario + social scheduler (eventos del calendario editorial).",
     },
     {
         "name": "Indigo Cycle Orchestrator",
-        "time": "11:00",
+        "time": "10:50",
         "module": "pipeline.orchestrate",
         "description": "Chequea cadencia >=20 dias y corre el ciclo completo si toca.",
     },
@@ -292,8 +295,19 @@ def register_tasks(
     *,
     dry_run: bool = True,
     cwd: Path | None = None,
+    first_run_date: str | None = None,
 ) -> StepResult:
-    """Registra las entradas de Task Scheduler. Idempotente: si existe, lo recrea."""
+    """
+    Registra las entradas de Task Scheduler. Idempotente: si existe, lo recrea.
+
+    Args:
+        dry_run: si True, no ejecuta schtasks — solo lista lo que haría.
+        cwd: directorio de trabajo de las tareas (default: ROOT del repo).
+        first_run_date: fecha del primer disparo en formato YYYY-MM-DD. Si no
+            se pasa, schtasks usa el default (hoy si la hora ya pasó usa
+            mañana). Si se pasa, schtasks `/sd` lo fija explícitamente.
+            Util para programar el lanzamiento con anticipación.
+    """
     result = StepResult(name="register_tasks", dry_run=dry_run)
 
     if not _is_windows():
@@ -305,6 +319,27 @@ def register_tasks(
 
     workdir = cwd or ROOT
     existing = _list_existing_tasks()
+
+    # Validar fecha si se pasó. schtasks acepta /sd en el formato del
+    # locale del sistema. Probamos los dos más comunes: DD/MM/YYYY
+    # (Windows ES) y MM/DD/YYYY (Windows EN). El loop más abajo intenta
+    # ambos si el primero falla.
+    sd_candidates: list[str] = []
+    if first_run_date:
+        from datetime import datetime as _dt
+        try:
+            d = _dt.strptime(first_run_date, "%Y-%m-%d")
+            sd_candidates = [
+                d.strftime("%d/%m/%Y"),  # ES locale (default Windows español)
+                d.strftime("%m/%d/%Y"),  # EN locale
+            ]
+        except ValueError:
+            result.ok = False
+            result.error = (
+                f"first_run_date inválido: {first_run_date!r}. Formato esperado: "
+                f"YYYY-MM-DD."
+            )
+            return result
 
     for task in SCHEDULED_TASKS:
         name = task["name"]
@@ -328,13 +363,14 @@ def register_tasks(
                     check=False,
                 )
 
+        sd_label = f" desde {first_run_date}" if first_run_date else ""
         if dry_run:
             result.details.append(
-                f"  +  '{name}' diario @{time_hhmm} → {module}"
+                f"  +  '{name}' diario @{time_hhmm}{sd_label} → {module}"
             )
             continue
 
-        cmd = [
+        base_cmd = [
             "schtasks",
             "/create",
             "/sc", "DAILY",
@@ -343,16 +379,30 @@ def register_tasks(
             "/st", time_hhmm,
             "/f",  # force overwrite
         ]
+        # Construir variantes a probar según locale del sistema.
+        variants = []
+        if sd_candidates:
+            for sd in sd_candidates:
+                variants.append(base_cmd + ["/sd", sd])
+        else:
+            variants.append(base_cmd)
+
         try:
-            res = subprocess.run(cmd, capture_output=True, text=True, check=False)
-            if res.returncode != 0:
+            last_err = ""
+            registered = False
+            for cmd in variants:
+                res = subprocess.run(cmd, capture_output=True, text=True, check=False)
+                if res.returncode == 0:
+                    registered = True
+                    break
+                last_err = (res.stderr or res.stdout or "").strip()
+
+            if not registered:
                 result.ok = False
-                result.error = (
-                    f"schtasks /create falló para '{name}': "
-                    f"{(res.stderr or res.stdout or '').strip()}"
-                )
+                result.error = f"schtasks /create falló para '{name}': {last_err}"
                 return result
-            result.details.append(f"  ✓  '{name}' registrado @{time_hhmm}")
+
+            result.details.append(f"  ✓  '{name}' registrado @{time_hhmm}{sd_label}")
         except FileNotFoundError:
             result.ok = False
             result.error = (
@@ -402,7 +452,11 @@ def unregister_tasks(*, dry_run: bool = True) -> StepResult:
 # ── Orquestador principal ─────────────────────────────────────────────────────
 
 
-def run_start(*, confirm: bool = False) -> StartSummary:
+def run_start(
+    *,
+    confirm: bool = False,
+    first_run_date: str | None = None,
+) -> StartSummary:
     """Pone el sistema en modo automático."""
     dry_run = not confirm
     summary = StartSummary(dry_run=dry_run)
@@ -423,7 +477,10 @@ def run_start(*, confirm: bool = False) -> StartSummary:
         return summary
 
     # Paso 4: registrar tasks de Windows
-    summary.register_tasks = register_tasks(dry_run=dry_run)
+    summary.register_tasks = register_tasks(
+        dry_run=dry_run,
+        first_run_date=first_run_date,
+    )
 
     return summary
 
@@ -477,9 +534,22 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Ejecutar de verdad. Sin esto, dry-run.",
     )
+    parser.add_argument(
+        "--first-run-date",
+        metavar="YYYY-MM-DD",
+        help=(
+            "Fecha del primer disparo de las tareas (formato YYYY-MM-DD). "
+            "Si no se pasa, schtasks usa hoy (o mañana si la hora ya pasó). "
+            "Útil para programar el lanzamiento con anticipación, ej: "
+            "--first-run-date 2026-05-13"
+        ),
+    )
     args = parser.parse_args(argv)
 
-    summary = run_start(confirm=args.confirm)
+    summary = run_start(
+        confirm=args.confirm,
+        first_run_date=args.first_run_date,
+    )
     _print_summary(summary, action="START")
 
     for step in (
