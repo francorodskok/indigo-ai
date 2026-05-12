@@ -75,7 +75,11 @@ DEFAULT_EFFORT = "medium"
 # simple. Haiku 4.5 es 3× más barato en input y suficiente para esta tarea —
 # Sonnet sería overkill. Si en producción se ve que falla en juicios sutiles,
 # se pasa a Sonnet pasando el override `model="claude-sonnet-4-6"`.
-ENGAGEMENT_REPLY_MODEL = "claude-haiku-4-5"
+# Engagement reply migrado de Haiku → Sonnet (post 2026-05-12).
+# Haiku ignoraba la regla dura "siempre responder" y devolvia replies: []
+# diciendo "es disciplina no responder". Sonnet sigue el prompt al pie y
+# la diferencia de costo es marginal (~3 centavos extra por reply).
+ENGAGEMENT_REPLY_MODEL = "claude-sonnet-4-6"
 
 # Modo de filosofía cacheada según tipo de post:
 #   - source posts (thread/coyuntura/didactico/newsletter/engagement): "light"
@@ -932,6 +936,60 @@ def generate_post(
             raise
         validator = _VALIDATORS.get(post_type, _validate_thread)
         validation_issues = validator(content_obj)
+
+        # Retry duro para engagement_reply: si replies vino vacío, reintentamos
+        # 1 vez con instrucción reforzada. El user pidió que siempre responda.
+        if (
+            post_type == "engagement_reply"
+            and not dry_run
+            and isinstance(content_obj.get("replies"), list)
+            and len(content_obj["replies"]) == 0
+        ):
+            log.warning(
+                "engagement_reply devolvió replies vacío. Reintentando "
+                "1 vez con instrucción reforzada."
+            )
+            retry_input = (
+                user_input
+                + "\n\n## RETRY — INSTRUCCIÓN ENFÁTICA\n\n"
+                "Tu primera respuesta devolvió replies: []. Eso NO está "
+                "permitido. El usuario te pasó este thread porque quiere "
+                "una respuesta. NO sos el filtro — sos el generador. "
+                "Devolvé SIEMPRE 2 o más replies. Si el thread es vago, "
+                "respondé con dos opciones generales: una que reformule "
+                "la pregunta del autor de forma productiva, y otra que "
+                "comparta una observación general sobre el tema. NO "
+                "vuelvas a devolver replies vacío."
+            )
+            retry_response = call_agent(
+                role=f"social_{post_type}_retry",
+                user_input=retry_input,
+                model=effective_model,
+                effort=effort,
+                system_suffix=system_suffix,
+                dry_run=False,
+                inject_lessons=False,
+                max_tokens=max_tokens,
+                philosophy_mode=philosophy_mode,
+            )
+            try:
+                retry_content = _extract_json_block(retry_response["content"])
+                retry_issues = validator(retry_content)
+                retry_replies = retry_content.get("replies", [])
+                if isinstance(retry_replies, list) and len(retry_replies) > 0:
+                    log.info(
+                        "Retry exitoso: %d replies generadas.", len(retry_replies)
+                    )
+                    content_obj = retry_content
+                    validation_issues = retry_issues
+                else:
+                    log.error(
+                        "Retry de engagement_reply también devolvió replies "
+                        "vacío. Aceptando como está; revisar manualmente."
+                    )
+            except ValueError as e:
+                log.error("Retry parse falló: %s. Usando el primer intento.", e)
+
         if validation_issues:
             log.warning(
                 "Validación del %s tiene issues: %s. El draft se guarda igual; "
