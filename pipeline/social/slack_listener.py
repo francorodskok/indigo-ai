@@ -423,7 +423,10 @@ def run_listener(
     )
 
     # Arrancamos desde "ahora" para no procesar mensajes viejos del canal.
-    last_seen_ts = str(time.time())
+    # IMPORTANTE: Slack's conversations.history exige `oldest` con formato
+    # `seconds.microseconds` con exactamente 6 decimales. `str(time.time())`
+    # produce 7 decimales y Slack devuelve 0 mensajes silenciosamente.
+    last_seen_ts = f"{time.time():.6f}"
 
     iteration = 0
     while True:
@@ -436,6 +439,13 @@ def run_listener(
         iteration += 1
         summary["iterations"] = iteration
 
+        # Heartbeat: cada 12 iteraciones (~1 min) loggea que sigue vivo.
+        # Sirve para distinguir "polling normal sin mensajes" vs "colgado".
+        if iteration % 12 == 1:
+            log.info(
+                "Poll iter=%d, oldest_ts=%s — sigue activo", iteration, last_seen_ts,
+            )
+
         try:
             msgs = fetch_new_messages(token, channel_id, oldest_ts=last_seen_ts)
         except Exception as e:
@@ -444,6 +454,10 @@ def run_listener(
             summary["errors"] += 1
             time.sleep(poll_interval_s)
             continue
+
+        # Log si hay mensajes en este poll
+        if msgs:
+            log.info("iter %d: %d mensajes recibidos del fetch", iteration, len(msgs))
 
         for msg in msgs:
             ts = msg.get("ts", "")
@@ -478,12 +492,22 @@ def run_listener(
 
 
 def main(argv: list[str] | None = None) -> int:
+    import sys
     from pipeline._console import setup_utf8
     setup_utf8()
+
+    # Forzar line-buffering en stdout/stderr para que los logs aparezcan en
+    # tiempo real cuando redirigimos a archivo (sino se ven en bloques de 4KB).
+    try:
+        sys.stdout.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
+        sys.stderr.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
+    except Exception:
+        pass
 
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        force=True,
     )
 
     # Cargar .env si existe.
