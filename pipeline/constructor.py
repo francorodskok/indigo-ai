@@ -618,32 +618,92 @@ def run(dry_run: bool = False, *, with_macro: bool = True) -> Path:
             current_state=current_state,
             macro_decision=macro_decision,
         )
-        log.info(
-            f"Llamando al constructor ({CONSTRUCTOR_MODEL}, effort={CONSTRUCTOR_EFFORT}, "
-            f"budget={CONSTRUCTOR_TASK_BUDGET_TOKENS} tokens)."
-        )
 
-        result = call_agent(
-            role="constructor",
-            user_input=prompt,
-            model=CONSTRUCTOR_MODEL,
-            effort=CONSTRUCTOR_EFFORT,
-            system_suffix=CONSTRUCTOR_SUFFIX,
-            dry_run=False,
-            max_tokens=32_000,
-        )
+        # Retry hasta 4 veces si la validación dura falla. Opus 4.7 puede devolver
+        # weights incompletos, confundir CASH con un ticker, o violar caps.
+        # En vez de matar el ciclo entero, reintentamos con instrucción reforzada.
+        MAX_ATTEMPTS = 5
+        cost_usd = 0.0
+        model_used = CONSTRUCTOR_MODEL
+        last_error: str | None = None
+        portfolio = None
 
-        content = result.get("content", "")
-        cost_usd = result.get("cost_usd", 0.0)
-        model_used = result.get("model", CONSTRUCTOR_MODEL)
-        log.info(f"Respuesta del constructor recibida. Costo: ${cost_usd:.4f}")
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            log.info(
+                f"Llamando al constructor (intento {attempt}/{MAX_ATTEMPTS}, "
+                f"{CONSTRUCTOR_MODEL}, effort={CONSTRUCTOR_EFFORT}, "
+                f"budget={CONSTRUCTOR_TASK_BUDGET_TOKENS} tokens)."
+            )
+            attempt_prompt = prompt
+            if last_error and attempt > 1:
+                regime_hint = (
+                    macro_decision.get("regime", "normal") if macro_decision else "normal"
+                )
+                cash_hint = (
+                    macro_decision.get("cash_pct_recommended", 0.05)
+                    if macro_decision else 0.05
+                )
+                attempt_prompt = (
+                    prompt
+                    + "\n\n## RETRY — TU RESPUESTA ANTERIOR FALLÓ VALIDACIÓN\n\n"
+                    + f"Error específico de validación: {last_error}\n\n"
+                    + "Corregí SOLO ese error y respetá el checklist completo:\n\n"
+                    + "**CASH NO ES UN TICKER**. Cash va en el campo `cash_weight` "
+                    + "como número (no como entry en holdings).\n\n"
+                    + f"**Régimen macro de este ciclo: {regime_hint}** → "
+                    + f"cash_weight target ≈ {cash_hint:.2f} ({cash_hint*100:.0f}%).\n\n"
+                    + "Reglas duras (TODAS deben cumplirse):\n"
+                    + "1. JSON con keys exactos: `holdings`, `exits`, `cash_weight`, "
+                    + "`decision_summary`. `cash_weight` es un FLOAT, no un objeto.\n"
+                    + "2. holdings: lista de 12 a 15 entries con ticker (NO 'CASH'), "
+                    + "weight, action, rationale, conviction.\n"
+                    + "3. sum(h.weight for h in holdings) + cash_weight == 1.0 ±0.005.\n"
+                    + "4. Cada h.weight ∈ [0.03, 0.10] (o hasta 0.14 si conviction>=8).\n"
+                    + "5. Por sector GICS: sum(weights) ≤ 0.40.\n"
+                    + "6. cash_weight ∈ [0, 0.25]. Régimen normal: 0.0-0.05. "
+                    + "Cauteloso: 0.05-0.15. Defensivo: 0.15-0.25.\n"
+                    + "7. Ningún ticker con decision='no_invertir' en holdings.\n\n"
+                    + f"Con regime={regime_hint} y cash≈{cash_hint:.2f}, los holdings "
+                    + f"deben sumar ≈ {1.0 - cash_hint:.2f}. Distribuí entre los 12-15 "
+                    + "tickers del pool que NO sean 'no_invertir', respetando el sector cap."
+                )
 
-        portfolio = parse_portfolio(content)
+            result = call_agent(
+                role="constructor",
+                user_input=attempt_prompt,
+                model=CONSTRUCTOR_MODEL,
+                effort=CONSTRUCTOR_EFFORT,
+                system_suffix=CONSTRUCTOR_SUFFIX,
+                dry_run=False,
+                max_tokens=32_000,
+            )
 
-    # ── Validaciones duras ────────────────────────────────────────────────────
-    log.info("Aplicando validaciones duras al portfolio.")
-    validate_portfolio(portfolio, sector_map, debate_tickers, debate_decisions)
-    log.info("Portfolio validado correctamente.")
+            content = result.get("content", "")
+            cost_usd += result.get("cost_usd", 0.0)
+            model_used = result.get("model", CONSTRUCTOR_MODEL)
+            log.info(f"Respuesta del constructor recibida. Costo acumulado: ${cost_usd:.4f}")
+
+            try:
+                portfolio = parse_portfolio(content)
+                log.info("Aplicando validaciones duras al portfolio.")
+                validate_portfolio(portfolio, sector_map, debate_tickers, debate_decisions)
+                log.info("Portfolio validado correctamente.")
+                last_error = None
+                break
+            except (ValueError, KeyError) as e:
+                last_error = str(e)
+                log.warning(
+                    "Intento %d/%d falló validación: %s",
+                    attempt, MAX_ATTEMPTS, last_error,
+                )
+                if attempt == MAX_ATTEMPTS:
+                    raise
+
+    # ── Validaciones duras (dry_run path) ─────────────────────────────────────
+    if dry_run:
+        log.info("Aplicando validaciones duras al portfolio (dry_run).")
+        validate_portfolio(portfolio, sector_map, debate_tickers, debate_decisions)
+        log.info("Portfolio validado correctamente.")
 
     # ── Construir output ──────────────────────────────────────────────────────
     holdings = portfolio.get("holdings", [])

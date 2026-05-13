@@ -297,6 +297,7 @@ def call_agent(
     max_tokens: int = 16_000,
     inject_lessons: bool = True,
     philosophy_mode: str = "full",
+    disable_thinking: bool = False,
 ) -> dict[str, Any]:
     """
     Llama a Claude con la filosofía cacheada como contexto permanente.
@@ -394,7 +395,7 @@ def call_agent(
         "max_tokens": max_tokens,
         "messages": [{"role": "user", "content": user_input}],
     }
-    if supports_adaptive_thinking:
+    if supports_adaptive_thinking and not disable_thinking:
         stream_kwargs["thinking"] = {"type": "adaptive"}
     if supports_effort:
         stream_kwargs["output_config"] = {"effort": anthropic_effort}

@@ -186,15 +186,17 @@ def run_pipeline(dry_run: bool = False) -> list[StageResult]:
     if not r.ok:
         return results
 
-    # 5. Executor — Alpaca. No tiene dry_run flag pero respeta ALPACA_BASE_URL.
-    #    Si estamos en dry_run global, skipeamos el executor entero.
+    # 5. Executor — Alpaca. IMPORTANTE: executor.run tiene dry_run=True como
+    #    default. Si no le pasamos explícitamente dry_run=False, NUNCA manda
+    #    órdenes reales. (Bug histórico: orchestrate llamaba sin args → todo
+    #    quedaba en dry-run silencioso.)
     if dry_run:
         skipped = StageResult("executor")
         skipped.ok = True
         skipped.extra = {"skipped": "dry_run"}
         results.append(skipped)
     else:
-        r = _run_stage("executor", executor.run)
+        r = _run_stage("executor", executor.run, dry_run=False)
         results.append(r)
 
     return results

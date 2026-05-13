@@ -895,7 +895,10 @@ def generate_post(
     if post_type in ADAPTER_POST_TYPES or post_type == "engagement_reply":
         max_tokens = 8_000
     else:
-        max_tokens = 16_000
+        # 16K era insuficiente para thread_post_ciclo con adaptive thinking
+        # de Sonnet 4.6 + thread de 8 tweets + rationale por holding.
+        # Subido a 24K (Sonnet 4.6 soporta mucho más, costo solo si se usa).
+        max_tokens = 24_000
 
     # Modo de filosofía: adapters no necesitan filosofía (el thread fuente ya
     # la absorbió); el resto usa solo la constitución.
@@ -912,6 +915,12 @@ def generate_post(
     if post_type == "engagement_reply" and model == DEFAULT_MODEL:
         effective_model = ENGAGEMENT_REPLY_MODEL
 
+    # Para posts de output estructurado largo (threads multi-tweet, carrousels),
+    # adaptive thinking de Sonnet 4.6 quemaba todo el max_tokens budget en
+    # razonamiento, sin dejar room para el JSON. Lo deshabilitamos: la salida
+    # es 95% formato, no requiere análisis profundo (eso ya lo hicieron analyst
+    # y debate). engagement_reply mantiene thinking porque ahí sí razona.
+    no_thinking = post_type != "engagement_reply"
     response = call_agent(
         role=f"social_{post_type}",
         user_input=user_input,
@@ -922,6 +931,7 @@ def generate_post(
         inject_lessons=False,  # las lecciones de inversión no aplican a copy
         max_tokens=max_tokens,
         philosophy_mode=philosophy_mode,
+        disable_thinking=no_thinking,
     )
 
     # Parse del JSON. En dry_run el content es "[DRY RUN]".

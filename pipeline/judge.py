@@ -301,7 +301,8 @@ def judge_portfolio(
         system_suffix=JUDGE_SYSTEM_SUFFIX,
         dry_run=False,
         inject_lessons=False,
-        max_tokens=8_000,
+        max_tokens=16_000,  # 8K era insuficiente con adaptive thinking de Sonnet 4.6
+        disable_thinking=True,  # judge es verificación factual, no requiere thinking profundo
         philosophy_mode="none",  # Verificador no necesita filosofía completa
     )
 
