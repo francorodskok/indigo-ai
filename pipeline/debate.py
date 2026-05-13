@@ -174,16 +174,25 @@ def build_debate_prompt(ticker_data: dict) -> str:
     roic = ticker_data.get("roic_proxy_pct")
     net_debt_ebitda = ticker_data.get("net_debt_ebitda")
     op_margin = ticker_data.get("op_margin_3y_positive")
-    pe_forward = ticker_data.get("pe_forward")
+    # Aceptamos ambos nombres (legacy + canónico del filter).
+    pe_forward = ticker_data.get("forward_pe") or ticker_data.get("pe_forward")
+    trailing_pe = ticker_data.get("trailing_pe")
     pe_avg_5y = ticker_data.get("pe_avg_5y")
     pe_min_5y = ticker_data.get("pe_min_5y")
     pe_max_5y = ticker_data.get("pe_max_5y")
     pe_vs_avg_pct = ticker_data.get("pe_vs_avg_pct")
-    fcf_yield = ticker_data.get("fcf_yield_pct") or ticker_data.get("fcf_yield")
+    fcf_yield = ticker_data.get("fcf_yield") or ticker_data.get("fcf_yield_pct")
+    # fcf_yield del filter viene como fracción (0.012 = 1.2%); _fmt asume %.
+    if isinstance(fcf_yield, (int, float)) and abs(fcf_yield) < 1:
+        fcf_yield = fcf_yield * 100
     price_percentile_5y = ticker_data.get("price_percentile_5y")
-    pb_ratio = ticker_data.get("pb_ratio")
-    ev_ebitda = ticker_data.get("ev_ebitda")
+    pb_ratio = ticker_data.get("price_to_book") or ticker_data.get("pb_ratio")
+    ev_ebitda = ticker_data.get("ev_to_ebitda") or ticker_data.get("ev_ebitda")
     peg_ratio = ticker_data.get("peg_ratio")
+    beta = ticker_data.get("beta")
+    div_yield = ticker_data.get("dividend_yield")
+    current_price = ticker_data.get("current_price")
+    pct_off_52w_high = ticker_data.get("pct_off_52w_high")
     treasury_10y_yield = ticker_data.get("treasury_10y_yield")
 
     riesgos_str = "\n".join(f"  - {r}" for r in riesgos) if riesgos else "  - No especificados"
@@ -217,13 +226,16 @@ def build_debate_prompt(ticker_data: dict) -> str:
         f"Deuda neta / EBITDA: {_fmt(net_debt_ebitda, 'x', 2)}\n"
         f"\n"
         f"## VALUACIÓN\n"
-        f"P/E forward: {_fmt(pe_forward, 'x', 2)}\n"
+        f"Precio actual: {_fmt(current_price, '', 2)}\n"
+        f"P/E forward: {_fmt(pe_forward, 'x', 2)} · P/E trailing: {_fmt(trailing_pe, 'x', 2)}\n"
         f"P/E avg 5y: {_fmt(pe_avg_5y, 'x', 2)}  (rango {_fmt(pe_min_5y, 'x', 2)} – {_fmt(pe_max_5y, 'x', 2)})\n"
         f"P/E vs avg 5y: {_fmt(pe_vs_avg_pct, '%', 1)}\n"
         f"P/B: {_fmt(pb_ratio, 'x', 2)}\n"
         f"EV/EBITDA: {_fmt(ev_ebitda, 'x', 2)}\n"
         f"PEG: {_fmt(peg_ratio, 'x', 2)}\n"
         f"FCF yield: {_fmt(fcf_yield, '%', 2)}  (vs Treasury 10y {_fmt(treasury_10y_yield, '%', 2)})\n"
+        f"Beta: {_fmt(beta, '', 2)} · Dividend yield: {_fmt(div_yield, '%', 2)}\n"
+        f"% vs 52w high: {_fmt(pct_off_52w_high, '%', 1)}\n"
         f"Precio actual percentil 5y: {_fmt(price_percentile_5y, '%', 0)}\n"
         f"\n"
         f"## INPUT DEL ANALYST\n"

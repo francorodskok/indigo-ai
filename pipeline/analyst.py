@@ -424,11 +424,15 @@ def save_results(df: pd.DataFrame, results: list[dict], date_str: str) -> Path:
         "name", "industry", "market_cap",
         "revenue_cagr", "op_margin_3y_positive",
         "roic_proxy_pct", "net_debt_ebitda",
-        # Valuación raw — múltiplos forward
-        "pe_forward", "pb_ratio", "ev_ebitda", "peg_ratio", "fcf_yield_pct",
+        # Valuación raw — múltiplos forward (nombres del filter)
+        "forward_pe", "trailing_pe", "price_to_book", "ev_to_ebitda",
+        "peg_ratio", "fcf_yield", "beta", "dividend_yield",
+        "current_price", "fifty_two_week_high", "fifty_two_week_low",
+        "pct_off_52w_high",
         # Ancla histórica de 5 años
         "pe_avg_5y", "pe_min_5y", "pe_max_5y", "pe_vs_avg_pct",
-        "price_avg_5y", "price_percentile_5y", "pe_samples",
+        "price_avg_5y", "price_max_5y", "price_min_5y",
+        "price_percentile_5y", "pe_samples",
         # Costo de oportunidad
         "treasury_10y_yield",
     )

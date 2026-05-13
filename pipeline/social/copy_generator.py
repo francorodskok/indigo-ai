@@ -376,8 +376,8 @@ def _validate_agenda_semanal(parsed: dict) -> list[str]:
     if not isinstance(tweets, list) or not tweets:
         issues.append("missing 'tweets' (list)")
         return issues
-    if len(tweets) > 2:
-        issues.append(f"agenda_semanal tiene {len(tweets)} tweets, máximo 2")
+    if len(tweets) > 3:
+        issues.append(f"agenda_semanal tiene {len(tweets)} tweets, máximo 3")
     for i, t in enumerate(tweets):
         if not isinstance(t, str) or not t.strip():
             issues.append(f"tweet {i} vacío o no-string")
