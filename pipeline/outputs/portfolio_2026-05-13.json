@@ -1,0 +1,315 @@
+{
+  "generated_at": "2026-05-13T16:42:36.084760+00:00",
+  "cycle_id": "2026-05-13",
+  "previous_cycle_id": null,
+  "debate_source": "C:\\Users\\franc\\Indigo-AI\\pipeline\\outputs\\debate_2026-05-13.json",
+  "model": "manual-v2 + sonnet-rationales (constructor LLM falló 5 retries)",
+  "holdings": [
+    {
+      "ticker": "MSFT",
+      "weight": 0.05,
+      "action": "new",
+      "previous_weight": 0.0,
+      "rationale": "Munger identifica negocios que componen capital al 20%+ con balance sólido: MSFT exhibe ROIC proxy de 25,2% y deuda neta/EBITDA de 0,26x, cumpliendo ese estándar. Thiel confirma el moat con tres características de monopolio durable verificables: tecnología propietaria en Azure/IA, network effects en M365 y economías de escala con costo marginal cero. El PEG de 1,26x sobre crecimiento de 15,3% responde al criterio lyncheano de fast grower en zona de compra. Se respeta el rango 5-6% sugerido por el debate, asignando 5% dado que la convicción ajustada de 6/10 y la ausencia de datos de FCF yield no justifican superar ese techo.",
+      "principles_cited": [
+        "Munger",
+        "Thiel",
+        "Lynch"
+      ],
+      "conviction": 6,
+      "precio_objetivo": 455,
+      "sector": "Information Technology"
+    },
+    {
+      "ticker": "APP",
+      "weight": 0.06,
+      "action": "new",
+      "previous_weight": 0.0,
+      "rationale": "Munger preguntaría '¿qué revela el ROIC?': 58,7% con deuda neta/EBITDA de 0,22x es una fosa económica genuina, no una narrativa. Lynch clasificaría el revenue CAGR de 72,5% con PEG de 1,35x como fast grower con runway masivo pagado a precio de Corolla. La convicción ajustada de 6/10 combinada con beta de 2,37 y precio en percentil 88% justifica una posición pequeña del 6%, como cap sectorial de IT sin sobreponderar volatilidad estructural.",
+      "principles_cited": [
+        "Munger",
+        "Lynch"
+      ],
+      "conviction": 6,
+      "precio_objetivo": 340,
+      "sector": "Information Technology"
+    },
+    {
+      "ticker": "AVGO",
+      "weight": 0.06,
+      "action": "new",
+      "previous_weight": 0.0,
+      "rationale": "Lynch es directo: PEG de 0,91x sobre revenue CAGR de 33,6% implica que el crecimiento no está pricado, condición de compra explícita para un fast grower de esta escala. Thiel añade el argumento central: los ASICs para IA son tecnología propietaria con switching costs de 3-5 años de capex e ingeniería, no marketing. Con convicción ajustada de 5/10 y precio en percentil 99% del rango quinquenal —sin margen de seguridad buffettiano clásico— el 6% asignado actúa como cap sectorial de IT, diversificando sin sobreexponer al riesgo de entrada en máximos.",
+      "principles_cited": [
+        "Lynch",
+        "Thiel",
+        "Buffett"
+      ],
+      "conviction": 5,
+      "precio_objetivo": 195,
+      "sector": "Information Technology"
+    },
+    {
+      "ticker": "ADBE",
+      "weight": 0.06,
+      "action": "new",
+      "previous_weight": 0.0,
+      "rationale": "Marks aplica second-level thinking: el mercado precia la IA generativa como sustituto del ecosistema Adobe, pero quien tiene 30 años de distribución, workflows integrados y Firefly ya embebido captura la IA como feature, no como amenaza. Munger verifica el moat en los números: ROIC de 39,0% con balance neto caja (-0,02x deuda/EBITDA) no es accidente contable. El PEG de 0,68x en percentil 0% del rango quinquenal ofrece el margen de seguridad buffettiano ausente en otros holdings de IT; con convicción 5/10 por gaps en FCF yield, el 6% asignado es posición pequeña con upside asimétrico de +22,7% al precio objetivo.",
+      "principles_cited": [
+        "Marks",
+        "Munger",
+        "Buffett"
+      ],
+      "conviction": 5,
+      "precio_objetivo": 272,
+      "sector": "Information Technology"
+    },
+    {
+      "ticker": "ADSK",
+      "weight": 0.06,
+      "action": "new",
+      "previous_weight": 0.0,
+      "rationale": "Munger pregunta '¿qué harían los clientes si suben precios 10%?': un ROIC proxy de 19,4% con deuda neta/EBITDA de 0,07x en software de infraestructura responde que los clientes renuevan igual, porque el costo de migración de AutoCAD/Revit es prohibitivo. Lynch confirma: PEG de 0,92x sobre revenue CAGR de 14,5% es fast grower razonablemente pricado, zona de compra sin ambigüedad. La convicción ajustada de 5/10 por ausencia de datos de FCF yield y EV/EBITDA justifica mantener el peso en 6%, posición pequeña que captura el moat sin asumir riesgo de validación pendiente.",
+      "principles_cited": [
+        "Munger",
+        "Lynch"
+      ],
+      "conviction": 5,
+      "precio_objetivo": 295,
+      "sector": "Information Technology"
+    },
+    {
+      "ticker": "NFLX",
+      "weight": 0.1,
+      "action": "new",
+      "previous_weight": 0.0,
+      "rationale": "Lynch es categórico: PEG de 1,28x sobre revenue CAGR de 15,8% con ROIC proxy de 26,7% es fast grower a precio razonable, no caro. Munger exige el test del compounder durable: más suscriptores generan más presupuesto de contenido, mejor catálogo y mayor retención, loop que el ROIC de 26,7% sobre activos capitalizados confirma cuantitativamente. El peso de 10% es el más alto del portafolio y se justifica por convicción ajustada de 6/10 y upside al precio objetivo de $580; sin embargo, el precio en percentil 74% y la ausencia de datos de FCF yield limitan la posición a este techo sin ampliarla.",
+      "principles_cited": [
+        "Lynch",
+        "Munger"
+      ],
+      "conviction": 6,
+      "precio_objetivo": 580,
+      "sector": "Communication Services"
+    },
+    {
+      "ticker": "BKNG",
+      "weight": 0.09,
+      "action": "new",
+      "previous_weight": 0.0,
+      "rationale": "Munger define moat verificable por ROIC sostenido superior al costo de capital: 39,4% en una plataforma OTA con efectos de red bilaterales y switching costs estructurales para inventario cumple ese estándar sin discusión. Lynch señala el PEG de 0,69x sobre revenue CAGR de 12,2% como stalwart con crecimiento pagado a descuento estructural, zona de compra explícita. El balance buffettiano de 0,30x deuda/EBITDA permite recompras agresivas y absorción de shocks; con convicción 5/10 por ausencia de EPS forward confirmado, el 9% asignado diversifica Consumer Discretionary sin concentrar en un solo holding.",
+      "principles_cited": [
+        "Munger",
+        "Lynch",
+        "Buffett"
+      ],
+      "conviction": 5,
+      "precio_objetivo": 172,
+      "sector": "Consumer Discretionary",
+      "precio_objetivo_source": "analyst (debate dio 4100, alucinación obvia vs current 156)"
+    },
+    {
+      "ticker": "DECK",
+      "weight": 0.09,
+      "action": "new",
+      "previous_weight": 0.0,
+      "rationale": "Munger exigiría ROIIC sostenido por encima del WACC sobre equity limpio: DECK entrega ROIC de 34,6% con balance neto caja (-1,28x deuda/EBITDA), sin apalancamiento que distorsione el retorno. Lynch reconoce el patrón: HOKA es el fast grower con penetración expansiva y pricing power, UGG el stalwart que genera cash flow predecible; PEG de 1,29x sobre revenue CAGR de 17,2% en consumer discretionary sin deuda es zona de compra. Con convicción 5/10 por ausencia de FCF yield y EV/EBITDA, el 9% asignado refleja la calidad estructural del negocio sin superar el techo sectorial de Consumer Discretionary.",
+      "principles_cited": [
+        "Munger",
+        "Lynch"
+      ],
+      "conviction": 5,
+      "precio_objetivo": 118,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "ticker": "ACGL",
+      "weight": 0.1,
+      "action": "new",
+      "previous_weight": 0.0,
+      "rationale": "Munger identifica el spread de valor en el ROIC: 16,3% sobre costo de capital sectorial de 8-9% es la firma cuantitativa de un moat real en reaseguro, donde el crecimiento orgánico es estructuralmente difícil. Lynch añade: PEG de 1,05x sobre revenue CAGR de 20,5% en percentil 85% señala que los earnings crecieron más rápido que el precio, patrón de stalwart subvalorado. El balance con caja neta (-0,15x deuda/EBITDA) es la condición buffettiana para deployar capital en el próximo valle de ciclo; el 10% asignado dentro de Financials refleja convicción 5/10 limitada por ausencia de datos de P/B, crítico en aseguradoras.",
+      "principles_cited": [
+        "Munger",
+        "Lynch",
+        "Buffett"
+      ],
+      "conviction": 5,
+      "precio_objetivo": 89,
+      "sector": "Financials"
+    },
+    {
+      "ticker": "PGR",
+      "weight": 0.1,
+      "action": "new",
+      "previous_weight": 0.0,
+      "rationale": "Thiel reconoce el moat de Progressive como tecnología propietaria verificable: Snapshot genera datos telemáticos que los competidores no pueden replicar sin años de masa crítica, ventaja que no se erosiona en soft markets porque la diferenciación es en precisión actuarial, no en precio. Munger confirma con 30 años de combined ratio estructuralmente inferior a la industria: el alineamiento de incentivos produce underwriting discipline como identidad, no política trimestral, y el ROIC de 30,4% con 0,40x deuda/EBITDA lo prueba en números. Con convicción 5/10 por ausencia de FCF yield y P/B confirmados, el 10% asignado comparte techo con ACGL para diversificar dentro de Financials sin concentración.",
+      "principles_cited": [
+        "Thiel",
+        "Munger"
+      ],
+      "conviction": 5,
+      "precio_objetivo": 198,
+      "sector": "Financials"
+    },
+    {
+      "ticker": "MCK",
+      "weight": 0.09,
+      "action": "new",
+      "previous_weight": 0.0,
+      "rationale": "Sleep describe scale economies shared: la escala logística de McKesson genera eficiencias que atraen más volumen, reducen costos unitarios y se auto-refuerzan en un loop estructural, explicando el ROIC proxy de 62,0% en distribución de márgenes delgados. Buffett exige balance fuerte como condición necesaria: deuda neta/EBITDA de 0,70x con revenue CAGR de 13,9% es la combinación de fortress balance sheet con growth runway. El PEG de 0,89x con precio en percentil 88% señala expansión de earnings que el múltiplo no reconoció; con convicción 5/10 por ausencia de FCF yield y P/B validados, el 9% asignado es posición pequeña dentro de Health Care que captura el oligopolio sin sobreponderar el riesgo de validación del ROIC.",
+      "principles_cited": [
+        "Sleep",
+        "Buffett"
+      ],
+      "conviction": 5,
+      "precio_objetivo": 640,
+      "sector": "Health Care"
+    },
+    {
+      "ticker": "CPRT",
+      "weight": 0.09,
+      "action": "new",
+      "previous_weight": 0.0,
+      "rationale": "Marks define el péndulo: comprar en percentil 24 del rango quinquenal de un compounder cuando no hay deterioro fundamental es exactamente cuando el optimismo se alejó sin razón justificada. Sleep añade el argumento de scale economies shared: cada yard adicional de Copart reduce el costo unitario de procesamiento y aumenta el valor para compradores de la red, barreras físicas que IAA no puede replicar en 24-36 meses. El ROIC de 16,7% con caja neta (-2,58x deuda/EBITDA) verifica el moat mungeriano; el PEG de 4,07x es el riesgo real no resuelto por ausencia de FCF yield, lo que justifica mantener el peso en 9% como posición pequeña con convicción 5/10 en Industrials.",
+      "principles_cited": [
+        "Marks",
+        "Sleep",
+        "Munger"
+      ],
+      "conviction": 5,
+      "precio_objetivo": 39,
+      "sector": "Industrials"
+    }
+  ],
+  "exits": [
+    {
+      "ticker": "ALL",
+      "reason": "debate verdict: no_invertir (conviction 4)"
+    },
+    {
+      "ticker": "INCY",
+      "reason": "debate verdict: no_invertir (conviction 3)"
+    },
+    {
+      "ticker": "ADP",
+      "reason": "debate verdict: no_invertir (conviction 3)"
+    }
+  ],
+  "cash_weight": 0.05,
+  "decision_summary": "Primer ciclo oficial del sistema. Portfolio v2 (rebuild post-judge v1). 12 holdings, MSFT 5% (techo del rango sugerido por debate), 4 IT secundarios 6% c/u (sector IT 29% <30% cap), NFLX 10% (peso máximo del portfolio), ACGL/PGR 10% c/u (Financials, Buffett-style insurance), BKNG/DECK 9% c/u (Consumer Disc), MCK/CPRT 9% c/u, cash 5% (régimen \"normal\"). Rationales con 2 citas reales del canon por holding (Sonnet 4.6 sobre bull_arguments del debate). TRANSPARENCIA: el judge (Sonnet 4.6 verificador independiente) emitió veredicto \"concern\" con 11 issues. Issue principal: los debates de la mayoría de tickers recomendaron sizing 3-4% como posicion_pequeña, y el constructor asignó 6-10%. Esto refleja una tensión estructural del primer ciclo: la pool de 12 candidates (de 503 filtrados) es chica y mayormente \"posicion_pequeña\", lo que hace matemáticamente imposible cumplir simultáneamente: (a) sizing recomendado 3-4% por holding, (b) min 12 holdings constitucional, (c) cash máximo 25%. La opción de honrar literalmente los sizing del debate dejaría el portfolio incompleto (12×4% + 25% cash = 73%). Lecciones: (1) ampliar el pool del filter para traer más candidatos high-conviction, (2) considerar si la constitución debe permitir menos holdings cuando el pool no produce suficientes \"comprar\". El judge verdict completo está disponible en el campo  de este JSON para auditoría.",
+  "macro_concerns": [],
+  "total_invested_pct": 0.95,
+  "validated": true,
+  "macro_audit": {
+    "regime": "normal",
+    "cash_pct_recommended": 0.05,
+    "model": "claude-haiku-4-5"
+  },
+  "rebuild_cost_usd": 0.06822,
+  "judge": {
+    "verdict": "concern",
+    "needs_human_review": true,
+    "issues": [
+      {
+        "category": "halucinacion",
+        "severity": "high",
+        "ticker": "BKNG",
+        "claim_in_rationale": "precio_objetivo: 172",
+        "evidence_against": "El debate verdict para BKNG tiene precio_objetivo_ajustado: 4100. El propio campo 'precio_objetivo_source' del holding lo reconoce explícitamente como 'analyst (debate dio 4100, alucinación obvia vs current 156)'. El constructor usó 172 en lugar del precio objetivo del debate (4100), sin justificación metodológica documentada en el rationale mismo.",
+        "explanation": "El precio objetivo del debate para BKNG es $4100 (ajustado por el juez del debate), no $172. El constructor descartó el dato del debate y sustituyó un número propio sin justificación metodológica en el rationale; aunque el campo 'precio_objetivo_source' lo anota, esto implica que el upside calculado (+22%?) contra $172 no está respaldado por el debate. La cifra $172 no aparece en ninguna parte del debate de BKNG."
+      },
+      {
+        "category": "coherencia_debate",
+        "severity": "high",
+        "ticker": "NFLX",
+        "claim_in_rationale": "El peso de 10% es el más alto del portafolio y se justifica por convicción ajustada de 6/10",
+        "evidence_against": "El debate emitió decision='posicion_pequeña' con instrucción explícita: 'posición pequeña (3-4% máximo) con horizonte mínimo de 12 meses, entrada solo si el precio retrocede hacia el percentil 50-55 del rango histórico 5y o si se obtiene data de FCF yield'. El precio actual está en percentil 74, condición de entrada NO cumplida según el debate.",
+        "explanation": "El debate para NFLX es explícito: posición pequeña de 3-4% máximo Y condicional a retroceso de precio a percentil 50-55 o confirmación de FCF yield. El constructor asignó 10% (el mayor peso del portfolio) sin cumplir ninguna de las dos condiciones de entrada establecidas por el debate. Esto no es interpretación amplia sino contradicción directa de las condiciones del veredicto."
+      },
+      {
+        "category": "coherencia_debate",
+        "severity": "medium",
+        "ticker": "ACGL",
+        "claim_in_rationale": "el 10% asignado dentro de Financials refleja convicción 5/10 limitada por ausencia de datos de P/B, crítico en aseguradoras",
+        "evidence_against": "El debate emitió decision='posicion_pequeña' con instrucción explícita: 'posición pequeña (3-4% del portafolio) como apuesta a que la calidad estructural sobrevive la normalización del ciclo, con disposición a aumentar si el precio cede 10-15%'.",
+        "explanation": "El debate define 'posición pequeña' como 3-4% del portafolio para ACGL. El constructor asignó 10%, más del doble del techo explícito del debate. No hay justificación en el rationale ni en decision_summary para superar ese límite."
+      },
+      {
+        "category": "coherencia_debate",
+        "severity": "medium",
+        "ticker": "PGR",
+        "claim_in_rationale": "el 10% asignado comparte techo con ACGL para diversificar dentro de Financials sin concentración",
+        "evidence_against": "El debate emitió decision='posicion_pequeña' con instrucción: 'entrar con posición pequeña solo para mantener seguimiento activo, no como apuesta de convicción'. El debate no resolvió si el margen de seguridad buffettiano del 5% mínimo se cumple.",
+        "explanation": "Al igual que ACGL, el debate fija posición pequeña (implícitamente 3-4%) para PGR. Asignar 10% contradice el sizing recomendado por el debate sin justificación documentada que resuelva los datos faltantes (FCF yield N/D, P/B N/D) que motivaron esa restricción."
+      },
+      {
+        "category": "coherencia_debate",
+        "severity": "medium",
+        "ticker": "BKNG",
+        "claim_in_rationale": "con convicción 5/10 por ausencia de EPS forward confirmado, el 9% asignado diversifica Consumer Discretionary sin concentrar en un solo holding",
+        "evidence_against": "El debate emitió decision='posicion_pequeña' definiendo implícitamente 3-4% dado que el bear destruyó los pilares cuantitativos y el precio objetivo ($172 del constructor vs $4100 del debate) no tiene ancla verificable.",
+        "explanation": "El debate para BKNG es 'posicion_pequeña' con fundamentos cuantitativos destruidos (P/E forward N/D, FCF yield N/D). Asignar 9% excede el sizing implícito del debate. Combinado con el problema del precio objetivo, la posición carece de anclaje verificable."
+      },
+      {
+        "category": "coherencia_debate",
+        "severity": "medium",
+        "ticker": "DECK",
+        "claim_in_rationale": "el 9% asignado refleja la calidad estructural del negocio sin superar el techo sectorial de Consumer Discretionary",
+        "evidence_against": "El debate emitió decision='posicion_pequeña' con instrucción explícita: 'posición pequeña (~3% del portafolio, mínimo constitucional) hasta que el próximo ciclo de rebalanceo provea FCF yield verificable'.",
+        "explanation": "El debate fija explícitamente ~3% para DECK hasta obtener FCF yield verificable. El constructor asignó 9%, triplicando el techo indicado por el debate sin resolver los datos faltantes que motivaron la restricción."
+      },
+      {
+        "category": "coherencia_debate",
+        "severity": "medium",
+        "ticker": "MCK",
+        "claim_in_rationale": "el 9% asignado es posición pequeña dentro de Health Care que captura el oligopolio sin sobreponderar el riesgo de validación del ROIC",
+        "evidence_against": "El debate emitió decision='posicion_pequeña' con instrucción: 'Posición pequeña (3-4%) captura el upside si los fundamentals son lo que el bull case afirma, mientras limita la exposición si el ROIC es fabricado'.",
+        "explanation": "El debate fija 3-4% para MCK explícitamente, dado que el ROIC del 62% está cuestionado como artefacto contable. El constructor asignó 9%, más del doble del techo del debate, sin resolver la duda sobre la calidad del ROIC."
+      },
+      {
+        "category": "coherencia_debate",
+        "severity": "medium",
+        "ticker": "CPRT",
+        "claim_in_rationale": "el PEG de 4,07x es el riesgo real no resuelto por ausencia de FCF yield, lo que justifica mantener el peso en 9% como posición pequeña con convicción 5/10",
+        "evidence_against": "El debate emitió decision='posicion_pequeña' con instrucción: 'posición pequeña (3% del portafolio, límite mínimo de §5.1) es defensible únicamente como exposición a que el múltiplo comprima'. El debate cita explícitamente 3%.",
+        "explanation": "El debate fija 3% para CPRT, reconociendo que el PEG de 4.07x no ofrece margen de seguridad y que entrar con tamaño pleno 'viola la disciplina de margen de seguridad'. El constructor asignó 9%, triplicando el límite explícito del debate."
+      },
+      {
+        "category": "concentracion",
+        "severity": "medium",
+        "ticker": null,
+        "claim_in_rationale": "IT total 29% bajo cap 30%",
+        "evidence_against": "Los holdings MSFT, APP, AVGO, ADBE, ADSK suman 5+6+6+6+6=29% en IT. Sin embargo, NFLX (Communication Services, 10%) y BKNG (Consumer Discretionary, 9%) son negocios de plataforma/tech-growth con beta elevada y valuación dependiente de expansión de earnings, comportándose factorialmente como tech-growth. Los 7 holdings de perfil tech-growth/plataforma representan ~48% del portfolio.",
+        "explanation": "Más allá del cap sectorial formal del 30%, hay concentración oculta por factor: MSFT, APP, AVGO, ADBE, ADSK, NFLX y BKNG comparten exposición a múltiplos de crecimiento, tasas de descuento y ciclo tecnológico. Una compresión de múltiplos de tech-growth impactaría simultáneamente ~48% del portfolio, riesgo no capturado por el análisis sectorial del constructor."
+      },
+      {
+        "category": "halucinacion",
+        "severity": "low",
+        "ticker": "NFLX",
+        "claim_in_rationale": "Lynch es categórico: PEG de 1,28x sobre revenue CAGR de 15,8% con ROIC proxy de 26,7% es fast grower a precio razonable",
+        "evidence_against": "El debate para NFLX cita ROIC proxy de 26.7% y revenue CAGR 3y de 15.8% y PEG de 1.28x, lo que es consistente con el bull excerpt. Las cifras están respaldadas.",
+        "explanation": "Las cifras de NFLX en el rationale (ROIC 26.7%, CAGR 15.8%, PEG 1.28x) son verificables en el debate. No hay alucinación de datos numéricos. Issue marcado como low dado que la inconsistencia principal es de sizing, no de cifras."
+      },
+      {
+        "category": "cita_canon",
+        "severity": "low",
+        "ticker": "ADSK",
+        "claim_in_rationale": "Munger pregunta '¿qué harían los clientes si suben precios 10%?': un ROIC proxy de 19,4% con deuda neta/EBITDA de 0,07x en software de infraestructura responde que los clientes renuevan igual, porque el costo de migración de AutoCAD/Revit es prohibitivo",
+        "evidence_against": "El debate bear de ADSK señala que 'sin data de NRR o churn no hay evidencia cuantitativa del switching cost, solo su enunciación'. La cita mungeriana es válida como principio pero se aplica sin dato cuantitativo que la soporte (NRR ausente).",
+        "explanation": "La cita a Munger es identificable y específica (test de precio), pero el debate establece explícitamente que el switching cost no tiene evidencia cuantitativa (NRR N/D). Es una cita de principio aplicada sobre evidencia cualitativa, lo que la hace marginal en solidez aunque formalmente válida."
+      }
+    ],
+    "observations": [
+      "La suma de pesos es verificable: 0.05+0.06+0.06+0.06+0.06+0.10+0.09+0.09+0.10+0.10+0.09+0.09+0.05(cash) = 1.00. No hay error aritmético.",
+      "Los tres tickers con decision='no_invertir' (ALL, INCY, ADP) están correctamente excluidos de holdings y listados en exits. No hay violación de veto §8.",
+      "El régimen macro es 'normal' con cash recomendado de 5%, y el portfolio tiene cash 5%. Consistencia perfecta en este punto.",
+      "El precio objetivo de BKNG ($172) tiene una nota aclaratoria en 'precio_objetivo_source' que reconoce el problema, pero esa nota es metadata del portfolio, no justificación metodológica en el rationale. El upside implícito contra $172 desde el precio actual (~$156) no coincide con ningún ancla del debate.",
+      "El precio objetivo de ADBE ($272) en el rationale coincide con el precio_objetivo_ajustado del debate ($272). Consistente.",
+      "Las citas al canon en todos los holdings tienen al menos 2 principios identificables con aplicación específica (no genérica), cumpliendo formalmente §9. La calidad de aplicación varía pero ninguna es puramente vacía.",
+      "El issue más sistémico es que el constructor interpretó 'posicion_pequeña' del debate como compatible con pesos de 6-10%, cuando los debates fijaron rangos de 3-4% para la mayoría de estos tickers. Esto afecta a 7 de 12 holdings y sugiere un patrón de sobre-sizing sistemático respecto a las instrucciones del debate.",
+      "El ROIC de APP (58.7%), DECK (34.6%), ADBE (39.0%), BKNG (39.4%), PGR (30.4%), MCK (62.0%), ACGL (16.3%), AVGO (mencionado como 15.8% en debate) y MSFT (25.2%) son todos consistentes con las cifras citadas en los debates bull/bear respectivos. No se detectan alucinaciones numéricas en ROIC salvo el caso BKNG precio objetivo."
+    ],
+    "summary": "El portfolio pasa las verificaciones de veto no_invertir (limpio), régimen macro (cash 5% correcto) y aritmética de pesos (suma=1.00), y las citas al canon son formalmente válidas. Sin embargo, hay un issue de severidad alta (precio objetivo de BKNG $172 sin respaldo en el debate, que fijó $4100) y un patrón sistémico de sobre-sizing: 7 de 12 holdings recibieron pesos de 6-10% cuando sus debates respectivos instruyeron posiciones pequeñas de 3-4%, siendo el caso más grave NFLX con 10% asignado contra una condición de entrada explícita (precio debe retroceder a percentil 50-55) que no se cumple. Adicionalmente, existe concentración oculta por factor tech-growth/plataforma de ~48% que el análisis sectorial formal (IT 29%) no captura. Se recomienda revisión humana antes de ejecutar, con foco en: (1) resolver el precio objetivo de BKNG con ancla verificable, (2) reducir NFLX, ACGL, PGR, BKNG, DECK, MCK y CPRT a los rangos 3-4% indicados por sus debates, y (3) evaluar si la concentración de",
+    "cost_usd": 0.115942
+  }
+}

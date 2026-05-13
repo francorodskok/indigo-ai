@@ -1,0 +1,153 @@
+{
+  "cycle_id": "2026-05-13",
+  "generated_at": "2026-05-13T16:43:58.187266+00:00",
+  "equity_post_execution": 100226.62,
+  "cash_post_execution": 5222.85,
+  "summary": {
+    "total_abs_drift_bps": 84.28,
+    "max_drift_ticker": "AVGO",
+    "max_drift_bps": -19.91,
+    "n_material_drifts": 0,
+    "n_missing_from_account": 0,
+    "n_unexpected_in_account": 0,
+    "cash_drift_bps": 21.1,
+    "target_cash_weight": 0.05,
+    "actual_cash_weight": 0.05211
+  },
+  "by_ticker": [
+    {
+      "ticker": "ACGL",
+      "target_weight": 0.1,
+      "actual_weight": 0.10024,
+      "drift_bps": 2.4,
+      "drift_relative_pct": 0.24,
+      "is_material": false,
+      "qty_actual": 108,
+      "market_value": 10046.7,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "ADBE",
+      "target_weight": 0.06,
+      "actual_weight": 0.060662,
+      "drift_bps": 6.62,
+      "drift_relative_pct": 1.1,
+      "is_material": false,
+      "qty_actual": 26,
+      "market_value": 6079.97,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "ADSK",
+      "target_weight": 0.06,
+      "actual_weight": 0.060869,
+      "drift_bps": 8.69,
+      "drift_relative_pct": 1.45,
+      "is_material": false,
+      "qty_actual": 27,
+      "market_value": 6100.65,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "APP",
+      "target_weight": 0.06,
+      "actual_weight": 0.06028,
+      "drift_bps": 2.8,
+      "drift_relative_pct": 0.47,
+      "is_material": false,
+      "qty_actual": 13,
+      "market_value": 6041.69,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "AVGO",
+      "target_weight": 0.06,
+      "actual_weight": 0.058009,
+      "drift_bps": -19.91,
+      "drift_relative_pct": -3.32,
+      "is_material": false,
+      "qty_actual": 14,
+      "market_value": 5814.06,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "BKNG",
+      "target_weight": 0.09,
+      "actual_weight": 0.090715,
+      "drift_bps": 7.15,
+      "drift_relative_pct": 0.79,
+      "is_material": false,
+      "qty_actual": 58,
+      "market_value": 9092.08,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "CPRT",
+      "target_weight": 0.09,
+      "actual_weight": 0.089979,
+      "drift_bps": -0.21,
+      "drift_relative_pct": -0.02,
+      "is_material": false,
+      "qty_actual": 276,
+      "market_value": 9018.3,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "DECK",
+      "target_weight": 0.09,
+      "actual_weight": 0.090179,
+      "drift_bps": 1.79,
+      "drift_relative_pct": 0.2,
+      "is_material": false,
+      "qty_actual": 95,
+      "market_value": 9038.3,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "MCK",
+      "target_weight": 0.09,
+      "actual_weight": 0.088314,
+      "drift_bps": -16.86,
+      "drift_relative_pct": -1.87,
+      "is_material": false,
+      "qty_actual": 12,
+      "market_value": 8851.41,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "MSFT",
+      "target_weight": 0.05,
+      "actual_weight": 0.048592,
+      "drift_bps": -14.08,
+      "drift_relative_pct": -2.82,
+      "is_material": false,
+      "qty_actual": 12,
+      "market_value": 4870.2,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "NFLX",
+      "target_weight": 0.1,
+      "actual_weight": 0.099837,
+      "drift_bps": -1.63,
+      "drift_relative_pct": -0.16,
+      "is_material": false,
+      "qty_actual": 114,
+      "market_value": 10006.35,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "PGR",
+      "target_weight": 0.1,
+      "actual_weight": 0.100214,
+      "drift_bps": 2.14,
+      "drift_relative_pct": 0.21,
+      "is_material": false,
+      "qty_actual": 51,
+      "market_value": 10044.07,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    }
+  ],
+  "missing_from_account": [],
+  "unexpected_in_account": []
+}

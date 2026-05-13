@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Indigo AI · Dashboard</title>
+<style>
+:root {
+  --bg: #0e1117;
+  --fg: #e1e4e8;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --good: #56d364;
+  --warn: #d29922;
+  --bad: #f85149;
+  --border: #30363d;
+  --card: #161b22;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+.container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+h1 { font-size: 24px; margin: 0 0 4px 0; }
+h2 { font-size: 16px; margin: 28px 0 8px 0; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+h3 { font-size: 13px; margin: 0; }
+.subtitle { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+}
+.kpi-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.kpi-value { font-size: 22px; font-weight: 600; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--muted); font-weight: 600; }
+td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+tr:hover { background: rgba(88,166,255,0.05); }
+.right { text-align: right; }
+.good { color: var(--good); }
+.warn { color: var(--warn); }
+.bad { color: var(--bad); }
+.muted { color: var(--muted); }
+.mono { font-family: 'SF Mono', Menlo, Consolas, monospace; }
+details { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; margin-bottom: 6px; }
+details[open] { padding-bottom: 14px; }
+summary { cursor: pointer; font-weight: 500; color: var(--accent); }
+.tesis { white-space: pre-wrap; margin: 8px 0; padding: 8px; background: rgba(0,0,0,0.2); border-left: 2px solid var(--accent); }
+.lessons { margin-top: 8px; }
+.lessons li { margin-bottom: 6px; }
+footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--border);
+  color: var(--fg);
+  margin-left: 4px;
+}
+.badge.good { background: rgba(86,211,100,0.2); color: var(--good); }
+.badge.warn { background: rgba(210,153,34,0.2); color: var(--warn); }
+.badge.bad { background: rgba(248,81,73,0.2); color: var(--bad); }
+</style>
+</head>
+<body>
+<div class="container">
+
+    <h1>Indigo AI</h1>
+    <div class="subtitle">Último ciclo: <span class="mono">2026-05-13</span> · Estado actualizado: <span class="mono">2026-05-13T16:43:58.554433+00:00</span></div>
+    <div class="grid">
+      <div class="card"><div class="kpi-label">Equity</div><div class="kpi-value">$100,227</div></div>
+      <div class="card"><div class="kpi-label">Cash</div><div class="kpi-value">5.2%</div></div>
+      <div class="card"><div class="kpi-label">Posiciones</div><div class="kpi-value">12</div></div>
+      <div class="card"><div class="kpi-label">Ciclo</div><div class="kpi-value mono" style="font-size:16px;">2026-05-13</div></div>
+    </div>
+    
+    <h2>Holdings (12)</h2>
+    <div class="card" style="padding:0;">
+    <table>
+      <thead>
+        <tr>
+          <th>Ticker</th>
+          <th class="right">Target</th>
+          <th class="right">Actual</th>
+          <th class="right">Drift</th>
+          <th class="right">Conv</th>
+          <th>Audit trail</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr>
+            <td class="mono"><strong>ACGL</strong></td>
+            <td class="right">10.02%</td>
+            <td class="right">10.02%</td>
+            <td class="right good mono">+2 bps</td>
+            <td class="right">7</td>
+            <td>
+              <details>
+                <summary>Audit (entry: 2026-05-13)</summary>
+                <h3>Tesis actual (2026-05-13)</h3>
+                <div class="tesis">Arch Capital (ACGL) es un reasegurador y asegurador especializado con fundamentos estructuralmente superiores al promedio del sector: ROIC de 16.3%, Revenue CAGR 20.5% en tres años, balance neto caja negativo (-0.15x deuda/EBITDA) y disciplina de suscripción consistente (Buffett: &#x27;balance fuerte como condición necesaria&#x27;). La valoración a 9.5x P/E forward y PEG de 1.05 refleja el descuento típico de aseguradoras cíclicas, pero ACGL ha demostrado históricamente poder de fijación de precios y selección de riesgos por encima del ciclo — el P/E actual está 16.3% por debajo del promedio histórico de 5 años (8.7x), consistente con zona de compra histórica. El precio objetivo de $110 se deriva de aplicar el múltiplo histórico promedio de 8.7x a EPS forward estimado de ~$12.7 (implícito en P/E forward 9.5x al precio actual), implicando +16% desde $94.65; la advertencia material es que el FCF yield del 16% y el ROIC actual son probablemente de pico de ciclo duro, y la normalización de primas podría llevar el EPS al rango $9-10, donde el mismo múltiplo daría ~$87 — ajuste parcialmente compensado por la recompra sostenida de acciones. Convicción reducida respecto al borrador por la incertidumbre cíclica explícita.</div>
+                <h3>Auto-crítica del analyst <span class='muted'>(pre-crítica: 8)</span></h3><ul class='lessons'><li>El ROIC de 16.3% y el Revenue CAGR de 20.5% se asumen sostenibles, pero en seguros/reaseguros ambas métricas son altamente cíclicas: el mercado duro de los últimos tres años (post-COVID, post-Ucrania, post-inflación de costos de siniestros) explicaría gran parte de la expansión de márgenes y del crecimiento de primas. No hay dato en el prompt que confirme si el moat subyacente genera este ROIC en ciclo normal o solo en mercado duro.</li><li>El bear case central ignorado es la reversión del ciclo de suscripción: si el mercado blando regresa (capacidad de capital abundante, competencia de precios), las combined ratios se deterioran, el ROIC colapsa hacia el costo de capital (~10-11%) y el P/B de 1.4x deja de parecer barato. Además, el P/E trailing de 7.3x versus forward de 9.5x implica que los earnings ya se están contrayendo respecto al pico reciente, señal concreta de moderación del ciclo.</li><li>El borrador comete un sesgo de anclaje en métricas de pico de ciclo: toma el FCF yield del 16% y el ROIC del 16.3% como representativos del poder de ganancias normalizado, cuando en seguros el año corriente puede ser excepcional y las pérdidas catastróficas de los próximos 2-3 años no están en el número. Además hay un halo de sector: &#x27;deuda neta negativa = seguridad&#x27; no aplica igual en una aseguradora donde el verdadero apalancamiento está en el float y las reservas técnicas, no en la deuda financiera neta.</li></ul>
+                <h3>Debate verdict: <span class="badge">posicion_pequeña</span></h3>
+                <div class="tesis">El bull y el bear tienen razón en dimensiones distintas y eso produce un veredicto partido. El bull tiene razón en lo estructural: ROIC de 16.3% sobre costo de capital del sector, deuda neta negativa y PEG de 1.05x para un grower verificado son señales munger-lyncheanas genuinas. El bear tiene razón en lo cíclico y en el timing: percentil 85 del rango de 5 años en un negocio de reaseguro que acaba de disfrutar el ciclo duro más pronunciado en una generación no es la entrada que Marks definiría como &#x27;comprar cuando otros tienen miedo&#x27;. El ataque más letal del bear es el P/E forward N/D: si el mercado está priceando contracción de earnings y el EPS normalizado cae a $9-10 sobre el múltiplo histórico de 8.7x, el precio objetivo colapsa por debajo del precio actual. La constitución exige margen de seguridad del 5% sobre precio objetivo, y con el forward implícito incierto ese umbral no se cumple con convicción suficiente para posición completa. Lo que sí queda en pie: la calidad del negocio es real, el balance es una fortaleza ofensiva para el próximo valle de ciclo, y el múltiplo histórico no se expandió a pesar del crecimiento —señal lyncheana de stalwart subvalorado en términos relativos. Eso justifica entrar con posición pequeña (3-4% del portafolio) como apuesta a que la calidad estructural sobrevive la normalización del ciclo, con disposición a aumentar si el precio cede 10-15% o si aparece data de FCF yield y combined ratio ajustado que confirme que la disciplina de suscripción precede al ciclo duro. Sin esa data, no hay secreto thieliano ni scale economies sleep-style verificable que justifique conviction alta en aseguradora sin P/B ni FCF yield explícitos.</div>
+                <h3>Constructor</h3>
+                <div class="tesis">Munger identifica el spread de valor en el ROIC: 16,3% sobre costo de capital sectorial de 8-9% es la firma cuantitativa de un moat real en reaseguro, donde el crecimiento orgánico es estructuralmente difícil. Lynch añade: PEG de 1,05x sobre revenue CAGR de 20,5% en percentil 85% señala que los earnings crecieron más rápido que el precio, patrón de stalwart subvalorado. El balance con caja neta (-0,15x deuda/EBITDA) es la condición buffettiana para deployar capital en el próximo valle de ciclo; el 10% asignado dentro de Financials refleja convicción 5/10 limitada por ausencia de datos de P/B, crítico en aseguradoras.</div>
+                
+              </details>
+            </td>
+          </tr>
+        
+          <tr>
+            <td class="mono"><strong>ADBE</strong></td>
+            <td class="right">6.07%</td>
+            <td class="right">6.07%</td>
+            <td class="right good mono">+7 bps</td>
+            <td class="right">7</td>
+            <td>
+              <details>
+                <summary>Audit (entry: 2026-05-13)</summary>
+                <h3>Tesis actual (2026-05-13)</h3>
+                <div class="tesis">Adobe cumple los filtros cualitativos de la constitución: ROIC de 39% sostenido, balance con deuda neta negativa, revenue recurrente &gt;90% y moat de switching costs munegrianos verificable (ecosistema CC/DC/EC con décadas de adopción corporativa). Sin embargo, la desaceleración del revenue CAGR a 10.7% — vs &gt;20% histórico — sugiere que el growth no justifica el optimismo del draft previo. El precio objetivo se deriva del método (a): FCF yield actual de 9.8% sobre precio de $236 implica FCF/acción ~$23; aplicando un múltiplo de FCF de 20x (conservador para negocio de software con ROIC &gt;35%, descuento respecto al múltiplo histórico normalizado de ~25x dado el menor crecimiento) arroja un precio objetivo de $290, que implica +22.7% desde $236.34. El PEG de 0.68 y el P/E forward de 9x son llamativos, pero el P/E trailing de 13.8x frente a un P/E histórico promedio de 31.3x confirma un descuento histórico de -56%: se aplica +1 convicción por descuento vs sí mismo solo parcialmente, dado que parte del descuento puede ser re-rating legítimo por desaceleración. Cita canon: margen de seguridad buffettiano implícito del ~20% sobre el precio objetivo derivado de FCF normalizado; second-level thinking en el sentido de Marks — el mercado precia la amenaza de IA como destructora del moat, pero la historia de plataformas con switching costs altos (Munger) sugiere que el titular tiene ventaja estructural para capturar la IA dentro del ecosistema existente.</div>
+                <h3>Auto-crítica del analyst <span class='muted'>(pre-crítica: 8)</span></h3><ul class='lessons'><li>El draft asume que el NRR sigue siendo &gt;110% y que la retención es alta, pero los datos del prompt no incluyen métricas de retención ni NRR actuales — el revenue CAGR de 10.7% a 3 años es sólido pero se desaceleró respecto a períodos anteriores (era &gt;20%), lo que podría indicar saturación del mercado creativo o presión competitiva real, no asumida.</li><li>El bear case material que el draft minimizó es el riesgo de disrupción por IA generativa (Midjourney, Sora, herramientas nativas de modelos fundacionales) que puede erosionar la propuesta de valor del Creative Cloud entre usuarios ligeros y estudiantes — el segmento de entrada del funnel — reduciendo el pipeline hacia licencias profesionales y potencialmente comprimiendo el pricing power a largo plazo.</li><li>Hay un sesgo de anclaje al precio histórico: el draft implícitamente usa el promedio 5y de $449 y el P/E histórico promedio de 31x como ancla para afirmar que el stock &#x27;está barato&#x27;, cuando la contracción de múltiplos podría reflejar un re-rating estructural permanente del sector software ante tasas más altas y menores expectativas de crecimiento — no solo una sobrereacción temporal.</li></ul>
+                <h3>Debate verdict: <span class="badge">posicion_pequeña</span></h3>
+                <div class="tesis">El debate revela una tensión real sin resolver: el percentil 0% del rango de 5 años puede ser tanto señal de oportunidad contrarian (Marks: comprar cuando todos venden) como señal de re-rating estructural permanente (Marks: anti-falling-knife — una caída sostenida no es oportunidad por sí sola). El ROIC de 39% con balance neto caja es genuinamente mungeriano y el moat de switching costs en el ecosistema CC/DC/EC es verificable cualitativamente. Sin embargo, el bear tiene razón en dos puntos críticos que el bull no resuelve: (1) el PEG de 0.68x flota sin P/E forward verificable — dato explícitamente ausente en el bloque — lo que lo convierte en cifra no citable per la constitución §4.3; (2) la desaceleración de revenue CAGR de &gt;20% histórico a 10.7% es un cambio de régimen que invalida extrapolar el ROIC histórico al múltiplo futuro sin NRR reciente que confirme retención. El &#x27;secreto thieliano&#x27; sobre Firefly/IA es narrativa plausible pero sin cuantificación — viola el principio anti-narrative de §10.2. La constitución exige margen de seguridad explícito del 5% mínimo (§4.3): con precio objetivo de $290 sobre precio actual de $236 hay +22.7%, lo cual técnicamente supera el umbral, pero ese precio objetivo fue derivado con supuestos que el propio analyst reconoce incompletos (sin FCF yield, sin NRR, sin P/E forward). Posición pequeña — máximo 3-4% del portafolio — con tesis condicional: si en el siguiente ciclo de rebalanceo se dispone de NRR &gt;100%, FCF yield verificable y P/E forward que sostenga el PEG citado, la convicción sube a 7 y se amplía la posición. Lynch clasificaría ADBE como stalwart en transición a posible declive de fast grower — categoría que exige verificar same-store-equivalent (NRR) antes de comprometer capital pleno.</div>
+                <h3>Constructor</h3>
+                <div class="tesis">Marks aplica second-level thinking: el mercado precia la IA generativa como sustituto del ecosistema Adobe, pero quien tiene 30 años de distribución, workflows integrados y Firefly ya embebido captura la IA como feature, no como amenaza. Munger verifica el moat en los números: ROIC de 39,0% con balance neto caja (-0,02x deuda/EBITDA) no es accidente contable. El PEG de 0,68x en percentil 0% del rango quinquenal ofrece el margen de seguridad buffettiano ausente en otros holdings de IT; con convicción 5/10 por gaps en FCF yield, el 6% asignado es posición pequeña con upside asimétrico de +22,7% al precio objetivo.</div>
+                
+              </details>
+            </td>
+          </tr>
+        
+          <tr>
+            <td class="mono"><strong>ADSK</strong></td>
+            <td class="right">6.09%</td>
+            <td class="right">6.09%</td>
+            <td class="right good mono">+9 bps</td>
+            <td class="right">7</td>
+            <td>
+              <details>
+                <summary>Audit (entry: 2026-05-13)</summary>
+                <h3>Tesis actual (2026-05-13)</h3>
+                <div class="tesis">Autodesk presenta una oportunidad value-quality genuina con matices importantes. El negocio tiene moat mungeriano de switching costs verificable: ROIC 19.4% sostenido, revenue CAGR 14.5% y deuda neta/EBITDA de apenas 0.07x confirman calidad estructural. El ancla de valuación más confiable en el entorno actual de tasas normalizadas es el FCF yield de 5.8% —a un yield &#x27;justo&#x27; del 4.0% para software de esta calidad el precio objetivo implícito es ~$330, representando +45% desde $228 actuales. El PEG forward de 0.92 y el descuento del 24.4% vs promedio histórico 5y (57.6x trailing) suman evidencia de mispricing, aunque el historial histórico de solo 4 observaciones en régimen ZIRP limita el peso que se le puede dar a esa ancla. Riesgo central no resuelto: la divergencia entre P/E trailing (43.6x) y forward (16.2x) requiere una aceleración de earnings implícita que el consenso asume pero el prompt no valida con datos de guidance —si ese salto de earnings no se materializa, el forward P/E sube y el descuento se comprime. Bajo supuestos conservadores —FCF yield objetivo 4%, FCF normalizado de $13 por acción implícito a precios actuales— el precio objetivo es $325, con convicción moderada-alta condicionada a que la aceleración de EPS tenga sustento operativo real.</div>
+                <h3>Auto-crítica del analyst <span class='muted'>(pre-crítica: 8)</span></h3><ul class='lessons'><li>El P/E trailing de 43.6x vs forward de 16.2x implica una aceleración de earnings brutal implícita en el consenso que no está validada por ningún dato concreto del prompt —el CAGR de revenue es 14.5% pero el salto en EPS implícito es mucho mayor; podría reflejar normalización de stock-based compensation o un año base deprimido, no aceleración orgánica real.</li><li>Bear case ignorado: Autodesk compite con competidores emergentes de diseño (Bentley, Trimble en construcción; Onshape/PTC en manufactura) y con el movimiento de Bim hacia cloud nativo donde incumbentes pueden ser vulnerables; además, el 30.6% de caída desde máximos podría señalar deterioro en retention rates o pricing power en renovaciones que el resumen no desglosa.</li><li>Sesgo de razonamiento: estoy aplicando el mínimo histórico de P/E (42.9x) como ancla de precio objetivo cuando ese historial de 4 observaciones es muy corto y puede reflejar un régimen de tasas cero 2019-2021 que ya no existe —anclar el precio objetivo en múltiplos de era ZIRP para un entorno de tasas normales es anclaje de contexto inapropiado.</li></ul>
+                <h3>Debate verdict: <span class="badge">posicion_pequeña</span></h3>
+                <div class="tesis">El moat de switching costs en software de infraestructura AEC es real y estructuralmente defendible —un arquitecto con diez años en Revit no migra— pero el bear case desnuda el problema central: los dos números que sostienen el precio objetivo ($325) son FCF yield y P/E forward, ambos marcados N/D en el bloque de datos. Comprar a convicción 8/10 sobre datos no validados viola directamente el principio anti-narrative de la constitución. El ROIC de 19.4% en software con capex mínimo es efecto contable tanto como moat real; sin data de NRR o churn no hay evidencia cuantitativa del switching cost, solo su enunciación. El P/E histórico de 57.6x se construyó mayoritariamente en régimen ZIRP y el &#x27;descuento&#x27; del 0.2% sobre ese promedio no es margen de seguridad —es ruido estadístico. Lo rescatable: revenue CAGR 14.5% verificado, deuda neta/EBITDA de 0.07x que da capacidad de espera buffettiana, y precio en percentil 40 del rango histórico que sugiere ausencia de burbuja. La síntesis correcta es posición pequeña: el negocio califica por calidad estructural (ROIC, balance, crecimiento), pero sin FCF yield ni P/E forward validados no existe margen de seguridad cuantificable. Una posición del 3-4% del portafolio limita el daño si los números reales decepcionan y mantiene exposición si la aceleración de earnings se materializa.</div>
+                <h3>Constructor</h3>
+                <div class="tesis">Munger pregunta &#x27;¿qué harían los clientes si suben precios 10%?&#x27;: un ROIC proxy de 19,4% con deuda neta/EBITDA de 0,07x en software de infraestructura responde que los clientes renuevan igual, porque el costo de migración de AutoCAD/Revit es prohibitivo. Lynch confirma: PEG de 0,92x sobre revenue CAGR de 14,5% es fast grower razonablemente pricado, zona de compra sin ambigüedad. La convicción ajustada de 5/10 por ausencia de datos de FCF yield y EV/EBITDA justifica mantener el peso en 6%, posición pequeña que captura el moat sin asumir riesgo de validación pendiente.</div>
+                
+              </details>
+            </td>
+          </tr>
+        
+          <tr>
+            <td class="mono"><strong>APP</strong></td>
+            <td class="right">6.03%</td>
+            <td class="right">6.03%</td>
+            <td class="right good mono">+3 bps</td>
+            <td class="right">6</td>
+            <td>
+              <details>
+                <summary>Audit (entry: 2026-05-13)</summary>
+                <h3>Tesis actual (2026-05-13)</h3>
+                <div class="tesis">AppLovin exhibe fundamentales excepcionales: ROIC 58.7%, Revenue CAGR 72.5% y deuda neta/EBITDA de solo 0.22x, consistentes con un negocio de software de alta calidad en fase de crecimiento acelerado. El PEG forward de 1.35 y el P/E forward de 20.7x representan un descuento del 25.1% vs el promedio histórico 5y de 52.9x, lo que clasifica como descuento histórico moderado (Lynchiano: la empresa cotiza más barata vs sí misma en un contexto donde el negocio no se deterioró). El precio objetivo de $540 se deriva de aplicar 25× P/E forward sobre EPS implícito de ~$21.9 (ajuste conservador sobre el múltiplo mínimo histórico de 34.1x para reflejar la incertidumbre regulatoria sobre privacidad y posible desaceleración de growth), lo que implica un upside del ~19% desde $454. Sin embargo, el FCF yield del 2.1% está por debajo del umbral de comfort (5%), y el moat depende críticamente de condiciones de plataforma que APP no controla (ATT, cambios algorítmicos de Apple/Google); la tesis requiere que AXON mantenga tasas de conversión superiores en un entorno de privacidad cada vez más restrictivo — riesgo no trivial que justifica una convicción moderada, no alta.</div>
+                <h3>Auto-crítica del analyst <span class='muted'>(pre-crítica: 8)</span></h3><ul class='lessons'><li>El argumento de &#x27;efectos de red de datos&#x27; no está validado cuantitativamente por los datos del prompt: el ROIC alto puede reflejar un ciclo favorable de gasto publicitario mobile/CTV más que un moat estructural defensible; no hay datos de churn, NRR ni concentración de cliente que confirmen switching costs reales.</li><li>El bear case central ignorado: la caída del 39% desde máximos ($745→$454) puede señalar que las expectativas de crecimiento del 2024 ya están deteriorándose — si el growth desacelera materialmente (de 72% CAGR a algo normalizado 20-30%), el P/E forward de 20.7x con FCF yield del 2.1% no ofrece margen de seguridad real, y el múltiplo se comprimiría simultáneamente con los earnings.</li><li>Hay narrative fallacy en el draft: se está extrapolando el éxito reciente de AXON como si fuera un monopolio durable thieliano verificado, cuando el negocio publicitario mobile es estructuralmente dependiente de los cambios de política de Apple/Google sobre privacidad (ATT framework), y una reversión regulatoria o un cambio en los algoritmos de las plataformas puede destruir el moat en semanas — no en años.</li></ul>
+                <h3>Debate verdict: <span class="badge">posicion_pequeña</span></h3>
+                <div class="tesis">APP presenta un perfil excepcional en los pilares quality (ROIC 58.7%, deuda neta/EBITDA 0.22x, revenue CAGR 72.5%) que justifica presencia en el portafolio según criterios munger-lyncheanos de fast grower con moat de datos auto-reforzante. Sin embargo, el bear destruye tres pilares del argumento bull con precisión: (1) el P/E avg 5y de 52.86x como ancla de valuación es estadísticamente contaminado por el período de múltiplos irracionales 2020-2021, haciendo el &#x27;descuento histórico&#x27; una ilusión de anclaje; (2) el PEG de 1.35x requiere proyectar un EPS implícito no verificado en los fundamentales provistos, violando el principio buffettiano de supuestos conservadores de §2.1; (3) FCF yield de 2.1% en ausencia de dato de Treasury impide validar el spread positivo que fundamenta la tesis de valor relativo. El percentil de precio 88/100 con Beta 2.37 produce un ratio riesgo/retorno asimétrico desfavorable para una posición full-size. La constitución §2.3 permite flexibilizar el margen de seguridad solo cuando el monopolio durable es &#x27;verificado&#x27; — AXON cumple proprietary technology y network effect pero la verificación de durabilidad a 10 años en mobile advertising (industria que Google y Meta pueden disrumpir con redistribución de inventario) no está documentada. Decisión: posición pequeña al 3-4% del portafolio como &#x27;fast grower en watchlist activa&#x27;, con orden de escalar si el precio retrocede 15-20% mejorando el FCF yield por encima del 3% o si aparecen datos de P/E forward verificables que confirmen PEG bajo 1.2x. Citas canon: Lynch fast grower con PEG sub-1.5 aceptable pero no suficiente sin fundamentals verificados; Marks anti-narrative — tesis que depende de extrapolación de CAGR extraordinario sin base conservadora es especulación, no inversión.</div>
+                <h3>Constructor</h3>
+                <div class="tesis">Munger preguntaría &#x27;¿qué revela el ROIC?&#x27;: 58,7% con deuda neta/EBITDA de 0,22x es una fosa económica genuina, no una narrativa. Lynch clasificaría el revenue CAGR de 72,5% con PEG de 1,35x como fast grower con runway masivo pagado a precio de Corolla. La convicción ajustada de 6/10 combinada con beta de 2,37 y precio en percentil 88% justifica una posición pequeña del 6%, como cap sectorial de IT sin sobreponderar volatilidad estructural.</div>
+                
+              </details>
+            </td>
+          </tr>
+        
+          <tr>
+            <td class="mono"><strong>AVGO</strong></td>
+            <td class="right">5.80%</td>
+            <td class="right">5.80%</td>
+            <td class="right good mono">-20 bps</td>
+            <td class="right">6</td>
+            <td>
+              <details>
+                <summary>Audit (entry: 2026-05-13)</summary>
+                <h3>Tesis actual (2026-05-13)</h3>
+                <div class="tesis">Broadcom combina un moat de proprietary technology en ASICs para IA (thieliano: cumple proprietary tech 10x y switching costs verificables en contratos hyperscaler multi-año) con el pivote a software empresarial post-VMware, que genera ARR recurrente a márgenes estructuralmente superiores. El PEG forward de 0.91 es la ancla central de valuación: implica que el mercado no está pagando prima por el crecimiento proyectado, lo que contrasta con comps como NVDA (PEG &gt;2.5). El precio objetivo de $450 se deriva de aplicar 25x P/E forward sobre EPS ajustado estimado ~$18 para FY2026 (múltiplo en línea con el mínimo histórico 5y de 22x y con descuento vs el promedio histórico de 78x, reconociendo que el trailing está distorsionado por amortización VMware), implicando +10% desde $408. La convicción se limita a 6 por tres razones que la crítica reveló: FCF yield de 1.3% deja margen de seguridad buffettiano prácticamente nulo; la concentración en hyperscalers es un riesgo de cliente no diversificable; y el precio en percentil 99 de su historia de 5 años indica que se entra en zona de valuación históricamente plena, sin el descuento vs sí mismo que Lynch-Templeton exigen para una compra de alta convicción.</div>
+                <h3>Auto-crítica del analyst <span class='muted'>(pre-crítica: 8)</span></h3><ul class='lessons'><li>El draft asume que el ROIC de 15.8% es &#x27;conservador y mejorará&#x27;, pero ese dato ya incorpora la adquisición VMware completada — no es un número pre-integración. No hay validación en los datos del prompt de que los márgenes del segmento software sean 70%+; es un supuesto no sustentado en el bloque de valuación provisto.</li><li>El bear case ignorado más material: el FCF yield de 1.3% es críticamente bajo para cualquier marco de value investing. A $408 precio actual, si el crecimiento de IA se desacelera desde 33.6% hacia tasas normalizadas del sector (10-15%), el P/E trailing de 79.8x no tiene margen de seguridad. Adicionalmente, la concentración de revenue en 3-4 hyperscalers (Apple, Meta, Google, Microsoft) es un riesgo de cliente único que el draft no mencionó — si uno internaliza el diseño de ASICs (como Google ya comenzó con TPUs), el modelo se rompe parcialmente.</li><li>Sesgo de narrative fallacy + halo del sector IA: el draft construye la tesis sobre el momentum narrativo de &#x27;proveedor de silicon IA para hyperscalers&#x27; sin anclar el precio_objetivo en un cálculo derivado. El P/E forward de 22.5x parece barato en comparación al trailing de 79.8x, pero ese gap enorme señala que los earnings GAAP están suprimidos por amortización de intangibles de VMware (~$8-10B/año) — el mercado está valuando sobre earnings ajustados, lo cual es legítimo pero el draft no lo explicita ni lo problematiza.</li></ul>
+                <h3>Debate verdict: <span class="badge">posicion_pequeña</span></h3>
+                <div class="tesis">El debate presenta una tensión no resuelta que impide convicción alta en cualquier dirección. El bull case tiene mérito real: PEG 0.91x sobre crecimiento de 33.6% en empresa de escala es genuinamente atractivo bajo criterio lyncheano, el moat de ASICs con contratos hyperscaler multi-año tiene características thieleanas verificables (switching costs de ingeniería, no de marketing), y deuda neta/EBITDA de 1.39x no es amenaza estructural. Sin embargo, el bear case identifica la grieta central que el bull no resuelve satisfactoriamente: el EPS sobre el que se construye el PEG es non-GAAP con exclusión de ~$8-10B de amortización VMware, lo que convierte el &#x27;margen de seguridad&#x27; en un artefacto contable, no en descuento real sobre earnings power. Marks es preciso aquí: precio en percentil 99 de historia 5y con narrativa de IA plenamente incorporada en el consenso no tiene asimetría. El ROIC de 15.8% es insuficiente para confirmar el perfil de monopolio durable thieliano que justificaría flexibilizar el margen de seguridad per §2.3 de la constitución — ese umbral exige ROIC consistentemente superior y verificación de al menos dos características de monopolio con data cuantitativa, no proxy. La ausencia de FCF yield y EV/EBITDA impide completar el filtro de valuación de §4.3. Conclusión: empresa de calidad real en sector con vientos estructurales, pero sin el descuento sobre valor intrínseco verificable que la constitución exige para posición full. Posición pequeña (3-4%) permite participar en la tesis de calidad sin asumir el riesgo de que la convergencia GAAP destruya el múltiplo construido sobre exclusiones.</div>
+                <h3>Constructor</h3>
+                <div class="tesis">Lynch es directo: PEG de 0,91x sobre revenue CAGR de 33,6% implica que el crecimiento no está pricado, condición de compra explícita para un fast grower de esta escala. Thiel añade el argumento central: los ASICs para IA son tecnología propietaria con switching costs de 3-5 años de capex e ingeniería, no marketing. Con convicción ajustada de 5/10 y precio en percentil 99% del rango quinquenal —sin margen de seguridad buffettiano clásico— el 6% asignado actúa como cap sectorial de IT, diversificando sin sobreexponer al riesgo de entrada en máximos.</div>
+                
+              </details>
+            </td>
+          </tr>
+        
+          <tr>
+            <td class="mono"><strong>BKNG</strong></td>
+            <td class="right">9.07%</td>
+            <td class="right">9.07%</td>
+            <td class="right good mono">+7 bps</td>
+            <td class="right">7</td>
+            <td>
+              <details>
+                <summary>Audit (entry: 2026-05-13)</summary>
+                <h3>Tesis actual (2026-05-13)</h3>
+                <div class="tesis">Booking Holdings presenta una combinación de calidad excepcional y valuación históricamente deprimida que merece atención: ROIC del 39.4%, FCF yield del 5.8% y PEG de 0.69, con el P/E forward de 12.8x cotizando un 18.6% por debajo del promedio histórico de 25.4x (margen buffettiano de seguridad vs su propio historial). Bajo el método de múltiplo histórico normalizado conservador —14x P/E forward, descuento deliberado vs avg de 25x para incorporar la desaceleración ciclíca y la incertidumbre europea—, el precio objetivo es $172, que implica un +10% desde los $157 actuales; la tesis se fortalece si el PEG confirmado por consenso sostiene la tasa implícita de ~18% de crecimiento de EPS. El riesgo central no validado en el prompt es que esa tasa de crecimiento sea real y no una extrapolación del ciclo post-COVID; convicción calibrada a 7 por ausencia de dato explícito de EPS forward y por el bear case de desaceleración europea que el mercado ya puede estar pricing con la caída del 32.8% desde máximos. Cita canónica: margen de seguridad buffettiano implícito en P/E 12.8x vs mínimo histórico 5y de 20.1x; second-level thinking de Marks: el mercado precia el deterioro del trimestre como permanente cuando la estructura de plataforma sigue intacta.</div>
+                <h3>Auto-crítica del analyst <span class='muted'>(pre-crítica: 8)</span></h3><ul class='lessons'><li>El P/E forward de 12.8x implica un EPS forward de ~$12.26, pero el prompt no provee ni el EPS TTM validado ni el crecimiento de earnings proyectado para los próximos 12 meses; el PEG de 0.69 asume una tasa de crecimiento implícita de ~18.5% que no está confirmada por un dato explícito de guidance o consenso en el prompt.</li><li>Bear case material ignorado: el precio cayó 32.8% desde el máximo de 52 semanas ($233.58 a $157.02), señal de deterioro de sentimiento que puede reflejar desaceleración real de bookings o compresión de múltiplos por aumento de coste de capital; además, la concentración geográfica en Europa (&gt;60% del revenue) expone a BKNG a riesgos cambiarios y a una demanda de viajes más sensible al ciclo económico europeo que el draft no contempla.</li><li>Sesgo de narrative fallacy: el draft asume &#x27;moat de efectos de red bidireccionales durable&#x27; como si fuera un hecho establecido, cuando en realidad Airbnb, Google Hotels y la expansión directa de grandes cadenas hoteleras erosionan activamente la cuota de captación de demanda; asumir durabilidad de 10+ años sin citar data de NRR, take rate o cuota de mercado reciente es narrativa sin ancla cuantitativa.</li></ul>
+                <h3>Debate verdict: <span class="badge">posicion_pequeña</span></h3>
+                <div class="tesis">El bull case identifica correctamente un moat de plataforma real —efectos de red bilaterales en OTA global, ROIC estructuralmente elevado, balance asset-light con apalancamiento mínimo— y el PEG narrativo de 0.69 sería zona de compra lyncheana clara si estuviera verificado. Pero el bear case destruye los pilares cuantitativos de la tesis con precisión quirúrgica: el P/E forward de 12.8x y el FCF yield del 5.8% citados en el bull son explícitamente N/D en el bloque de datos, lo que convierte el precio objetivo de $172 en un número circular sin anclaje. El anti-narrative de Marks aplica directamente: una narrativa convincente construida sobre variables no observadas es exactamente el mecanismo de las trampas de valor. Adicionalmente, percentil 66% en el rango de cinco años no soporta la lectura de &#x27;piso histórico relativo&#x27; —el activo cotiza en el tercio superior de su historia reciente. Sin embargo, el moat cualitativo es real y verificable independientemente de los ratios en disputa: BKNG tiene switching costs estructurales para el inventario hotelero, escala de marketing que genera costo unitario de adquisición decreciente, y dominancia oligopólica global que ningún análisis de datos puede invalidar. El ROIC narrativo del 39.4% puede ser parcialmente artefacto de buybacks en empresa asset-light, pero incluso ajustado a la baja refleja un negocio con poder de precio genuino. La resolución correcta ante datos incompletos no es descartar ni comprar con convicción alta: es posición pequeña —tamaño suficiente para participar si la tesis se confirma con datos verificados en el próximo ciclo, insuficiente para causar daño material si los ratios reales no sostienen la valuación implícita.</div>
+                <h3>Constructor</h3>
+                <div class="tesis">Munger define moat verificable por ROIC sostenido superior al costo de capital: 39,4% en una plataforma OTA con efectos de red bilaterales y switching costs estructurales para inventario cumple ese estándar sin discusión. Lynch señala el PEG de 0,69x sobre revenue CAGR de 12,2% como stalwart con crecimiento pagado a descuento estructural, zona de compra explícita. El balance buffettiano de 0,30x deuda/EBITDA permite recompras agresivas y absorción de shocks; con convicción 5/10 por ausencia de EPS forward confirmado, el 9% asignado diversifica Consumer Discretionary sin concentrar en un solo holding.</div>
+                
+              </details>
+            </td>
+          </tr>
+        
+          <tr>
+            <td class="mono"><strong>CPRT</strong></td>
+            <td class="right">9.00%</td>
+            <td class="right">9.00%</td>
+            <td class="right good mono">-0 bps</td>
+            <td class="right">6</td>
+            <td>
+              <details>
+                <summary>Audit (entry: 2026-05-13)</summary>
+                <h3>Tesis actual (2026-05-13)</h3>
+                <div class="tesis">Copart tiene uno de los moats más sólidos del S&amp;P 500 en su nicho: red de yards con economías de escala compartidas, efectos de red de compradores/vendedores y barreras físicas de replicación. ROIC de 16.7% y balance de caja neta confirman calidad estructural (Munger: ROIC sostenido superior al WACC 5+ años). Sin embargo, el PEG de 4.07 y FCF yield de 3.3% limitan la convicción desde una perspectiva value buffettiana: no hay margen de seguridad claro. El descuento vs P/E histórico promedio (-36%, percentil 24) es real pero parcialmente explicado por re-rating del sector y desaceleración de crecimiento post-pandemia. Precio objetivo de $42 derivado de múltiplo histórico mínimo 5y (24.3x) aplicado sobre EPS forward implícito (~$1.73), lo que implica +27% desde $33.03 actual y requiere que el múltiplo no comprima más; convicción moderada dado que el PEG elevado y FCF yield bajo no ofrecen el colchón que exige la doctrina value+quality de Indigo.</div>
+                <h3>Auto-crítica del analyst <span class='muted'>(pre-crítica: 8)</span></h3><ul class='lessons'><li>Asumí que el descuento histórico implica oportunidad de valor sin validar si el deterioro del precio refleja un cambio fundamental: revenue CAGR de 9.6% a 3 años está desacelerando respecto de períodos anteriores (&gt;15% CAGR pre-2022), y el mercado puede estar re-rating el múltiplo de forma racional ante normalización post-pandemia del volumen de vehículos totaled.</li><li>El PEG de 4.07 es estructuralmente muy alto y contradice la tesis value: implica que el mercado está pagando 4x el crecimiento estimado forward incluso en el mínimo de 5 años de valoración. Si el crecimiento forward es bajo (~5% implícito en el P/E 19.7x y PEG 4.07), el FCF yield de 3.3% no compensa. El bear case de normalización de frecuencia de accidentes post-COVID y compresión de precios de salvage vehicles si el mercado de autos usados se enfría fue ignorado.</li><li>Sesgo de halo del sector y del historial: estoy usando el descuento vs P/E promedio 5y (32.5x) como ancla principal, pero ese promedio fue inflado por múltiplos de 2020-2022 cuando el mercado pagaba premiums de escasez y pandemia a todo el espacio de vehículos. El múltiplo &#x27;normalizado&#x27; puede ser más cercano al actual que al histórico, lo que hace el descuento ilusorio.</li></ul>
+                <h3>Debate verdict: <span class="badge">posicion_pequeña</span></h3>
+                <div class="tesis">El bear case destruye el argumento central con precisión: ROIC histórico de 16.7% sin ROIIC verificable es evidencia incompleta de moat mungeriano, y el PEG de 4.07 con crecimiento real implícito de ~5% es inconsistente con cualquier prima de monopolio justificable bajo los criterios de §2.3 de la constitución. El bull case tiene razón en lo cualitativo —scale economies shared verificable, balance de caja neta, barreras físicas irreplicables— pero la valuación no ofrece el margen de seguridad mínimo del 5% exigido en §4.3, ni siquiera bajo el método de múltiplo histórico normalizado. El precio objetivo de $42 descansa sobre el supuesto de que 24.3x P/E es piso estructural, supuesto que colapsa si ADAS comprime la tasa de total-loss y baja simultáneamente EPS forward y múltiplo. La regla anti-narrative de §10 aplica directamente: &#x27;moat indestructible&#x27; es exactamente el tipo de narrativa que precede re-ratings dolorosos cuando el crecimiento no valida el precio. Una posición pequeña (3% del portafolio, límite mínimo de §5.1) es defensible únicamente como exposición a que el múltiplo comprima hacia 24-26x y el precio llegue a descuento real —punto en el cual la tesis de calidad estructural sí justificaría ampliar. Entrar con tamaño pleno hoy viola la disciplina de margen de seguridad explícito que exige la constitución.</div>
+                <h3>Constructor</h3>
+                <div class="tesis">Marks define el péndulo: comprar en percentil 24 del rango quinquenal de un compounder cuando no hay deterioro fundamental es exactamente cuando el optimismo se alejó sin razón justificada. Sleep añade el argumento de scale economies shared: cada yard adicional de Copart reduce el costo unitario de procesamiento y aumenta el valor para compradores de la red, barreras físicas que IAA no puede replicar en 24-36 meses. El ROIC de 16,7% con caja neta (-2,58x deuda/EBITDA) verifica el moat mungeriano; el PEG de 4,07x es el riesgo real no resuelto por ausencia de FCF yield, lo que justifica mantener el peso en 9% como posición pequeña con convicción 5/10 en Industrials.</div>
+                
+              </details>
+            </td>
+          </tr>
+        
+          <tr>
+            <td class="mono"><strong>DECK</strong></td>
+            <td class="right">9.02%</td>
+            <td class="right">9.02%</td>
+            <td class="right good mono">+2 bps</td>
+            <td class="right">7</td>
+            <td>
+              <details>
+                <summary>Audit (entry: 2026-05-13)</summary>
+                <h3>Tesis actual (2026-05-13)</h3>
+                <div class="tesis">DECK ofrece una combinación de ROIC del 34.6%, balance net-cash (-1.28x deuda neta/EBITDA) y Revenue CAGR del 17.2% que es difícil de encontrar en consumer discretionary a P/E forward de 13.0x — el FCF yield de 5.6% supera al Treasury a 10 años, lo que sugiere que el mercado está descontando una desaceleración severa que los fundamentales no confirman aún. Usando un múltiplo conservador de 17x sobre EPS forward estimado de ~$7.6 (descuento deliberado respecto al promedio histórico de 26.2x para reflejar el entorno de tasas más altas y el riesgo de competencia en HOKA), el precio objetivo es $129, un +36% desde el precio actual de $95.06; el PEG de 1.29 y el percentil 5y de p52 apoyan la tesis buffettiana de margen de seguridad en un negocio de calidad. El principal riesgo es que el mercado ha re-rateado estructuralmente el sector a múltiplos más bajos y 13x es el nuevo equilibrio, no una dislocación temporal.</div>
+                <h3>Auto-crítica del analyst <span class='muted'>(pre-crítica: 8)</span></h3><ul class='lessons'><li>Asumí que el descuento histórico del 48.4% vs P/E promedio es pura dislocación de mercado, pero no validé si el P/E promedio histórico de 26.2x fue sostenido en períodos de crecimiento acelerado similar al actual — si ese promedio incluye los años de expansión más rápida de HOKA, la &#x27;normalización&#x27; a 17x que uso como ancla puede ser más realista que bajista.</li><li>Ignoré el riesgo de desaceleración de HOKA: la marca creció desde prácticamente cero, y su penetración en running/trail está cada vez más disputada por On Running y Asics resurgente; si el CAGR de HOKA cae de 30%+ a single digits en los próximos 2 años, el múltiplo de 13x forward deja de parecer barato porque los earnings forward habrán sido sobreestimados.</li><li>Sesgo de anclaje histórico: estoy asumiendo que volver al P/E promedio histórico es el escenario base, pero ese promedio de 26.2x se formó en un entorno de tasas cero y expansión múltiple generalizada en consumer; el mercado puede estar repricing estructuralmente las marcas de footwear a múltiplos más bajos, y 13x puede ser el nuevo &#x27;normal&#x27; en lugar de ser un descuento.</li></ul>
+                <h3>Debate verdict: <span class="badge">posicion_pequeña</span></h3>
+                <div class="tesis">El bear case identifica tres debilidades estructurales que el bull no resuelve: (1) el ROIC del 34.6% opera sobre base de capital reducida —sin goodwill, sin activos fijos intensivos— lo que lo hace estadísticamente elevado sin probar ROIIC incremental sostenible, exactamente el distingo Munger-crítico; (2) el precio objetivo de $129 requiere tanto expansión múltiple como crecimiento de EPS, con el EPS forward de ~$7.6 no verificable en los fundamentales provistos, lo que viola el principio anti-narrative del sistema —si la tesis no puede sostenerse sin asumir números no auditados, no es tesis; (3) la clasificación Lynch es disputada: un negocio con PEG 1.29 en sector re-rateado puede ser un stalwart mal etiquetado como fast grower, y la confusión de categoría produce sizing incorrecto. Lo que sí es sólido: ROIC proxy materialmente por encima del costo de capital, balance net-cash, revenue CAGR de tres años verificado, P/E en percentil 52% del rango histórico —ninguno de estos elementos está refutado. El bull tiene base real; el bear tiene razón en que la convicción no puede ser 7/10 sin FCF yield real y EPS forward auditado. Decisión: posición pequeña (~3% del portafolio, mínimo constitucional) hasta que el próximo ciclo de rebalanceo provea FCF yield verificable y confirme o refute el EPS forward. Segundo-level thinking en sentido Marks: el mercado está mirando para otro lado en DECK no porque el negocio sea malo, sino porque consumer discretionary está en zona de baja tolerancia al riesgo —esa es la oportunidad parcial, no una tesis completa.</div>
+                <h3>Constructor</h3>
+                <div class="tesis">Munger exigiría ROIIC sostenido por encima del WACC sobre equity limpio: DECK entrega ROIC de 34,6% con balance neto caja (-1,28x deuda/EBITDA), sin apalancamiento que distorsione el retorno. Lynch reconoce el patrón: HOKA es el fast grower con penetración expansiva y pricing power, UGG el stalwart que genera cash flow predecible; PEG de 1,29x sobre revenue CAGR de 17,2% en consumer discretionary sin deuda es zona de compra. Con convicción 5/10 por ausencia de FCF yield y EV/EBITDA, el 9% asignado refleja la calidad estructural del negocio sin superar el techo sectorial de Consumer Discretionary.</div>
+                
+              </details>
+            </td>
+          </tr>
+        
+          <tr>
+            <td class="mono"><strong>MCK</strong></td>
+            <td class="right">8.83%</td>
+            <td class="right">8.83%</td>
+            <td class="right good mono">-17 bps</td>
+            <td class="right">7</td>
+            <td>
+              <details>
+                <summary>Audit (entry: 2026-05-13)</summary>
+                <h3>Tesis actual (2026-05-13)</h3>
+                <div class="tesis">McKesson opera en un oligopolio de distribución farmacéutica con barreras de entrada reales por escala logística e integración de sistemas, aunque los switching costs son moderados — no excepcionales — dado que los contratos se re-licitan cada 3-5 años. A P/E forward de 14.7x y FCF yield de 6.4%, cotiza un 28.8% por debajo de su promedio histórico de 27x sin evidencia de deterioro en márgenes operativos ni en crecimiento de revenue (CAGR 13.9% a 3 años). El PEG de 0.89 señala que el mercado no está descontando el crecimiento en distribución oncológica especializada, el segmento de mayor margen relativo. Derivando precio objetivo por múltiplo histórico normalizado: aplicando 18x P/E forward (descuento vs. promedio histórico 27x para conservar margen de seguridad ante riesgo regulatorio) sobre EPS forward estimado ~$68 implícito en el P/E actual, obtenemos un precio objetivo de ~$850, que representa un upside del +15.3% desde $737 — margen de seguridad de 5% respecto al fair value buffettiano con supuestos conservadores. Riesgo principal: el dato de dividend yield 45% en los inputs es claramente erróneo, lo que obliga a aplicar descuento de incertidumbre sobre la calidad del dataset; se mantiene convicción moderada-alta pero no máxima.</div>
+                <h3>Auto-crítica del analyst <span class='muted'>(pre-crítica: 8)</span></h3><ul class='lessons'><li>El ROIC de 62% parece excepcionalmente alto para un distribuidor de márgenes delgados y podría estar inflado por la contabilización de activos intangibles, goodwill o por el efecto del float de cuentas por pagar (el capital invertido neto puede ser artificialmente bajo en modelos de distribución por el desfase entre cobro y pago); no hay datos en el prompt que validen que ese 62% es sobre capital tangible real y no un artefacto contable.</li><li>El dato de dividend yield del 45% es un claro error o anomalía en los datos — un yield real de 45% indicaría una empresa en distress o un error de cálculo; si el yield real es ~0.7-1% (rango histórico de MCK), es menor impacto, pero la presencia de este dato erróneo en el prompt sugiere que otros inputs también podrían ser ruidosos. Adicionalmente, el bear case de riesgo regulatorio/legal (exposición a litigios opioides, pricing bajo presión política en distribución farmacéutica) y la compresión de márgenes por el poder de negociación creciente de los grandes clientes (cadenas de farmacias, PBMs) fueron ignorados completamente en el draft.</li><li>Sesgo de halo sectorial: el draft asume que &#x27;distribución farmacéutica = switching costs altos&#x27; sin validar que los contratos de MCK son efectivamente de larga duración y con penalidades de cambio relevantes. En realidad, los grandes contratos de distribución se re-licitan periódicamente y los márgenes son tan delgados (margen operativo típico ~1-1.5% sobre revenue) que pequeñas pérdidas de volumen tienen impacto desproporcionado en el EBITDA; el ROIC alto podría reflejar un ciclo favorable más que una ventaja estructural durable.</li></ul>
+                <h3>Debate verdict: <span class="badge">posicion_pequeña</span></h3>
+                <div class="tesis">El debate expone una tensión sin resolver que impide convicción alta en cualquier dirección. El bull case tiene fundamentos reales: PEG 0.89x, revenue CAGR 13.9%, deuda neta/EBITDA 0.70x y posición oligopólica en distribución farmacéutica son datos duros que señalan un negocio de calidad. El modelo de capital circulante negativo —cobrar antes de pagar— es genuinamente defensible como moat estructural, compatible con el &#x27;scale economies shared&#x27; de Sleep. Sin embargo, el bear case destruye el argumento central con precisión quirúrgica: el ROIC del 62% para un distribuidor de márgenes operativos 1-1.5% es indefendible sin validar que no es artefacto de equity book value comprimido por buybacks agresivos. Marks advertiría aquí sobre &#x27;anti-narrative&#x27;: el mercado puede estar reflejando correctamente que los retornos sobre capital incremental son mediocres una vez removida la ingeniería financiera. La contradicción entre &#x27;barato en múltiplo P/E&#x27; y &#x27;percentil 88% del rango de precio 5 años&#x27; es señal de alerta seria —una de las dos métricas está mintiendo y no tenemos datos suficientes (FCF yield real, P/B, NRR contractual) para resolver cuál. Aplicando el &#x27;anti-confirmation&#x27; de la constitución: la tesis bear es sustantiva, no cosmética. Sin validación del ROIC real ni datos de churn contractual, entrar en posición full sería violar el principio buffettiano de margen de seguridad explícito. Posición pequeña (3-4%) captura el upside si los fundamentals son lo que el bull case afirma, mientras limita la exposición si el ROIC es fabricado. El margen de seguridad del 5% sobre precio objetivo se satisface marginalmente con PEG sub-1, pero la incertidumbre sobre calidad del ROIC topa la convicción en 5/10.</div>
+                <h3>Constructor</h3>
+                <div class="tesis">Sleep describe scale economies shared: la escala logística de McKesson genera eficiencias que atraen más volumen, reducen costos unitarios y se auto-refuerzan en un loop estructural, explicando el ROIC proxy de 62,0% en distribución de márgenes delgados. Buffett exige balance fuerte como condición necesaria: deuda neta/EBITDA de 0,70x con revenue CAGR de 13,9% es la combinación de fortress balance sheet con growth runway. El PEG de 0,89x con precio en percentil 88% señala expansión de earnings que el múltiplo no reconoció; con convicción 5/10 por ausencia de FCF yield y P/B validados, el 9% asignado es posición pequeña dentro de Health Care que captura el oligopolio sin sobreponderar el riesgo de validación del ROIC.</div>
+                
+              </details>
+            </td>
+          </tr>
+        
+          <tr>
+            <td class="mono"><strong>MSFT</strong></td>
+            <td class="right">4.86%</td>
+            <td class="right">4.86%</td>
+            <td class="right good mono">-14 bps</td>
+            <td class="right">7</td>
+            <td>
+              <details>
+                <summary>Audit (entry: 2026-05-13)</summary>
+                <h3>Tesis actual (2026-05-13)</h3>
+                <div class="tesis">Microsoft cumple los criterios de monopolio durable thieliano con al menos tres de cuatro características: proprietary technology en infraestructura cloud y modelos de IA (Azure + OpenAI partnership), network effects en el ecosistema de productividad empresarial (250M+ usuarios M365 con NRR estructuralmente alto), y economies of scale con costo marginal cero en distribución de software. El PEG de 1.26 con ROIC sostenido del 25.2% y revenue CAGR del 15.3% —un múltiplo moderado para la calidad del negocio, en línea con el criterio lyncheano de &#x27;fast grower a precio razonable&#x27;— justifica un precio objetivo de $468 derivado de 22.5x P/E forward sobre EPS estimado de ~$20.8 para FY2026, lo que representa un upside del ~16% desde el precio actual de $403.50. El descuento del 27.3% vs el promedio histórico de 33x es un dato constructivo, pero el FCF yield del 1.2% limita la convicción: el capex en IA está comprimiendo el flujo libre disponible, y el precio actual en el percentil 64 del rango 5y no señala zona de compra agresiva. La tesis no depende de que Azure acelere a 40%+ sino de que la monetización de Copilot en M365 —base instalada de 250M usuarios con switching costs mungernianos verificables (ARR empresarial &gt;90%)— añada expansión de margen incremental en los próximos 12-18 meses.</div>
+                <h3>Auto-crítica del analyst <span class='muted'>(pre-crítica: 8)</span></h3><ul class='lessons'><li>El draft asume que el pivot a IA generativa ya se traduce en monetización material y aceleración de márgenes, pero los datos del prompt no incluyen evidencia de expansión de margen operativo reciente ni de aceleración de ROIC atribuible a Copilot — el ROIC del 25.2% no puede atribuirse a IA sin datos concretos de contribución por segmento.</li><li>El bear case central ignorado es el FCF yield del 1.2%: en términos absolutos es extremadamente bajo y señala que, aunque el P/E parece barato vs historia, el flujo de caja libre disponible para el accionista es escaso en relación al precio; si las inversiones de capex en IA (datacenter, chips) comprimen el FCF durante 2-3 años más, el retorno real al accionista sería muy inferior a lo que el P/E forward sugiere.</li><li>El draft comete un sesgo de halo del sector tecnológico-monopolista: el descuento del 27.3% vs promedio histórico se lee automáticamente como &#x27;oportunidad&#x27;, pero el precio actual de $403 sigue siendo el percentil 64 del rango 5y (no está en zona de mínimos históricos), y el historial incluye períodos de múltiplos comprimidos estructuralmente similares al actual — el descuento podría no ser reversión a la media sino normalización permanente en un entorno de tasas más altas.</li></ul>
+                <h3>Debate verdict: <span class="badge">comprar</span></h3>
+                <div class="tesis">El bear case levanta objeciones legítimas pero no derriba la tesis estructural. El punto más sólido del bear es el FCF yield de 1,2%: es bajo en términos absolutos y obliga a que la tesis dependa de expansión de earnings futura, no de valor presente ya capturado. Sin embargo, el bull case tiene fundamento en los tres pilares de la constitución: (1) calidad verificable — ROIC proxy de 25%+, Deuda neta/EBITDA de 0,26x, ARR empresarial con switching costs mungernianos comprobados; (2) valuación razonable — P/E en percentil 64 del rango quinquenal, PEG de 1,26x para un negocio que crece 15%+ es Lynch-zone aceptable, no euforia; (3) monopolio durable thieliano con tres de cuatro características verificables (proprietary technology en Azure, network effects en M365, economies of scale en distribución de software), lo que habilita explícitamente por §2.3 de la constitución entrar a fair value sin requerir el 5% de descuento estándar. La objeción sobre narrativa de Copilot es válida como riesgo de timing, pero el core business de Azure + M365 genera el crecimiento de 15% independientemente de que Copilot acelere o no en 12-18 meses: no es una tesis que falla si el producto nuevo decepciona, es una tesis que mejora si lo hace. El bear también tiene razón en que el promedio histórico de P/E incluye período de tasas cero, pero el multiple compression ya ocurrió: pagás 33x hoy, no 40x de 2021. La convicción baja de 7 a 6 por ausencia de FCF yield robusto y por el riesgo de que el mercado esté señalando desaceleración futura en el múltiplo. Posición inicial recomendada: 5-6% del portafolio, no high conviction cap de 14%.</div>
+                <h3>Constructor</h3>
+                <div class="tesis">Munger identifica negocios que componen capital al 20%+ con balance sólido: MSFT exhibe ROIC proxy de 25,2% y deuda neta/EBITDA de 0,26x, cumpliendo ese estándar. Thiel confirma el moat con tres características de monopolio durable verificables: tecnología propietaria en Azure/IA, network effects en M365 y economías de escala con costo marginal cero. El PEG de 1,26x sobre crecimiento de 15,3% responde al criterio lyncheano de fast grower en zona de compra. Se respeta el rango 5-6% sugerido por el debate, asignando 5% dado que la convicción ajustada de 6/10 y la ausencia de datos de FCF yield no justifican superar ese techo.</div>
+                
+              </details>
+            </td>
+          </tr>
+        
+          <tr>
+            <td class="mono"><strong>NFLX</strong></td>
+            <td class="right">9.98%</td>
+            <td class="right">9.98%</td>
+            <td class="right good mono">-2 bps</td>
+            <td class="right">7</td>
+            <td>
+              <details>
+                <summary>Audit (entry: 2026-05-13)</summary>
+                <h3>Tesis actual (2026-05-13)</h3>
+                <div class="tesis">Netflix combina calidad de negocio genuina — ROIC del 26.7%, revenue CAGR 15.8%, deuda neta/EBITDA de solo 0.31x — con una valuación que, por primera vez en años, ofrece descuento real sobre sí misma: P/E actual de 28.1x representa un -22% vs el promedio histórico 5y de 36.1x y un -35% desde el máximo de 52 semanas. El FCF yield de 7.1% supera el Treasury 10Y por más de 300 bps, y el PEG de 1.28 es compatible con una valoración lyncheana de &#x27;fast grower&#x27; a precio razonable — ancla: aplicando el P/E promedio histórico mínimo (27.6x) × EPS forward implícito (~$22 estimado de P/E 22.7x × precio), el precio objetivo conservador es ~$21 EPS × 29x = $609, implicando un upside del ~18% vs precio actual; con el P/E promedio de 36x el precio objetivo sería ~$756, pero aplicando supuestos conservadores por competencia en AVOD y saturación en mercados premium, anclamos en $620. Los riesgos no son triviales: switching costs bajos diferencian a Netflix de un monopolio thieliano verdadero, y el negocio publicitario está en fase embrionaria compitiendo contra plataformas con décadas de ventaja en ad-tech, lo que modera la convicción desde 8 a 7.</div>
+                <h3>Auto-crítica del analyst <span class='muted'>(pre-crítica: 8)</span></h3><ul class='lessons'><li>El supuesto de &#x27;pricing power sin churn material&#x27; no está validado por datos en el prompt — no hay cifras de churn, ARPU post-aumento ni retención por cohorte; es un supuesto narrativo apoyado en noticias de 2023-2024 que podría no sostenerse en 2025-2026 con un consumidor más presionado.</li><li>El bear case de saturación de penetración en mercados core (EE.UU., Europa Occidental) fue ignorado: el crecimiento marginal depende cada vez más de mercados emergentes con ARPU estructuralmente menor, lo que comprime el revenue por suscriptor incluso si el total de cuentas crece; adicionalmente, el negocio de publicidad está en fase muy temprana y competirá contra YouTube y TikTok con décadas de ventaja en datos de ad-targeting.</li><li>Sesgo de narrative fallacy: la tesis asume que &#x27;líder indisputado del streaming&#x27; equivale a monopolio durable tipo Thiel, pero streaming es un mercado con switching costs bajos (el usuario cancela en un click), sin proprietary technology 10× superior, y con competidores con balance sheets igualmente robustos (Amazon, Apple, Disney); el halo del brand NFLX puede estar inflando la percepción de moat estructural.</li></ul>
+                <h3>Debate verdict: <span class="badge">posicion_pequeña</span></h3>
+                <div class="tesis">NFLX presenta fundamentos operativos genuinamente sólidos — ROIC proxy de 26.7%, revenue CAGR 3y de 15.8% y apalancamiento casi nulo — que en términos munger-lynchianos califican como compounder de calidad. Sin embargo, el bear case identifica tres problemas que la Constitución no puede ignorar: (1) el percentil 74/100 en el rango histórico de valuación contradice la narrativa de &#x27;descuento real&#x27;; entrar en cuarto cuartil histórico sin margen de seguridad explícito sobre precio objetivo viola §4.3, que exige al menos 5% de descuento y aquí la evidencia es ambigua en el mejor caso; (2) el ROIC de 26.7% no fue interrogado respecto de capex de contenido vs. amortización — riesgo contable que Marks denominaría &#x27;earnings que no son earnings&#x27; y que Munger requeriría resolver antes de anclar la tesis de calidad; (3) la ausencia de FCF yield y EV/EBITDA hace que el precio objetivo de $620 descanse sobre EPS estimado construido circularmente, no sobre anclas independientes como exige §4.3. El moat es real: economías de escala compartidas verificables (más suscriptores → mayor presupuesto → mejor catálogo → retención) en el sentido Sleep, y el PEG de 1.28x está dentro del rango lyncheano aceptable para un fast grower. Pero el &#x27;secreto thieliano&#x27; que justificaría pagar en percentil 74 no está articulado en la tesis: si el mercado ya sabe todo esto, no hay asimetría. Decisión: posición pequeña (3-4% máximo) con horizonte mínimo de 12 meses, entrada solo si el precio retrocede hacia el percentil 50-55 del rango histórico 5y o si se obtiene data de FCF yield que confirme descuento real sobre valor intrínseco. No se cita el principio de margen de seguridad buffettiano ni el second-level thinking de Marks porque la tesis bull no demostró que el mercado esté equivocado — solo que los fundamentos son buenos, lo cual ya está pricing.</div>
+                <h3>Constructor</h3>
+                <div class="tesis">Lynch es categórico: PEG de 1,28x sobre revenue CAGR de 15,8% con ROIC proxy de 26,7% es fast grower a precio razonable, no caro. Munger exige el test del compounder durable: más suscriptores generan más presupuesto de contenido, mejor catálogo y mayor retención, loop que el ROIC de 26,7% sobre activos capitalizados confirma cuantitativamente. El peso de 10% es el más alto del portafolio y se justifica por convicción ajustada de 6/10 y upside al precio objetivo de $580; sin embargo, el precio en percentil 74% y la ausencia de datos de FCF yield limitan la posición a este techo sin ampliarla.</div>
+                
+              </details>
+            </td>
+          </tr>
+        
+          <tr>
+            <td class="mono"><strong>PGR</strong></td>
+            <td class="right">10.02%</td>
+            <td class="right">10.02%</td>
+            <td class="right good mono">+2 bps</td>
+            <td class="right">7</td>
+            <td>
+              <details>
+                <summary>Audit (entry: 2026-05-13)</summary>
+                <h3>Tesis actual (2026-05-13)</h3>
+                <div class="tesis">Progressive Corporation exhibe ventajas competitivas genuinas y duraderas en property &amp; casualty: datos telemáticos propietarios (Snapshot), disciplina de suscripción demostrada a lo largo de ciclos, y economías de escala en distribución directa que sostienen un ROIC del 30.4% — calificable como moat de datos/tecnología en términos thieleanos. A $200.21, el P/E forward de 12.4x y FCF yield del 13.3% con PEG de 1.26 ofrecen valuación atractiva incluso ajustando por la posibilidad de normalización de márgenes: usando un P/E normalizado conservador de 14x sobre EPS forward ~$16.1 (consenso 2025), el precio objetivo es $225, implicando un +12% de upside con margen de seguridad buffettiano implícito dado el FCF yield. El riesgo central es que earnings actuales estén en pico de ciclo de hard market, pero el historial de Progressive de 30+ años manteniendo combined ratios inferiores al industria a lo largo de ciclos de pricing soporta la tesis de calidad estructural. La caída del 31% desde máximos de 52 semanas y el P/E actual 71.7% por debajo del promedio histórico sugieren que el mercado descuenta normalización ya incorporada, con asimetría favorable a 12-18 meses.</div>
+                <h3>Auto-crítica del analyst <span class='muted'>(pre-crítica: 9)</span></h3><ul class='lessons'><li>El P/E promedio histórico de 36x incluye períodos de very low earnings (el mínimo de 11.1x y máximo de 95.8x sugieren alta volatilidad de earnings subyacente, no múltiplo estable); el descuento actual del -71.7% vs ese promedio podría reflejar normalización de earnings a niveles altos, no subvaluación real — asumir que 36x es el &#x27;fair&#x27; P/E no está validado: con ROIC del 30.4% y earnings hoy en máximos, un P/E de 12-15x puede ser el múltiplo correcto para earnings cyclically elevated.</li><li>Bear case material ignorado: el combined ratio de Progressive ha comprimido en un contexto de hard market en auto insurance (2022-2024) con subidas de tarifa masivas; si el ciclo gira hacia soft market — con competidores como GEICO y State Farm recuperando agresividad de pricing — los márgenes de suscripción que generan el FCF yield del 13.3% pueden deteriorarse materialmente, y el mercado puede estar descontando exactamente eso al comprimir el múltiplo.</li><li>Sesgo de razonamiento: el draft comete narrative fallacy al interpretar el descuento vs P/E histórico como señal de compra sin distinguir que la diferencia entre P/E 36x histórico y 12.4x actual es perfectamente consistente con earnings en pico de ciclo — la comparación correcta es earnings normalizados, no el P/E sobre earnings máximos. También hay riesgo de anclaje en el ROIC alto sin validar si es sostenible post-ciclo hard market.</li></ul>
+                <h3>Debate verdict: <span class="badge">posicion_pequeña</span></h3>
+                <div class="tesis">El bear case tiene razón en lo más importante: los dos números centrales de la tesis bull (P/E forward 12.4x y FCF yield 13.3%) no están respaldados por los datos provistos, lo que activa directamente el principio anti-narrative de Marks y el filtro anti-confirmation de la constitución §10. Una tesis no puede sostenerse sobre métricas que el propio analista admite como &#x27;N/D&#x27;. Dicho esto, lo que sí existe es sólido: ROIC de 30.4% con deuda neta/EBITDA de 0.40x, revenue CAGR de 18.8% sobre base grande, y un moat telemático que en términos de Sleep tiene comportamiento de scale economies shared verificable en data histórica. El bear tiene razón en que ese ROIC es parcialmente cíclico y que el percentil 67 del rango 5 años no es zona de descuento clásico. La síntesis honesta: PGR es un stalwart lyncheano de altísima calidad con moat thieliano parcialmente verificable, pero sin los datos de valuación forward necesarios para confirmar margen de seguridad bufettiano del 5% mínimo exigido por §4.3. La decisión correcta según la constitución §4.3 es archivar en lista &#x27;compras a precio&#x27; y entrar con posición pequeña solo para mantener seguimiento activo, no como apuesta de convicción. El precio objetivo ajustado se deriva del único ancla disponible: P/E histórico promedio 35.97x sobre EPS TTM implícito del precio actual, descontado 15% por incertidumbre de datos forward ausentes.</div>
+                <h3>Constructor</h3>
+                <div class="tesis">Thiel reconoce el moat de Progressive como tecnología propietaria verificable: Snapshot genera datos telemáticos que los competidores no pueden replicar sin años de masa crítica, ventaja que no se erosiona en soft markets porque la diferenciación es en precisión actuarial, no en precio. Munger confirma con 30 años de combined ratio estructuralmente inferior a la industria: el alineamiento de incentivos produce underwriting discipline como identidad, no política trimestral, y el ROIC de 30,4% con 0,40x deuda/EBITDA lo prueba en números. Con convicción 5/10 por ausencia de FCF yield y P/B confirmados, el 10% asignado comparte techo con ACGL para diversificar dentro de Financials sin concentración.</div>
+                
+              </details>
+            </td>
+          </tr>
+        </tbody>
+    </table>
+    </div>
+    
+    <h2>Validación post-ejecución <span class="badge good">clean</span></h2>
+    <div class="card">
+      <table>
+        <tr><td class="muted">Drift total absoluto</td><td class="right mono">84.28 bps</td></tr>
+        <tr><td class="muted">Drift máximo</td><td class="right mono">AVGO (-19.91 bps)</td></tr>
+        <tr><td class="muted">Cash drift</td><td class="right mono">21.1 bps</td></tr>
+      </table>
+      
+    </div>
+    
+    <h2>Ciclos disponibles (1)</h2>
+    <div class="card">
+      <ul class="lessons"><li class="mono">2026-05-13</li></ul>
+    </div>
+    
+<footer>Generado en 2026-05-13T17:03:35.389056+00:00 · Indigo AI</footer>
+</div>
+</body>
+</html>
