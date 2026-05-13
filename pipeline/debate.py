@@ -240,6 +240,52 @@ def build_debate_prompt(ticker_data: dict) -> str:
     return prompt
 
 
+def _sanity_check_targets(
+    results: list[dict], analyst_tickers: list[dict],
+) -> list[dict]:
+    """
+    Detecta y corrige precio_objetivo_ajustado anómalos del debate.
+
+    Caso real (2026-05-13): el debate devolvió BKNG con
+    `precio_objetivo_ajustado=4100` cuando el analyst tenía 172. El
+    precio actual real era ~$157. Esa discrepancia (24x el analyst)
+    es alucinación, no análisis.
+
+    Regla: si la ratio adjusted/analyst está fuera de [0.2, 5.0],
+    clampamos al analyst y dejamos audit trail en `verdict.audit_notes`.
+    Esto evita downstream issues (constructor, judge, social) que
+    confíen en el target del debate.
+    """
+    analyst_by_t = {a.get("ticker"): a for a in analyst_tickers}
+    for r in results:
+        ticker = r.get("ticker", "")
+        v = r.get("verdict") or {}
+        adj = v.get("precio_objetivo_ajustado") or 0
+        analyst_data = analyst_by_t.get(ticker, {})
+        base = analyst_data.get("precio_objetivo") or 0
+        if adj <= 0 or base <= 0:
+            continue
+        ratio = adj / base
+        if 0.2 <= ratio <= 5.0:
+            continue
+        # Anomalía: clamp y log
+        log.warning(
+            "[sanity] %s precio_objetivo_ajustado=%s vs analyst=%s (ratio %.2fx) — "
+            "probable alucinación. Clampeo al analyst target.",
+            ticker, adj, base, ratio,
+        )
+        audit_note = (
+            f"precio_objetivo_ajustado original={adj} clampeado a {base} "
+            f"por ratio anómala ({ratio:.2f}x analyst). Anti-alucinación."
+        )
+        v["precio_objetivo_ajustado_original"] = adj
+        v["precio_objetivo_ajustado"] = base
+        notes = v.get("audit_notes") or []
+        notes.append(audit_note)
+        v["audit_notes"] = notes
+    return results
+
+
 def _parse_verdict(content: str) -> dict:
     """
     Extrae el JSON del veredicto desde el contenido de la respuesta del analista.
@@ -683,6 +729,12 @@ def run(
     else:
         log.info(f"Modo: SEQUENTIAL (dry_run={dry_run})")
         results = run_sequential(tickers, dry_run=dry_run)
+
+    # ── Sanity check de precios objetivo (anti-alucinación) ──────────────────
+    # El debate de Opus puede alucinar targets que difieren >5x del precio
+    # del analyst (ej. BKNG ciclo 2026-05-13: analyst 172 vs debate 4100).
+    # Si la ratio es extrema, clampamos al analyst y dejamos audit trail.
+    results = _sanity_check_targets(results, tickers)
 
     # ── Reordenar por conviccion_ajustada desc ────────────────────────────────
     results.sort(

@@ -375,15 +375,32 @@ def run_filter() -> pd.DataFrame:
     out_df = pd.DataFrame(passed)
 
     # Si sobran candidatos, rankear por calidad y tomar los mejores N
+    # con balance sectorial: máximo MAX_PER_SECTOR_IN_POOL por sector GICS
+    # para evitar pools tipo "10 IT" que después hacen geometría imposible
+    # para el constructor (sector cap 30% con muchos tickers tech = sub-óptimo).
+    # Lección del primer ciclo 2026-05-13.
+    MAX_PER_SECTOR_IN_POOL = 4  # con 60 target: max 4 por sector → al menos 6 sectores diferentes
     if len(out_df) > FILTER_TARGET_CANDIDATES:
-        log.info(f"Más de {FILTER_TARGET_CANDIDATES} candidatos — aplicando ranking por calidad")
+        log.info(f"Más de {FILTER_TARGET_CANDIDATES} candidatos — aplicando ranking por calidad con balance sectorial")
         out_df["_rank_score"] = (
             out_df["roic_proxy_pct"].fillna(0) * 0.4
             + out_df["revenue_cagr"].fillna(0) * 100 * 0.3
             + (out_df["net_debt_ebitda"].fillna(3).clip(upper=3) * -10) * 0.3
         )
-        out_df = out_df.nlargest(FILTER_TARGET_CANDIDATES, "_rank_score").drop(columns=["_rank_score"])
-        log.info(f"Reducido a {len(out_df)} candidatos por ranking")
+        # Ordenar por score y filtrar respetando cap sectorial
+        sorted_df = out_df.sort_values("_rank_score", ascending=False)
+        selected_idx = []
+        sector_counts: dict = {}
+        for idx, row in sorted_df.iterrows():
+            sector = row.get("sector", "Unknown")
+            if sector_counts.get(sector, 0) >= MAX_PER_SECTOR_IN_POOL:
+                continue
+            selected_idx.append(idx)
+            sector_counts[sector] = sector_counts.get(sector, 0) + 1
+            if len(selected_idx) >= FILTER_TARGET_CANDIDATES:
+                break
+        out_df = sorted_df.loc[selected_idx].drop(columns=["_rank_score"])
+        log.info(f"Reducido a {len(out_df)} candidatos. Distribución sectorial: {sector_counts}")
 
     out_path = OUTPUTS_DIR / f"filtered_{date.today().isoformat()}.csv"
     out_df.to_csv(out_path, index=False)

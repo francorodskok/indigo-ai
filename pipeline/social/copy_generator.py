@@ -642,12 +642,71 @@ def _build_user_input_didactico(
     )
 
 
+_SYSTEM_ARCHITECTURE_BLOCK = {
+    "pipeline_stages": [
+        {"id": 1, "name": "filter", "engine": "quantitative (no LLM)",
+         "desc": "S&P 500 → ~60 candidatos por filtros duros (cap, ROIC, balance, exclusiones GICS)."},
+        {"id": 2, "name": "analyst", "engine": "claude-sonnet-4-6",
+         "desc": "Analiza 60 candidates, genera tesis cuantitativa + precio objetivo. Output 15."},
+        {"id": 3, "name": "debate", "engine": "claude-opus-4-7",
+         "desc": "Por cada uno de los 15: bull case + bear case + síntesis con veredicto."},
+        {"id": 4, "name": "macro_agent", "engine": "claude-haiku-4-5",
+         "desc": "Régimen macro (normal/cauteloso/defensivo) y nivel de cash."},
+        {"id": 5, "name": "constructor", "engine": "claude-opus-4-7",
+         "desc": "Arma portfolio respetando constitución: 12-15 holdings, max 10% (14% high conv), max 30% sector."},
+        {"id": 6, "name": "judge", "engine": "claude-sonnet-4-6",
+         "desc": "Verificador independiente: alucinaciones, citas canon, coherencia con debate."},
+        {"id": 7, "name": "executor", "engine": "Alpaca API (no LLM)",
+         "desc": "Trades reales a target weights. Reporta drift vs target."},
+        {"id": 8, "name": "post-mortem", "engine": "claude-sonnet-4-6",
+         "desc": "Analiza decisiones de hace ~90 días, genera lecciones para próximos ciclos."},
+        {"id": 9, "name": "social copy_generator", "engine": "claude-sonnet-4-6 / claude-haiku-4-5",
+         "desc": "Threads, didácticos, newsletter, engagement replies (este soy yo)."},
+    ],
+    "cadence_days": 20,
+    "models_in_use": ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5"],
+}
+
+
+def _load_current_portfolio_summary() -> dict[str, Any] | None:
+    """Carga snapshot del portfolio actual para inyectar en engagement_reply."""
+    try:
+        from pipeline.state import load_current_holdings
+        state = load_current_holdings()
+        holdings = state.get("holdings", []) or []
+        if not holdings:
+            return None
+        return {
+            "cycle_id": state.get("cycle_id"),
+            "holdings_count": len(holdings),
+            "holdings": [
+                {
+                    "ticker": h.get("ticker"),
+                    "weight_pct": round((h.get("weight") or 0) * 100, 2),
+                    "sector": h.get("sector"),
+                    "conviction": h.get("conviction"),
+                    "precio_objetivo": h.get("precio_objetivo"),
+                }
+                for h in holdings
+            ],
+            "cash_weight_pct": round((state.get("cash_weight") or 0) * 100, 2),
+        }
+    except Exception:
+        return None
+
+
 def _build_user_input_engagement_reply(
     target_account: str,
     thread_text: str,
     our_context: dict[str, Any] | None,
 ) -> str:
-    """User input para el generador de respuestas a threads ajenos."""
+    """User input para el generador de respuestas a threads ajenos.
+
+    Inyecta automáticamente: la arquitectura del sistema (9 etapas
+    canónicas) y el portfolio actual. Esto previene alucinaciones donde
+    el modelo dice "tres agentes" o inventa tickers que no están en
+    cartera.
+    """
     from pipeline.social.accounts import get_account
     account_meta = get_account(target_account)
     payload = {
@@ -655,6 +714,8 @@ def _build_user_input_engagement_reply(
         "target_account_metadata": account_meta,
         "thread_text": thread_text,
         "our_context": our_context or {},
+        "system_architecture": _SYSTEM_ARCHITECTURE_BLOCK,
+        "current_portfolio": _load_current_portfolio_summary(),
     }
     return (
         "THREAD AL QUE QUEREMOS RESPONDER (JSON):\n\n```json\n"
