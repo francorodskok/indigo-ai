@@ -32,6 +32,16 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
+# Cargar .env explícitamente — cuando este módulo se ejecuta vía Task
+# Scheduler, no hereda variables del shell del usuario. Sin esto,
+# SYSTEM_ENABLED no se carga y el kill switch bloquea todo silenciosamente.
+try:
+    from dotenv import load_dotenv
+    _ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+    load_dotenv(_ENV_PATH, override=False)
+except ImportError:
+    pass
+
 from pipeline.config import CYCLE_INTERVAL_DAYS
 from pipeline.cycle_lock import CycleLockedError, cycle_lock
 from pipeline.killswitch import can_run_cycle

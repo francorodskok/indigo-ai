@@ -41,7 +41,15 @@ import argparse
 import logging
 import sys
 from datetime import date, datetime, timezone
+from pathlib import Path
 from typing import Any
+
+# Cargar .env explícitamente — vía Task Scheduler no hereda env del shell.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
+except ImportError:
+    pass
 
 log = logging.getLogger(__name__)
 
