@@ -282,6 +282,10 @@ def sync_from_alpaca(
         if entry_audit is None:
             entry_audit = latest_audit  # ticker nuevo
 
+        # Sector y conviction se preservan al tope para que consumers
+        # downstream (engagement_reply, dashboard) no tengan que excavar
+        # en audit_snapshot.
+        analysis_for_t = analysis_by_ticker.get(ticker) or {}
         new_holdings.append({
             "ticker": ticker,
             "weight": round(weight, 4),
@@ -291,8 +295,11 @@ def sync_from_alpaca(
             "entry_date": entry_date,
             "entry_cycle_id": entry_cycle_id,
             "last_cycle_id": cycle_id,
+            "conviction": meta.get("conviction"),  # tope-level para consumers
             "conviction_at_entry": meta.get("conviction"),
             "price_target_at_entry": meta.get("price_target"),
+            "precio_objetivo": meta.get("price_target"),
+            "sector": analysis_for_t.get("sector") or (meta.get("sector")),
             # Campos legacy (retrocompatibilidad — no romper código existente).
             "thesis_snapshot": (meta.get("rationale") or "")[:300],
             "bull_bear_verdict": meta.get("verdict_decision"),
@@ -326,7 +333,8 @@ def sync_from_alpaca(
 
     return {
         "cycle_id": cycle_id,
-        "cash_pct": portfolio_snapshot.get("cash_weight", 0.0),
+        "cash_weight": portfolio_snapshot.get("cash_weight", 0.0),  # canónico para consumers nuevos
+        "cash_pct": portfolio_snapshot.get("cash_weight", 0.0),     # legacy alias
         "holdings": new_holdings,
         "history": history,
     }

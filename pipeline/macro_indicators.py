@@ -342,20 +342,54 @@ def get_breadth_indicator() -> dict[str, Any]:
 
 def get_cape_indicator() -> dict[str, Any]:
     """
-    CAPE Shiller no es accesible via yfinance directamente. Este indicador
-    queda como `missing` para que el agente macro lo trate explícitamente
-    como faltante. Documentamos cómo agregarlo en una iteración futura.
+    CAPE Shiller — scraping de multpl.com (datasource público sin auth).
+    Threshold §6.2: >32 = extreme, 25-32 = elevated, <25 = normal.
+    En caso de error de fetch o parsing, devuelve missing con detalle.
     """
-    return {
-        "name": "cape_shiller",
-        "value": None,
-        "interpretation": "missing",
-        "notes": (
-            "CAPE Shiller no disponible: requiere data de earnings reales "
-            "ajustados por inflación 10y, no provista por yfinance. "
-            "TODO v2: agregar fuente FRED API o multpl scraping."
-        ),
-    }
+    import re as _re
+    try:
+        import requests as _req
+        r = _req.get(
+            "https://www.multpl.com/shiller-pe",
+            timeout=10,
+            headers={"User-Agent": "Mozilla/5.0 (IndigoAI macro fetcher)"},
+        )
+        # Buscar el valor "Current Shiller PE Ratio is XX.XX"
+        m = _re.search(r'Current Shiller PE Ratio[^\d]*([\d]+\.[\d]+)', r.text)
+        if not m:
+            # Fallback: a veces aparece en otro layout
+            m = _re.search(r'id="current"[^>]*>\s*([\d]+\.[\d]+)', r.text)
+        if not m:
+            raise ValueError("no se encontró el valor CAPE en multpl.com")
+        cape_value = float(m.group(1))
+        if cape_value > 32:
+            interp = "extreme"
+        elif cape_value >= 25:
+            interp = "elevated"
+        else:
+            interp = "normal"
+        return {
+            "name": "cape_shiller",
+            "value": cape_value,
+            "interpretation": interp,
+            "notes": (
+                f"CAPE Shiller en {cape_value:.2f} ({interp}). "
+                f"Threshold §6.2: >32 extreme · 25-32 elevated · <25 normal. "
+                f"Fuente: multpl.com (scraping)."
+            ),
+            "source": "multpl.com",
+        }
+    except Exception as e:
+        return {
+            "name": "cape_shiller",
+            "value": None,
+            "interpretation": "missing",
+            "notes": (
+                f"CAPE Shiller no disponible: error al fetchear multpl.com — {e}. "
+                "Tratar el indicador como faltante. Anti-alucinación: NO asumir "
+                "valor."
+            ),
+        }
 
 
 # ─── Función pública ──────────────────────────────────────────────────────────

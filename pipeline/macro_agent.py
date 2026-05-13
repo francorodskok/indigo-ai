@@ -57,10 +57,14 @@ según la lectura de 5 indicadores objetivos del mercado.
 
 Según constitución §6.1 y §6.2:
 
-- **normal** — cash 0-5%. Régimen por defecto. Operativo cuando 0-1
-  indicadores están en zona "extreme".
-- **cauteloso** — cash 5-15%. Cuando ≥2 indicadores en "extreme".
-- **defensivo** — cash 15-25%. Cuando ≥3 indicadores en "extreme".
+- **normal** — cash 0-5%. Régimen por defecto. 0-1 indicadores `extreme`
+  Y 0 elevated (o ≤1 elevated si los extreme son 0).
+- **cauteloso** — cash 5-15%. ≥1 indicator `extreme` Y al menos 1 más
+  `extreme` o `elevated` (es decir, **≥2 stressed combinados**). Pesa
+  más que `extreme` cuente como tal que la pura cuenta de "extremes".
+- **defensivo** — cash 15-25%. ≥3 indicadores en `extreme + elevated`,
+  o ≥2 en `extreme`, o cuando hay 1 `extreme` específico de valuación
+  (CAPE >40, HY spread >6%) acompañado de breadth elevated.
 
 Los 5 indicadores están listados explícitamente en el bloque de datos:
 VIX persistencia, curva de tasas, HY spread, breadth, CAPE Shiller.
@@ -72,9 +76,13 @@ VIX persistencia, curva de tasas, HY spread, breadth, CAPE Shiller.
 2. Indicadores con `interpretation: missing` se tratan como **no
    disponibles** — NO los sustituyas con estimaciones tuyas. NO digas
    "el CAPE probablemente está alto" si CAPE es missing.
-3. Cuenta de "extreme" se hace SOBRE LOS INDICADORES DISPONIBLES. Si
-   3 de 5 están missing y los otros 2 están normal, el régimen es
-   "normal" con nota explícita de cobertura limitada.
+3. Cuenta de "extreme + elevated" se hace SOBRE LOS INDICADORES
+   DISPONIBLES. Si 3 de 5 están missing y los otros 2 están normal,
+   el régimen es "normal" con nota explícita de cobertura limitada.
+   PERO: si un indicador faltante es CAPE (estimás internamente que está
+   alto, pero NO lo cuentes), y dos disponibles están elevated (ej.
+   breadth + HY spread), considerá cauteloso ya que la cobertura por
+   abajo es robusta.
 4. El razonamiento (`reasoning`) debe citar los nombres específicos de
    los indicadores que justifican el régimen, NO conceptos abstractos
    como "incertidumbre macro".
