@@ -378,8 +378,8 @@ def _validate_agenda_semanal(parsed: dict) -> list[str]:
     if not isinstance(tweets, list) or not tweets:
         issues.append("missing 'tweets' (list)")
         return issues
-    if len(tweets) > 3:
-        issues.append(f"agenda_semanal tiene {len(tweets)} tweets, máximo 3")
+    if len(tweets) > 2:
+        issues.append(f"agenda_semanal tiene {len(tweets)} tweets, máximo 2")
     for i, t in enumerate(tweets):
         if not isinstance(t, str) or not t.strip():
             issues.append(f"tweet {i} vacío o no-string")
@@ -912,17 +912,46 @@ def _build_user_input_agenda_semanal(
     events: list[dict] | None,
     our_context: dict[str, Any] | None,
 ) -> str:
-    """User input para la agenda semanal del lunes."""
+    """User input para la agenda semanal del lunes.
+
+    Si `events` es None, fetcheamos el calendario real (FOMC + earnings de
+    holdings + FRED si hay API key) para evitar alucinaciones tipo
+    "Retail Sales el martes" cuando ya salió el jueves anterior.
+    """
+    calendar_block = None
+    if events is None:
+        try:
+            from datetime import date as _date
+            from pipeline.social.economic_calendar import fetch_weekly_events
+            monday = _date.fromisoformat(target_date_iso)
+            calendar_block = fetch_weekly_events(monday)
+        except Exception:
+            calendar_block = None
+    else:
+        calendar_block = {
+            "week_start": target_date_iso,
+            "events": events,
+            "data_quality": "user_provided",
+        }
+
     payload = {
         "target_date": target_date_iso,
-        "events": events,  # puede ser None — el modelo infiere
+        "calendar": calendar_block,
+        "macro_context": _build_macro_brief(),
+        "cycle_meta": _load_cycle_meta(),
         "our_context": our_context or {},
     }
     return (
         "INPUTS DE LA AGENDA SEMANAL (JSON):\n\n```json\n"
         + json.dumps(payload, indent=2, ensure_ascii=False, default=str)
         + "\n```\n\n"
-        "Generá la agenda siguiendo las instrucciones."
+        "Generá la agenda siguiendo las instrucciones. "
+        "REGLA DURA: usá SOLO eventos del bloque `calendar.events`. Si el "
+        "bloque está vacío o `data_quality == 'no_real_calendar'`, decí "
+        "explícitamente que esta semana no tenés calendario macro fetcheado "
+        "(podés mencionar que se puede agregar FRED_API_KEY para releases) "
+        "y enfocate en context + cierre. NUNCA inventes fechas de Retail "
+        "Sales, CPI, FOMC, Powell, ni nada."
     )
 
 
