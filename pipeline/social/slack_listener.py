@@ -330,13 +330,20 @@ def process_message(
     raw_text = (msg.get("text") or "").strip()
     msg_ts = msg.get("ts", "")
 
-    # Detección de comando `/opinion <topic>` (o aliases `/op`, `/opina`)
-    # → enruta al generador opinion (largo + contextual) en vez de
-    # engagement_reply (corto, formato thread reply).
+    # Detección de comando `!opinion <topic>` (o aliases `!op`, `!opina`,
+    # `?<topic>` o `opinion: <topic>`).
+    # Nota: NO usamos `/opinion` porque Slack interpreta ese prefijo como
+    # slash command y no llega al listener. Los prefijos `!` y `?` pasan
+    # como texto normal.
     lower = raw_text.lower()
     is_opinion = False
     topic = ""
-    for prefix in ("/opinion ", "/opina ", "/op "):
+    for prefix in (
+        "!opinion ", "!opina ", "!op ",
+        "opinion: ",
+        "??",  # `??<topic>` o `?? <topic>`: atajo corto (?? para no
+              # disparar con preguntas naturales que arrancan con un solo ?)
+    ):
         if lower.startswith(prefix):
             is_opinion = True
             topic = raw_text[len(prefix):].strip()
@@ -344,10 +351,11 @@ def process_message(
 
     if is_opinion:
         if not topic:
-            out["error"] = "comando /opinion sin tema"
+            out["error"] = "comando opinion sin tema"
             try:
                 post_message(token, channel_id,
-                             text="⚠️ Usá `/opinion <tema>` con el tema después del comando.",
+                             text=("⚠️ Usá `!opinion <tema>` o `?<tema>` con el "
+                                   "tema después del comando."),
                              thread_ts=msg_ts)
             except Exception:
                 pass
@@ -596,9 +604,12 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"\n● Listener arrancando — canal #{channel}, poll cada {poll_interval}s")
     print("  Comandos:")
-    print("    /opinion <tema>   → opinión fundamentada larga (cita portfolio, returns, macro)")
+    print("    !opinion <tema>   → opinión fundamentada larga (cita portfolio, returns, macro)")
+    print("    ??<tema>          → atajo corto para opinion")
+    print("    opinion: <tema>   → alternativa con dos puntos")
     print("    @handle <thread>  → engagement_reply para responder a otro post")
     print("    //                → escape, mensaje ignorado")
+    print("  (Nota: '/' no funciona porque Slack lo trata como slash command)")
     print("  Ctrl+C para detener.\n")
 
     try:
