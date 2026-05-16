@@ -754,34 +754,15 @@ def _build_user_input_opinion(
     """User input para post_type 'opinion'.
 
     Inyecta automáticamente: arquitectura del sistema, portfolio actual,
-    retornos por posición desde Alpaca, contexto macro.
+    retornos por posición desde Alpaca, contexto macro, cycle meta.
     """
-    # Macro context (cache-friendly: solo summary del último get_all_indicators)
-    macro_ctx = None
-    try:
-        from pipeline.macro_indicators import get_all_indicators
-        md = get_all_indicators()
-        macro_ctx = {
-            "fetched_at": md.get("fetched_at"),
-            "summary": md.get("summary"),
-            "indicators_brief": [
-                {
-                    "name": i.get("name"),
-                    "value": i.get("value"),
-                    "interpretation": i.get("interpretation"),
-                }
-                for i in (md.get("indicators") or [])
-            ],
-        }
-    except Exception:
-        macro_ctx = None
-
     payload = {
         "topic": topic,
         "system_architecture": _SYSTEM_ARCHITECTURE_BLOCK,
         "current_portfolio": _load_current_portfolio_summary(),
         "position_returns": _load_position_returns(),
-        "macro_context": macro_ctx,
+        "macro_context": _build_macro_brief(),
+        "cycle_meta": _load_cycle_meta(),
         "our_context": our_context or {},
     }
     return (
@@ -789,8 +770,103 @@ def _build_user_input_opinion(
         + json.dumps(payload, indent=2, ensure_ascii=False, default=str)
         + "\n```\n\n"
         "Devolvé una opinión fundamentada siguiendo las instrucciones. "
-        "Citá datos concretos del portfolio + retornos + macro cuando aplique."
+        "Citá datos concretos del portfolio + retornos + macro cuando aplique. "
+        "Si te preguntan desde cuándo opera el sistema, usá "
+        "`cycle_meta.cycle_start_date` y `days_since_start` — NO inventes "
+        "fechas tipo 'desde abril'."
     )
+
+
+def _load_cycle_meta() -> dict[str, Any] | None:
+    """Devuelve metadata del ciclo actual: cycle_id (=start date), days_running,
+    holdings count, cash, **performance vs benchmarks** desde el inicio del
+    ciclo. Usado por engagement_reply y opinion para responder a preguntas
+    de performance sin alucinar fechas ni 'muestra chica' cuando hay data real.
+    """
+    try:
+        from pipeline.state import load_current_holdings
+        from datetime import date as _date
+        s = load_current_holdings()
+        cycle_id = s.get("cycle_id")
+        if not cycle_id:
+            return None
+        try:
+            start = _date.fromisoformat(cycle_id)
+            days = (_date.today() - start).days
+        except Exception:
+            start = None
+            days = None
+
+        # Performance vs benchmarks desde el cycle_start
+        perf = None
+        if start is not None:
+            try:
+                import json as _json
+                from pathlib import Path
+                nav_path = Path(__file__).resolve().parents[2] / "pipeline" / "outputs" / "nav_history.jsonl"
+                if nav_path.exists():
+                    entries = []
+                    for line in nav_path.read_text(encoding="utf-8").splitlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            e = _json.loads(line)
+                            entries.append(e)
+                        except Exception:
+                            continue
+                    entries.sort(key=lambda x: x.get("date") or "")
+                    # Filtrar por ventana del ciclo (>= start, con equity_usd)
+                    window = [e for e in entries if e.get("date") and e["date"] >= cycle_id and e.get("equity_usd")]
+                    if len(window) >= 2:
+                        first, last = window[0], window[-1]
+                        def _ret(a, b):
+                            try:
+                                return round(((b - a) / a) * 100, 2)
+                            except Exception:
+                                return None
+                        perf = {
+                            "window_start": first.get("date"),
+                            "window_end": last.get("date"),
+                            "indigo_pct": _ret(first.get("equity_usd"), last.get("equity_usd")),
+                            "spy_pct": _ret(first.get("spy_close"), last.get("spy_close")) if first.get("spy_close") and last.get("spy_close") else None,
+                            "qqq_pct": _ret(first.get("qqq_close"), last.get("qqq_close")) if first.get("qqq_close") and last.get("qqq_close") else None,
+                            "trading_days_in_window": len(window),
+                        }
+                        if perf["indigo_pct"] is not None and perf["spy_pct"] is not None:
+                            perf["vs_spy_pp"] = round(perf["indigo_pct"] - perf["spy_pct"], 2)
+                        if perf["indigo_pct"] is not None and perf["qqq_pct"] is not None:
+                            perf["vs_qqq_pp"] = round(perf["indigo_pct"] - perf["qqq_pct"], 2)
+            except Exception:
+                perf = None
+
+        return {
+            "cycle_start_date": cycle_id,
+            "days_since_start": days,
+            "holdings_count": len(s.get("holdings", []) or []),
+            "cash_weight_pct": round((s.get("cash_weight") or 0) * 100, 2),
+            "performance_vs_benchmarks": perf,
+        }
+    except Exception:
+        return None
+
+
+def _build_macro_brief() -> dict[str, Any] | None:
+    """Macro brief para inyectar en payloads. Cache-friendly: solo summary."""
+    try:
+        from pipeline.macro_indicators import get_all_indicators
+        md = get_all_indicators()
+        return {
+            "fetched_at": md.get("fetched_at"),
+            "summary": md.get("summary"),
+            "indicators_brief": [
+                {"name": i.get("name"), "value": i.get("value"),
+                 "interpretation": i.get("interpretation")}
+                for i in (md.get("indicators") or [])
+            ],
+        }
+    except Exception:
+        return None
 
 
 def _build_user_input_engagement_reply(
@@ -800,10 +876,10 @@ def _build_user_input_engagement_reply(
 ) -> str:
     """User input para el generador de respuestas a threads ajenos.
 
-    Inyecta automáticamente: la arquitectura del sistema (9 etapas
-    canónicas) y el portfolio actual. Esto previene alucinaciones donde
-    el modelo dice "tres agentes" o inventa tickers que no están en
-    cartera.
+    Inyecta automáticamente: arquitectura del sistema (9 etapas), portfolio
+    actual, retornos por posición (Alpaca mark-to-market), macro context,
+    cycle metadata. Esto previene alucinaciones — el modelo SIEMPRE tiene
+    datos verificables para citar.
     """
     from pipeline.social.accounts import get_account
     account_meta = get_account(target_account)
@@ -814,13 +890,20 @@ def _build_user_input_engagement_reply(
         "our_context": our_context or {},
         "system_architecture": _SYSTEM_ARCHITECTURE_BLOCK,
         "current_portfolio": _load_current_portfolio_summary(),
+        "position_returns": _load_position_returns(),
+        "macro_context": _build_macro_brief(),
+        "cycle_meta": _load_cycle_meta(),
     }
     return (
         "THREAD AL QUE QUEREMOS RESPONDER (JSON):\n\n```json\n"
         + json.dumps(payload, indent=2, ensure_ascii=False, default=str)
         + "\n```\n\n"
         "Decidí si vale la pena responder y devolvé propuestas siguiendo "
-        "las instrucciones."
+        "las instrucciones. Si te preguntan por performance, returns, o "
+        "posiciones específicas, usá `position_returns` y `current_portfolio` "
+        "con cifras reales. Si te preguntan desde cuándo opera el sistema, "
+        "usá `cycle_meta.cycle_start_date` — NO inventes fechas (no es 'abril', "
+        "es la fecha real)."
     )
 
 

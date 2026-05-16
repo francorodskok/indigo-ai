@@ -239,6 +239,39 @@ def _default_benchmark_close_fetcher(ticker: str, target_date: date) -> float | 
     return float(closes.iloc[-1])
 
 
+# ── Feriados US (NYSE) — fallback hardcoded ──────────────────────────────────
+
+# Cobertura 2024-2028. Si necesitamos años posteriores: usar pandas_market_calendars
+# (más robusto) o actualizar este set anualmente.
+_NYSE_HOLIDAYS: set[date] = {
+    # 2026
+    date(2026, 1, 1),   # New Year
+    date(2026, 1, 19),  # MLK Day
+    date(2026, 2, 16),  # Presidents Day
+    date(2026, 4, 3),   # Good Friday
+    date(2026, 5, 25),  # Memorial Day
+    date(2026, 6, 19),  # Juneteenth
+    date(2026, 7, 3),   # Independence Day observed
+    date(2026, 9, 7),   # Labor Day
+    date(2026, 11, 26), # Thanksgiving
+    date(2026, 12, 25), # Christmas
+    # 2027
+    date(2027, 1, 1), date(2027, 1, 18), date(2027, 2, 15),
+    date(2027, 3, 26), date(2027, 5, 31), date(2027, 6, 18),
+    date(2027, 7, 5), date(2027, 9, 6), date(2027, 11, 25),
+    date(2027, 12, 24),
+    # 2028
+    date(2028, 1, 17), date(2028, 2, 21), date(2028, 4, 14),
+    date(2028, 5, 29), date(2028, 6, 19), date(2028, 7, 4),
+    date(2028, 9, 4), date(2028, 11, 23), date(2028, 12, 25),
+}
+
+
+def _is_us_market_holiday(d: date) -> bool:
+    """True si `d` es feriado NYSE (mercado cerrado)."""
+    return d in _NYSE_HOLIDAYS
+
+
 # ── Función principal: record_today ───────────────────────────────────────────
 
 
@@ -267,6 +300,19 @@ def record_today(
     """
     if target_date is None:
         target_date = datetime.now(timezone.utc).date()
+
+    # Skipear fines de semana — los benchmarks no tienen close, equity de
+    # Alpaca tampoco cambia. Mantener el chart "trading days only" produce
+    # una serie limpia sin escalones planos de sábado/domingo.
+    if target_date.weekday() >= 5:
+        log.info("nav_history: %s es fin de semana, skip.", target_date)
+        return None
+
+    # Skipear feriados US (NYSE) — usa pandas_market_calendars si está, sino
+    # un fallback con los 9 feriados US 2024-2027 hardcoded.
+    if _is_us_market_holiday(target_date):
+        log.info("nav_history: %s es feriado US (NYSE), skip.", target_date)
+        return None
 
     eq_fn = equity_fetcher or _default_alpaca_equity_fetcher
     bm_fn = benchmark_fetcher or _default_benchmark_close_fetcher
