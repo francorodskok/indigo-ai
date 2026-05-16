@@ -329,6 +329,59 @@ def process_message(
 
     raw_text = (msg.get("text") or "").strip()
     msg_ts = msg.get("ts", "")
+
+    # Detección de comando `/opinion <topic>` (o aliases `/op`, `/opina`)
+    # → enruta al generador opinion (largo + contextual) en vez de
+    # engagement_reply (corto, formato thread reply).
+    lower = raw_text.lower()
+    is_opinion = False
+    topic = ""
+    for prefix in ("/opinion ", "/opina ", "/op "):
+        if lower.startswith(prefix):
+            is_opinion = True
+            topic = raw_text[len(prefix):].strip()
+            break
+
+    if is_opinion:
+        if not topic:
+            out["error"] = "comando /opinion sin tema"
+            try:
+                post_message(token, channel_id,
+                             text="⚠️ Usá `/opinion <tema>` con el tema después del comando.",
+                             thread_ts=msg_ts)
+            except Exception:
+                pass
+            return out
+        try:
+            from pipeline.social.copy_generator import generate_post
+            from pipeline.social.regulatory_filter import review_draft
+            draft = generate_post(
+                "opinion", topic=topic, drafts_dir=drafts_dir, force=True,
+            )
+            draft = review_draft(draft)
+            out["draft_path"] = draft.get("_filePath")
+        except Exception as e:
+            log.exception("opinion falló para %s: %s", msg_ts, e)
+            out["error"] = f"{type(e).__name__}: {e}"
+            try:
+                post_message(token, channel_id,
+                             text=f"❌ opinion falló: `{out['error']}`",
+                             thread_ts=msg_ts)
+            except Exception:
+                pass
+            return out
+
+        # Postear la opinión: texto largo (no block-kit con multiple replies)
+        opinion_text = draft.get("content", {}).get("text", "") or "(sin texto)"
+        try:
+            post_message(token, channel_id, text=opinion_text, thread_ts=msg_ts)
+            out["posted_ok"] = True
+        except Exception as e:
+            log.exception("Post opinion a Slack falló: %s", e)
+            out["error"] = str(e)
+        return out
+
+    # Default: engagement_reply (modo respuesta a thread externo)
     target_account, thread_text = parse_listener_text(raw_text)
     out["target_account"] = target_account
 
@@ -542,8 +595,10 @@ def main(argv: list[str] | None = None) -> int:
     shutdown.install()
 
     print(f"\n● Listener arrancando — canal #{channel}, poll cada {poll_interval}s")
-    print("  Mandá mensajes al canal para disparar engagement_reply.")
-    print("  Mensajes que empiezan con // se ignoran (escape).")
+    print("  Comandos:")
+    print("    /opinion <tema>   → opinión fundamentada larga (cita portfolio, returns, macro)")
+    print("    @handle <thread>  → engagement_reply para responder a otro post")
+    print("    //                → escape, mensaje ignorado")
     print("  Ctrl+C para detener.\n")
 
     try:

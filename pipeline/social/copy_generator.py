@@ -45,6 +45,7 @@ SOURCE_POST_TYPES = (
     "engagement_reply",
     "introduccion_lanzamiento",  # one-off thread fundacional del paso 12
     "agenda_semanal",            # post breve del lunes con eventos + chiste IA
+    "opinion",                   # opinión fundamentada larga sobre tema del usuario
 )
 
 # Tipos adapters (toman un draft fuente aprobado y lo traducen a otra plataforma).
@@ -64,6 +65,7 @@ TYPE_TO_PLATFORM = {
     "engagement_reply": "x",
     "introduccion_lanzamiento": "x",
     "agenda_semanal": "x",
+    "opinion": "x",  # voz X (long-form Premium); el listener postea a Slack, usuario decide si publicarlo
 }
 
 # Default model: Sonnet 4.6 con effort medium. Suficiente para copy y barato
@@ -526,6 +528,11 @@ _VALIDATORS = {
     "engagement_reply": _validate_engagement_reply,
     "introduccion_lanzamiento": _validate_thread,  # mismo shape que thread normal
     "agenda_semanal": _validate_agenda_semanal,
+    "opinion": lambda parsed: (
+        []
+        if isinstance(parsed.get("text"), str) and len(parsed["text"].strip()) >= 200
+        else ["opinion debe tener 'text' >=200 chars"]
+    ),
 }
 
 
@@ -693,6 +700,97 @@ def _load_current_portfolio_summary() -> dict[str, Any] | None:
         }
     except Exception:
         return None
+
+
+def _load_position_returns() -> list[dict[str, Any]] | None:
+    """Fetcha Alpaca y devuelve retornos no realizados por posición.
+
+    Format: lista de {ticker, qty, avg_cost, current_price, market_value,
+    unrealized_pl_usd, unrealized_pl_pct, weight_actual_pct}.
+    None si Alpaca no responde o no hay credenciales.
+    """
+    try:
+        import os
+        import requests
+        key = os.getenv("ALPACA_KEY_ID") or os.getenv("ALPACA_API_KEY")
+        sec = os.getenv("ALPACA_SECRET_KEY") or os.getenv("ALPACA_API_SECRET")
+        base = os.getenv("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
+        if not (key and sec):
+            return None
+        headers = {"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": sec}
+        # Account para equity total
+        acc = requests.get(f"{base}/v2/account", headers=headers, timeout=10).json()
+        equity = float(acc.get("equity") or 0)
+        # Posiciones
+        positions = requests.get(f"{base}/v2/positions", headers=headers, timeout=10).json()
+        out = []
+        for p in positions:
+            try:
+                mv = float(p.get("market_value", 0))
+                cb = float(p.get("cost_basis", 0))
+                pl_usd = mv - cb
+                pl_pct = (pl_usd / cb * 100) if cb > 0 else 0.0
+                out.append({
+                    "ticker": p.get("symbol"),
+                    "qty": float(p.get("qty", 0)),
+                    "avg_cost": round(float(p.get("avg_entry_price", 0)), 2),
+                    "current_price": round(float(p.get("current_price", 0)), 2),
+                    "market_value": round(mv, 2),
+                    "unrealized_pl_usd": round(pl_usd, 2),
+                    "unrealized_pl_pct": round(pl_pct, 2),
+                    "weight_actual_pct": round((mv / equity * 100) if equity > 0 else 0, 2),
+                })
+            except (TypeError, ValueError):
+                continue
+        return sorted(out, key=lambda x: -x["unrealized_pl_pct"])
+    except Exception:
+        return None
+
+
+def _build_user_input_opinion(
+    topic: str,
+    our_context: dict[str, Any] | None,
+) -> str:
+    """User input para post_type 'opinion'.
+
+    Inyecta automáticamente: arquitectura del sistema, portfolio actual,
+    retornos por posición desde Alpaca, contexto macro.
+    """
+    # Macro context (cache-friendly: solo summary del último get_all_indicators)
+    macro_ctx = None
+    try:
+        from pipeline.macro_indicators import get_all_indicators
+        md = get_all_indicators()
+        macro_ctx = {
+            "fetched_at": md.get("fetched_at"),
+            "summary": md.get("summary"),
+            "indicators_brief": [
+                {
+                    "name": i.get("name"),
+                    "value": i.get("value"),
+                    "interpretation": i.get("interpretation"),
+                }
+                for i in (md.get("indicators") or [])
+            ],
+        }
+    except Exception:
+        macro_ctx = None
+
+    payload = {
+        "topic": topic,
+        "system_architecture": _SYSTEM_ARCHITECTURE_BLOCK,
+        "current_portfolio": _load_current_portfolio_summary(),
+        "position_returns": _load_position_returns(),
+        "macro_context": macro_ctx,
+        "our_context": our_context or {},
+    }
+    return (
+        "TEMA / PREGUNTA DEL USUARIO (JSON):\n\n```json\n"
+        + json.dumps(payload, indent=2, ensure_ascii=False, default=str)
+        + "\n```\n\n"
+        "Devolvé una opinión fundamentada siguiendo las instrucciones. "
+        "Citá datos concretos del portfolio + retornos + macro cuando aplique."
+    )
 
 
 def _build_user_input_engagement_reply(
@@ -934,6 +1032,10 @@ def generate_post(
             events=events,
             our_context=our_context,
         )
+    elif post_type == "opinion":
+        if not topic:
+            raise ValueError("opinion requiere `topic`")
+        user_input = _build_user_input_opinion(topic, our_context)
     elif post_type in ADAPTER_POST_TYPES:
         if source_draft is None:
             raise ValueError(

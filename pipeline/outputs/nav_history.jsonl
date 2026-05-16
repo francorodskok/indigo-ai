@@ -154,3 +154,7 @@
 {"date": "2026-05-04", "spy_close": 718.01, "qqq_close": 672.88}
 {"date": "2026-05-05", "spy_close": 723.77, "qqq_close": 681.61}
 {"date": "2026-05-06", "spy_close": 732.84, "qqq_close": 693.84}
+{"date": "2026-05-13", "equity_usd": 100000.0, "spy_close": 742.31, "qqq_close": 714.71}
+{"date": "2026-05-14", "equity_usd": 100098.99, "spy_close": 748.17, "qqq_close": 719.79}
+{"date": "2026-05-15", "equity_usd": 101555.61, "spy_close": 738.65, "qqq_close": 707.43}
+{"date": "2026-05-16", "equity_usd": 101703.61, "spy_close": 739.17, "qqq_close": 708.93}
