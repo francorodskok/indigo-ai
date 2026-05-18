@@ -134,7 +134,60 @@ def run(
     else:
         out["social"] = {"ok": True, "skipped": True}
 
+    # ── Git push de NAV history → dispara redeploy de Vercel ─────────────────
+    # Sin esto, el chart del dashboard nunca se actualiza (los archivos viven
+    # localmente pero Vercel pulls desde GitHub). Skipea si dry_run o si no
+    # hay cambios.
+    if not dry_run and not skip_nav and out.get("nav", {}).get("ok"):
+        out["git_push"] = _push_nav_to_git()
+    else:
+        out["git_push"] = {"ok": True, "skipped": True}
+
     return out
+
+
+def _push_nav_to_git() -> dict[str, Any]:
+    """Auto-commit + push de nav_history.jsonl para que Vercel redeployee.
+
+    Idempotente: si no hay cambios reales, exit 0 sin push.
+    Nunca raisea — atrapa todo y reporta.
+    """
+    import subprocess
+    repo_root = Path(__file__).resolve().parent.parent
+    try:
+        # ¿Hay cambios en el archivo?
+        status = subprocess.run(
+            ["git", "status", "--porcelain", "pipeline/outputs/nav_history.jsonl"],
+            cwd=str(repo_root), capture_output=True, text=True, timeout=15,
+        )
+        if not status.stdout.strip():
+            log.info("[daily/git] nav_history sin cambios — skip push.")
+            return {"ok": True, "skipped": "no_changes"}
+
+        # Add (force porque pipeline/outputs/ está gitignored excepto los que ya rastrea)
+        subprocess.run(
+            ["git", "add", "-f", "pipeline/outputs/nav_history.jsonl"],
+            cwd=str(repo_root), check=True, timeout=15,
+        )
+        # Commit con mensaje automatizado
+        today_iso = date.today().isoformat()
+        subprocess.run(
+            ["git", "commit", "-m", f"data(nav): auto-snapshot {today_iso}"],
+            cwd=str(repo_root), check=True, timeout=15,
+        )
+        # Push
+        subprocess.run(
+            ["git", "push", "origin", "main"],
+            cwd=str(repo_root), check=True, timeout=60,
+        )
+        log.info("[daily/git] nav_history pusheado a origin/main.")
+        return {"ok": True, "pushed": True}
+    except subprocess.CalledProcessError as e:
+        log.warning("[daily/git] falló: %s", e)
+        return {"ok": False, "detail": f"git failed: {e}"}
+    except Exception as e:
+        log.warning("[daily/git] error: %s", e)
+        return {"ok": False, "detail": str(e)}
 
 
 def _print_summary(result: dict[str, Any], *, dry_run: bool) -> None:
@@ -169,6 +222,14 @@ def _print_summary(result: dict[str, Any], *, dry_run: bool) -> None:
             print(f"│  ✓  social: día {day} del ciclo, {gens} drafts generados")
     else:
         print(f"│  ✗  social: {soc.get('detail', 'error')}")
+
+    gp = result.get("git_push", {})
+    if gp.get("skipped"):
+        print(f"│  ⊘  git push: {gp.get('skipped')}")
+    elif gp.get("ok"):
+        print("│  ✓  git push: nav_history → origin/main (Vercel redeploy disparado)")
+    else:
+        print(f"│  ✗  git push: {gp.get('detail', 'error')}")
     print("└─\n")
 
 
