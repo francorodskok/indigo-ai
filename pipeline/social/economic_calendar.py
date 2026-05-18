@@ -116,7 +116,13 @@ _FRED_RELEASES_OF_INTEREST = {
 
 
 def _fred_release_dates_in_week(monday: date) -> list[dict[str, Any]]:
-    """Releases FRED programados para [monday, monday+5)."""
+    """Releases FRED programados para [monday, monday+5).
+
+    Hace una query por cada release_id de interés (16-20 calls). Endpoint
+    `/release/dates` filtra por release y devuelve payload chico (~30 dates),
+    mucho más rápido que `/releases/dates` global (que devuelve miles y
+    suele timeoutear).
+    """
     api_key = os.getenv("FRED_API_KEY", "").strip()
     if not api_key:
         return []
@@ -127,48 +133,52 @@ def _fred_release_dates_in_week(monday: date) -> list[dict[str, Any]]:
         return []
 
     week_end = monday + timedelta(days=5)
-    out = []
-    try:
-        r = requests.get(
-            f"{_FRED_BASE}/releases/dates",
-            params={
-                "api_key": api_key,
-                "file_type": "json",
-                "realtime_start": monday.isoformat(),
-                "realtime_end": week_end.isoformat(),
-                "include_release_dates_with_no_data": "true",
-                "limit": 1000,
-            },
-            timeout=10,
-        )
-        if r.status_code != 200:
-            return []
-        data = r.json()
-        for rd in data.get("release_dates", []):
-            rid = rd.get("release_id")
-            rdate = rd.get("date")
-            if rid not in _FRED_RELEASES_OF_INTEREST:
+    # Dedupe por (rid): FRED devuelve múltiples fechas por release (la
+    # primaria + revisiones). Nos quedamos con la fecha mínima en la
+    # semana — esa es la fecha del release principal.
+    earliest_by_rid: dict[int, dict[str, Any]] = {}
+    for rid, title in _FRED_RELEASES_OF_INTEREST.items():
+        try:
+            r = requests.get(
+                f"{_FRED_BASE}/release/dates",
+                params={
+                    "api_key": api_key,
+                    "file_type": "json",
+                    "release_id": rid,
+                    "realtime_start": monday.isoformat(),
+                    "realtime_end": week_end.isoformat(),
+                    "include_release_dates_with_no_data": "true",
+                },
+                timeout=8,
+            )
+            if r.status_code != 200:
                 continue
-            if not rdate:
-                continue
-            try:
-                d_obj = date.fromisoformat(rdate)
-            except ValueError:
-                continue
-            if not (monday <= d_obj < week_end):
-                continue
-            weekday = ["lunes", "martes", "miércoles", "jueves", "viernes"][d_obj.weekday()]
-            out.append({
-                "date": rdate,
-                "weekday": weekday,
-                "category": "macro_release",
-                "title": _FRED_RELEASES_OF_INTEREST[rid],
-                "relevance": "Release oficial — release_id FRED: " + str(rid),
-                "source": "FRED API (oficial)",
-            })
-    except Exception:
-        return []
-    return out
+            data = r.json()
+            for rd in data.get("release_dates", []):
+                rdate = rd.get("date")
+                if not rdate:
+                    continue
+                try:
+                    d_obj = date.fromisoformat(rdate)
+                except ValueError:
+                    continue
+                if not (monday <= d_obj < week_end):
+                    continue
+                weekday = ["lunes", "martes", "miércoles", "jueves", "viernes"][d_obj.weekday()]
+                entry = {
+                    "date": rdate,
+                    "weekday": weekday,
+                    "category": "macro_release",
+                    "title": title,
+                    "relevance": f"Release oficial — FRED release_id {rid}.",
+                    "source": "FRED API (oficial)",
+                }
+                existing = earliest_by_rid.get(rid)
+                if existing is None or rdate < existing["date"]:
+                    earliest_by_rid[rid] = entry
+        except Exception:
+            continue
+    return list(earliest_by_rid.values())
 
 
 # ── Earnings de holdings actuales (yfinance, gratis) ─────────────────────────
