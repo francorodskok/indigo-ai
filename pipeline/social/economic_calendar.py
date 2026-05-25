@@ -97,6 +97,47 @@ def _fomc_events_in_week(monday: date) -> list[dict[str, Any]]:
 #   - BEA: https://www.bea.gov/news/schedule
 #   - Census: https://www.census.gov/economic-indicators/calendar-listview.html
 #   - Conference Board: https://www.conference-board.org/data/economy.cfm
+# Earnings de gigantes que mueven sentiment aunque no estén en portafolio.
+# Curado manualmente — actualizar quincenalmente desde IR pages / consensus.
+_BIG_EARNINGS_2026: list[dict[str, Any]] = [
+    {"date": date(2026, 5, 27), "ticker": "DELL",
+     "context": "Server/AI infra spend signal, especialmente datacenter."},
+    {"date": date(2026, 5, 28), "ticker": "NVDA",
+     "context": "El reporte del trimestre que define el sentiment de toda la semana — AI capex, guidance datacenter, comentarios sobre Blackwell."},
+    {"date": date(2026, 5, 28), "ticker": "CRM",
+     "context": "Software enterprise + AI agents tier — proxy del gasto corporativo en IA aplicada."},
+    {"date": date(2026, 5, 28), "ticker": "COST",
+     "context": "Consumidor americano — high-income proxy y membership renewal trends."},
+    {"date": date(2026, 5, 29), "ticker": "MRVL",
+     "context": "Otro tap del AI infra spend, especialmente custom silicon."},
+    # Junio
+    {"date": date(2026, 6, 3), "ticker": "AVGO",
+     "context": "Apple plus AI custom chip spend — guidance puede mover SOX entero."},
+    {"date": date(2026, 6, 18), "ticker": "ORCL",
+     "context": "Cloud + AI infra commitments — el guidance de RPO contractual es la métrica clave."},
+]
+
+
+def _big_earnings_in_week(monday: date) -> list[dict[str, Any]]:
+    """Earnings de gigantes que mueven sentiment esta semana."""
+    week_end = monday + timedelta(days=5)
+    out = []
+    for entry in _BIG_EARNINGS_2026:
+        d = entry["date"]
+        if monday <= d < week_end:
+            weekday = ["lunes", "martes", "miércoles", "jueves", "viernes"][d.weekday()]
+            out.append({
+                "date": d.isoformat(),
+                "weekday": weekday,
+                "category": "earnings_market_mover",
+                "ticker": entry["ticker"],
+                "title": f"Earnings {entry['ticker']}",
+                "relevance": entry["context"],
+                "source": "Curated big earnings 2026 (IR pages)",
+            })
+    return out
+
+
 _CURATED_RELEASES_2026: list[dict[str, Any]] = [
     # Mayo 2026 (semana 25-29)
     {"date": date(2026, 5, 26), "title": "Conference Board Consumer Confidence (mayo)",
@@ -336,17 +377,19 @@ def fetch_weekly_events(monday: date) -> dict[str, Any]:
           fred_count: int
     """
     fomc = _fomc_events_in_week(monday)
-    earnings = _holdings_earnings_in_week(monday)
+    holdings_earnings = _holdings_earnings_in_week(monday)
+    big_earnings = _big_earnings_in_week(monday)
     curated = _curated_macro_releases_in_week(monday)
 
     sources = [
         "FOMC schedule (hardcoded oficial)",
         "Calendario macro curado (BLS/BEA/Census/ISM/Fed schedules)",
-        "yfinance earnings calendar",
+        "yfinance earnings calendar (holdings)",
+        "Big earnings curated (market-movers)",
     ]
 
     all_events = sorted(
-        fomc + earnings + curated,
+        fomc + holdings_earnings + big_earnings + curated,
         key=lambda e: (e.get("date") or "", e.get("category") or ""),
     )
     data_quality = "real" if all_events else "no_real_calendar"
@@ -357,8 +400,9 @@ def fetch_weekly_events(monday: date) -> dict[str, Any]:
         "events": all_events,
         "sources_used": sources,
         "data_quality": data_quality,
-        "fred_available": False,  # deprecated — usamos curated en su lugar
+        "fred_available": False,
         "fomc_count": len(fomc),
-        "earnings_count": len(earnings),
+        "holdings_earnings_count": len(holdings_earnings),
+        "big_earnings_count": len(big_earnings),
         "curated_count": len(curated),
     }
