@@ -100,21 +100,92 @@ def _fomc_events_in_week(monday: date) -> list[dict[str, Any]]:
 # Earnings de gigantes que mueven sentiment aunque no estén en portafolio.
 # Curado manualmente — actualizar quincenalmente desde IR pages / consensus.
 _BIG_EARNINGS_2026: list[dict[str, Any]] = [
-    {"date": date(2026, 5, 27), "ticker": "DELL",
-     "context": "Server/AI infra spend signal, especialmente datacenter."},
-    {"date": date(2026, 5, 28), "ticker": "NVDA",
-     "context": "El reporte del trimestre que define el sentiment de toda la semana — AI capex, guidance datacenter, comentarios sobre Blackwell."},
-    {"date": date(2026, 5, 28), "ticker": "CRM",
-     "context": "Software enterprise + AI agents tier — proxy del gasto corporativo en IA aplicada."},
+    # ════════════════════════ MAYO 2026 ════════════════════════
+    # NVDA reportó el 20/5, no esta semana. NO incluir el 28.
+    {"date": date(2026, 5, 27), "ticker": "CRM",
+     "context": "Software enterprise + AI agents tier — proxy del gasto corporativo en IA aplicada. Reporta after market close."},
+    {"date": date(2026, 5, 27), "ticker": "MRVL",
+     "context": "Custom silicon AI infra spend, 1:45 PM PT — primer read después de NVDA del 20/5."},
+    {"date": date(2026, 5, 28), "ticker": "DELL",
+     "context": "Server/AI infra spend signal, datacenter. Reporta 3:30 PM CDT."},
     {"date": date(2026, 5, 28), "ticker": "COST",
-     "context": "Consumidor americano — high-income proxy y membership renewal trends."},
-    {"date": date(2026, 5, 29), "ticker": "MRVL",
-     "context": "Otro tap del AI infra spend, especialmente custom silicon."},
-    # Junio
+     "context": "Consumidor high-income — membership renewal y ticket de compra."},
+
+    # ════════════════════════ JUNIO 2026 ════════════════════════
     {"date": date(2026, 6, 3), "ticker": "AVGO",
-     "context": "Apple plus AI custom chip spend — guidance puede mover SOX entero."},
+     "context": "Apple silicon + AI custom chip spend — guidance puede mover SOX entero."},
+    {"date": date(2026, 6, 4), "ticker": "LULU",
+     "context": "Consumidor discrecional premium — termómetro del shopper de gama alta."},
     {"date": date(2026, 6, 18), "ticker": "ORCL",
      "context": "Cloud + AI infra commitments — el guidance de RPO contractual es la métrica clave."},
+    {"date": date(2026, 6, 24), "ticker": "FDX",
+     "context": "Logistics y volúmenes globales — proxy del comercio internacional."},
+    {"date": date(2026, 6, 25), "ticker": "NKE",
+     "context": "Consumidor global + China exposure — recovery de demanda y márgenes brutos."},
+    {"date": date(2026, 6, 26), "ticker": "PAYX",
+     "context": "Small business employment trends — indicador adelantado del mercado laboral."},
+
+    # ════════════════════════ JULIO 2026 (Q2 earnings season) ════════════════════════
+    # Bancos abren la temporada
+    {"date": date(2026, 7, 14), "ticker": "JPM",
+     "context": "Banco más grande de US, NIM y provisiones — abre Q2 earnings season."},
+    {"date": date(2026, 7, 14), "ticker": "WFC",
+     "context": "Net interest income y trends de crédito al consumidor."},
+    {"date": date(2026, 7, 14), "ticker": "C",
+     "context": "Trading revenue y banca internacional."},
+    {"date": date(2026, 7, 15), "ticker": "BAC",
+     "context": "NIM y trends de cartera de tarjetas."},
+    {"date": date(2026, 7, 15), "ticker": "MS",
+     "context": "Wealth management y IB pipeline."},
+    {"date": date(2026, 7, 16), "ticker": "GS",
+     "context": "Trading y advisory — termómetro de actividad institucional."},
+    {"date": date(2026, 7, 16), "ticker": "ASML",
+     "context": "Pulso del capex global en semiconductores — orders pipeline 24-36 meses."},
+    {"date": date(2026, 7, 17), "ticker": "TSM",
+     "context": "AI capex y guidance de utilization. Mueve toda la cadena de semis."},
+    {"date": date(2026, 7, 20), "ticker": "NFLX",
+     "context": "(holding propio) — ARPU, ad-tier scale, password sharing efectividad continua."},
+    {"date": date(2026, 7, 21), "ticker": "ISRG",
+     "context": "Procedure growth, instalación de da Vinci — médico discrecional."},
+    {"date": date(2026, 7, 22), "ticker": "GOOGL",
+     "context": "Cloud growth (AI workloads), search resilience post-AI Overviews."},
+    {"date": date(2026, 7, 22), "ticker": "TSLA",
+     "context": "Margen automotive, FSD progress, energy storage scale."},
+    {"date": date(2026, 7, 23), "ticker": "IBM",
+     "context": "Software + consulting recovery, Red Hat ARR."},
+    {"date": date(2026, 7, 23), "ticker": "T",
+     "context": "Wireless ARPU y FCF guidance — yield play."},
+    # Mega-cap tech last week
+    {"date": date(2026, 7, 28), "ticker": "META",
+     "context": "Reality Labs burn, ad pricing, capex AI guidance."},
+    {"date": date(2026, 7, 29), "ticker": "MSFT",
+     "context": "(holding propio) — Azure growth y Copilot monetization."},
+    {"date": date(2026, 7, 29), "ticker": "AAPL",
+     "context": "iPhone replacement cycle, services growth, gross margin trajectory."},
+    {"date": date(2026, 7, 30), "ticker": "AMZN",
+     "context": "AWS growth + AI workloads, retail margin recovery."},
+    {"date": date(2026, 7, 30), "ticker": "INTC",
+     "context": "Foundry strategy, datacenter recovery."},
+
+    # ════════════════════════ AGOSTO 2026 ════════════════════════
+    {"date": date(2026, 8, 5), "ticker": "DIS",
+     "context": "Streaming profitability, parks attendance, sports/ESPN integration."},
+    {"date": date(2026, 8, 6), "ticker": "LLY",
+     "context": "GLP-1 manufacturing capacity y supply, competition vs Novo."},
+    {"date": date(2026, 8, 7), "ticker": "EXPE",
+     "context": "Travel demand pulse, especialmente Latin America y Europa."},
+    {"date": date(2026, 8, 25), "ticker": "PANW",
+     "context": "Cybersec spend post-major breaches, platform consolidation."},
+    {"date": date(2026, 8, 26), "ticker": "CRWD",
+     "context": "Cybersec ARR y net retention después del incidente de 2024."},
+    {"date": date(2026, 8, 26), "ticker": "NVDA",
+     "context": "Reporte de Q2 — el evento del trimestre para semis y AI infra."},
+    {"date": date(2026, 8, 27), "ticker": "DELL",
+     "context": "Servers AI guidance y datacenter momentum."},
+    {"date": date(2026, 8, 27), "ticker": "MRVL",
+     "context": "Custom silicon design wins, AI infra exposure."},
+    {"date": date(2026, 8, 28), "ticker": "ADSK",
+     "context": "(holding propio) — Flex adoption, NRR en construcción/infra."},
 ]
 
 
@@ -138,44 +209,103 @@ def _big_earnings_in_week(monday: date) -> list[dict[str, Any]]:
     return out
 
 
+def _jueves_de(y: int, m: int) -> list[date]:
+    """Devuelve todos los jueves del mes (para Jobless Claims semanales)."""
+    out = []
+    d = date(y, m, 1)
+    while d.month == m:
+        if d.weekday() == 3:  # jueves
+            out.append(d)
+        d = d + timedelta(days=1)
+    return out
+
+
 _CURATED_RELEASES_2026: list[dict[str, Any]] = [
-    # Mayo 2026 (semana 25-29)
-    {"date": date(2026, 5, 26), "title": "Conference Board Consumer Confidence (mayo)",
-     "source": "Conference Board (oficial)"},
-    {"date": date(2026, 5, 26), "title": "S&P CoreLogic Case-Shiller Home Prices (marzo)",
-     "source": "S&P Global (oficial)"},
-    {"date": date(2026, 5, 28), "title": "GDP Q1 2026 - 2da estimación (BEA)",
-     "source": "BEA (oficial, 8:30 ET)"},
-    {"date": date(2026, 5, 28), "title": "Personal Income & Outlays - PCE abril (BEA)",
-     "source": "BEA (oficial, 8:30 ET)"},
-    {"date": date(2026, 5, 28), "title": "Pending Home Sales (abril)",
-     "source": "NAR (oficial)"},
-    # Jobless claims son todos los jueves
-    {"date": date(2026, 5, 28), "title": "Initial Jobless Claims (semanal)",
-     "source": "Department of Labor (oficial, 8:30 ET)"},
-    # Junio 2026 (primera semana)
-    {"date": date(2026, 6, 1), "title": "ISM Manufacturing PMI (mayo)",
-     "source": "ISM (oficial)"},
-    {"date": date(2026, 6, 2), "title": "JOLTS Job Openings (abril)",
-     "source": "BLS (oficial)"},
-    {"date": date(2026, 6, 3), "title": "ADP Employment Change (mayo)",
-     "source": "ADP (oficial)"},
-    {"date": date(2026, 6, 3), "title": "ISM Services PMI (mayo)",
-     "source": "ISM (oficial)"},
-    {"date": date(2026, 6, 4), "title": "Initial Jobless Claims (semanal)",
-     "source": "Department of Labor (oficial, 8:30 ET)"},
-    {"date": date(2026, 6, 5), "title": "Nonfarm Payrolls + Unemployment Rate (mayo)",
-     "source": "BLS (oficial, 8:30 ET)"},
-    # Junio 2026 (segunda semana)
-    {"date": date(2026, 6, 10), "title": "CPI mayo (Inflación headline + core)",
-     "source": "BLS (oficial, 8:30 ET)"},
-    {"date": date(2026, 6, 11), "title": "PPI mayo (Inflación productor)",
-     "source": "BLS (oficial, 8:30 ET)"},
-    {"date": date(2026, 6, 11), "title": "Initial Jobless Claims (semanal)",
-     "source": "Department of Labor (oficial, 8:30 ET)"},
-    {"date": date(2026, 6, 13), "title": "University of Michigan Consumer Sentiment (preliminar junio)",
-     "source": "U Michigan (oficial)"},
+    # ════════════════════════ MAYO 2026 ════════════════════════
+    {"date": date(2026, 5, 26), "title": "Conference Board Consumer Confidence (mayo)", "source": "Conference Board"},
+    {"date": date(2026, 5, 26), "title": "S&P CoreLogic Case-Shiller Home Prices (con dos meses de lag)", "source": "S&P Global"},
+    # NOTA: Pending Home Sales de abril ya salió el 19/5 — NO va el 28.
+    # Próximo Pending Home Sales (mayo) = 17 junio.
+    {"date": date(2026, 5, 28), "title": "GDP Q1 2026 - 2da estimación (BEA)", "source": "BEA (8:30 ET)"},
+    {"date": date(2026, 5, 28), "title": "Personal Income & Outlays - PCE abril (BEA)", "source": "BEA (8:30 ET)"},
+    {"date": date(2026, 5, 28), "title": "Initial Jobless Claims (semanal)", "source": "DoL (8:30 ET)"},
+
+    # ════════════════════════ JUNIO 2026 ════════════════════════
+    {"date": date(2026, 6, 1), "title": "ISM Manufacturing PMI (mayo)", "source": "ISM (10:00 ET)"},
+    {"date": date(2026, 6, 2), "title": "JOLTS Job Openings (abril)", "source": "BLS (10:00 ET)"},
+    {"date": date(2026, 6, 3), "title": "ADP Employment Change (mayo)", "source": "ADP (8:15 ET)"},
+    {"date": date(2026, 6, 3), "title": "ISM Services PMI (mayo)", "source": "ISM (10:00 ET)"},
+    {"date": date(2026, 6, 5), "title": "Nonfarm Payrolls + Unemployment Rate (mayo) — NFP, el dato del mes", "source": "BLS (8:30 ET)"},
+    {"date": date(2026, 6, 10), "title": "CPI mayo (inflación headline + core) — el otro dato del mes", "source": "BLS (8:30 ET)"},
+    {"date": date(2026, 6, 11), "title": "PPI mayo (inflación productor)", "source": "BLS (8:30 ET)"},
+    {"date": date(2026, 6, 12), "title": "U Michigan Consumer Sentiment preliminar (junio)", "source": "U Michigan (10:00 ET)"},
+    {"date": date(2026, 6, 16), "title": "Retail Sales (mayo)", "source": "Census (8:30 ET)"},
+    {"date": date(2026, 6, 16), "title": "Industrial Production (mayo)", "source": "Fed (9:15 ET)"},
+    {"date": date(2026, 6, 17), "title": "Pending Home Sales (mayo)", "source": "NAR"},
+    # FOMC Jun 16-17: decisión miércoles 17 (ya está en _FOMC_2026, no duplicar)
+    {"date": date(2026, 6, 18), "title": "Housing Starts + Building Permits (mayo)", "source": "Census (8:30 ET)"},
+    {"date": date(2026, 6, 22), "title": "Existing Home Sales (mayo)", "source": "NAR"},
+    {"date": date(2026, 6, 23), "title": "New Home Sales (mayo)", "source": "Census (10:00 ET)"},
+    {"date": date(2026, 6, 25), "title": "Durable Goods Orders (mayo)", "source": "Census (8:30 ET)"},
+    {"date": date(2026, 6, 25), "title": "GDP Q1 2026 - estimación final (BEA)", "source": "BEA (8:30 ET)"},
+    {"date": date(2026, 6, 26), "title": "Personal Income & Outlays - PCE mayo (BEA) — Fed's preferred inflation gauge", "source": "BEA (8:30 ET)"},
+    {"date": date(2026, 6, 30), "title": "Conference Board Consumer Confidence (junio)", "source": "Conference Board"},
+    {"date": date(2026, 6, 30), "title": "S&P CoreLogic Case-Shiller Home Prices (abril)", "source": "S&P Global"},
+
+    # ════════════════════════ JULIO 2026 ════════════════════════
+    {"date": date(2026, 7, 1), "title": "ISM Manufacturing PMI (junio)", "source": "ISM"},
+    {"date": date(2026, 7, 2), "title": "ADP Employment Change (junio)", "source": "ADP"},
+    {"date": date(2026, 7, 2), "title": "ISM Services PMI (junio)", "source": "ISM"},
+    {"date": date(2026, 7, 3), "title": "Nonfarm Payrolls + Unemployment Rate (junio) — NFP", "source": "BLS (8:30 ET)"},
+    {"date": date(2026, 7, 7), "title": "JOLTS Job Openings (mayo)", "source": "BLS"},
+    {"date": date(2026, 7, 14), "title": "CPI junio (inflación) — primer dato post-FOMC", "source": "BLS (8:30 ET)"},
+    {"date": date(2026, 7, 15), "title": "PPI junio", "source": "BLS (8:30 ET)"},
+    {"date": date(2026, 7, 16), "title": "Retail Sales (junio)", "source": "Census (8:30 ET)"},
+    {"date": date(2026, 7, 16), "title": "Industrial Production (junio)", "source": "Fed"},
+    {"date": date(2026, 7, 17), "title": "Housing Starts + Building Permits (junio)", "source": "Census"},
+    {"date": date(2026, 7, 17), "title": "U Michigan Consumer Sentiment preliminar (julio)", "source": "U Michigan"},
+    {"date": date(2026, 7, 22), "title": "Existing Home Sales (junio)", "source": "NAR"},
+    {"date": date(2026, 7, 24), "title": "New Home Sales (junio)", "source": "Census"},
+    # FOMC Jul 28-29: decisión miércoles 29 (en _FOMC_2026)
+    {"date": date(2026, 7, 28), "title": "Conference Board Consumer Confidence (julio)", "source": "Conference Board"},
+    {"date": date(2026, 7, 28), "title": "Case-Shiller Home Prices (mayo)", "source": "S&P Global"},
+    {"date": date(2026, 7, 30), "title": "GDP Q2 2026 - 1ra estimación (BEA) — primer pulso del trimestre", "source": "BEA (8:30 ET)"},
+    {"date": date(2026, 7, 31), "title": "Personal Income & Outlays - PCE junio", "source": "BEA (8:30 ET)"},
+    {"date": date(2026, 7, 31), "title": "Employment Cost Index Q2", "source": "BLS"},
+
+    # ════════════════════════ AGOSTO 2026 ════════════════════════
+    {"date": date(2026, 8, 3), "title": "ISM Manufacturing PMI (julio)", "source": "ISM"},
+    {"date": date(2026, 8, 5), "title": "ADP Employment Change (julio)", "source": "ADP"},
+    {"date": date(2026, 8, 5), "title": "ISM Services PMI (julio)", "source": "ISM"},
+    {"date": date(2026, 8, 7), "title": "Nonfarm Payrolls + Unemployment Rate (julio) — NFP", "source": "BLS (8:30 ET)"},
+    {"date": date(2026, 8, 12), "title": "CPI julio (inflación)", "source": "BLS (8:30 ET)"},
+    {"date": date(2026, 8, 13), "title": "PPI julio", "source": "BLS (8:30 ET)"},
+    {"date": date(2026, 8, 14), "title": "Retail Sales (julio)", "source": "Census (8:30 ET)"},
+    {"date": date(2026, 8, 14), "title": "Industrial Production (julio)", "source": "Fed"},
+    {"date": date(2026, 8, 14), "title": "U Michigan Consumer Sentiment preliminar (agosto)", "source": "U Michigan"},
+    {"date": date(2026, 8, 18), "title": "Housing Starts + Building Permits (julio)", "source": "Census"},
+    {"date": date(2026, 8, 19), "title": "FOMC Minutes (reunión del 28-29 julio)", "source": "Fed"},
+    {"date": date(2026, 8, 21), "title": "Existing Home Sales (julio)", "source": "NAR"},
+    # Jackson Hole symposium: típicamente 3er jueves-sábado de agosto
+    {"date": date(2026, 8, 20), "title": "Jackson Hole Economic Policy Symposium (inicio) — Powell habla viernes", "source": "Kansas City Fed"},
+    {"date": date(2026, 8, 25), "title": "New Home Sales (julio)", "source": "Census"},
+    {"date": date(2026, 8, 25), "title": "Conference Board Consumer Confidence (agosto)", "source": "Conference Board"},
+    {"date": date(2026, 8, 25), "title": "Case-Shiller Home Prices (junio)", "source": "S&P Global"},
+    {"date": date(2026, 8, 26), "title": "Durable Goods Orders (julio)", "source": "Census"},
+    {"date": date(2026, 8, 27), "title": "GDP Q2 2026 - 2da estimación", "source": "BEA"},
+    {"date": date(2026, 8, 28), "title": "Personal Income & Outlays - PCE julio", "source": "BEA (8:30 ET)"},
 ]
+
+# Jobless Claims se publican TODOS los jueves 8:30 ET. Los expandimos
+# programáticamente para junio-agosto 2026 (los del 28 mayo + jueves 4/6
+# están manuales arriba).
+for _year, _month in [(2026, 6), (2026, 7), (2026, 8)]:
+    for _jueves in _jueves_de(_year, _month):
+        _CURATED_RELEASES_2026.append({
+            "date": _jueves,
+            "title": "Initial Jobless Claims (semanal)",
+            "source": "DoL (8:30 ET)",
+        })
 
 
 def _curated_macro_releases_in_week(monday: date) -> list[dict[str, Any]]:
