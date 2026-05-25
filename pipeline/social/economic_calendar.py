@@ -88,7 +88,75 @@ def _fomc_events_in_week(monday: date) -> list[dict[str, Any]]:
     return out
 
 
-# ── FRED economic releases (requiere FRED_API_KEY gratis) ─────────────────────
+# ── Calendario curado de releases macro US (BLS/BEA/Census/Fed) ──────────────
+# FRED `release/dates` resultó poco confiable: devuelve dates de revisiones
+# y placeholders, no la fecha real del release. Mejor mantener una lista
+# curada mensual basada en los schedules oficiales.
+# Actualizar mensualmente desde:
+#   - BLS: https://www.bls.gov/schedule/news_release/home.htm
+#   - BEA: https://www.bea.gov/news/schedule
+#   - Census: https://www.census.gov/economic-indicators/calendar-listview.html
+#   - Conference Board: https://www.conference-board.org/data/economy.cfm
+_CURATED_RELEASES_2026: list[dict[str, Any]] = [
+    # Mayo 2026 (semana 25-29)
+    {"date": date(2026, 5, 26), "title": "Conference Board Consumer Confidence (mayo)",
+     "source": "Conference Board (oficial)"},
+    {"date": date(2026, 5, 26), "title": "S&P CoreLogic Case-Shiller Home Prices (marzo)",
+     "source": "S&P Global (oficial)"},
+    {"date": date(2026, 5, 28), "title": "GDP Q1 2026 - 2da estimación (BEA)",
+     "source": "BEA (oficial, 8:30 ET)"},
+    {"date": date(2026, 5, 28), "title": "Personal Income & Outlays - PCE abril (BEA)",
+     "source": "BEA (oficial, 8:30 ET)"},
+    {"date": date(2026, 5, 28), "title": "Pending Home Sales (abril)",
+     "source": "NAR (oficial)"},
+    # Jobless claims son todos los jueves
+    {"date": date(2026, 5, 28), "title": "Initial Jobless Claims (semanal)",
+     "source": "Department of Labor (oficial, 8:30 ET)"},
+    # Junio 2026 (primera semana)
+    {"date": date(2026, 6, 1), "title": "ISM Manufacturing PMI (mayo)",
+     "source": "ISM (oficial)"},
+    {"date": date(2026, 6, 2), "title": "JOLTS Job Openings (abril)",
+     "source": "BLS (oficial)"},
+    {"date": date(2026, 6, 3), "title": "ADP Employment Change (mayo)",
+     "source": "ADP (oficial)"},
+    {"date": date(2026, 6, 3), "title": "ISM Services PMI (mayo)",
+     "source": "ISM (oficial)"},
+    {"date": date(2026, 6, 4), "title": "Initial Jobless Claims (semanal)",
+     "source": "Department of Labor (oficial, 8:30 ET)"},
+    {"date": date(2026, 6, 5), "title": "Nonfarm Payrolls + Unemployment Rate (mayo)",
+     "source": "BLS (oficial, 8:30 ET)"},
+    # Junio 2026 (segunda semana)
+    {"date": date(2026, 6, 10), "title": "CPI mayo (Inflación headline + core)",
+     "source": "BLS (oficial, 8:30 ET)"},
+    {"date": date(2026, 6, 11), "title": "PPI mayo (Inflación productor)",
+     "source": "BLS (oficial, 8:30 ET)"},
+    {"date": date(2026, 6, 11), "title": "Initial Jobless Claims (semanal)",
+     "source": "Department of Labor (oficial, 8:30 ET)"},
+    {"date": date(2026, 6, 13), "title": "University of Michigan Consumer Sentiment (preliminar junio)",
+     "source": "U Michigan (oficial)"},
+]
+
+
+def _curated_macro_releases_in_week(monday: date) -> list[dict[str, Any]]:
+    """Releases macro reales del calendario curado para [monday, monday+5)."""
+    week_end = monday + timedelta(days=5)
+    out = []
+    for entry in _CURATED_RELEASES_2026:
+        d = entry["date"]
+        if monday <= d < week_end:
+            weekday = ["lunes", "martes", "miércoles", "jueves", "viernes"][d.weekday()]
+            out.append({
+                "date": d.isoformat(),
+                "weekday": weekday,
+                "category": "macro_release",
+                "title": entry["title"],
+                "relevance": "Release oficial calendarizado por agencia.",
+                "source": entry["source"],
+            })
+    return out
+
+
+# ── FRED (DEPRECATED para este uso — mantener helper por si vuelve) ──────────
 
 _FRED_BASE = "https://api.stlouisfed.org/fred"
 
@@ -269,16 +337,16 @@ def fetch_weekly_events(monday: date) -> dict[str, Any]:
     """
     fomc = _fomc_events_in_week(monday)
     earnings = _holdings_earnings_in_week(monday)
-    fred = _fred_release_dates_in_week(monday)
+    curated = _curated_macro_releases_in_week(monday)
 
-    fred_available = bool(os.getenv("FRED_API_KEY", "").strip())
-    sources = ["FOMC schedule (hardcoded oficial)"]
-    if fred_available:
-        sources.append("FRED API")
-    sources.append("yfinance earnings calendar")
+    sources = [
+        "FOMC schedule (hardcoded oficial)",
+        "Calendario macro curado (BLS/BEA/Census/ISM/Fed schedules)",
+        "yfinance earnings calendar",
+    ]
 
     all_events = sorted(
-        fomc + earnings + fred,
+        fomc + earnings + curated,
         key=lambda e: (e.get("date") or "", e.get("category") or ""),
     )
     data_quality = "real" if all_events else "no_real_calendar"
@@ -289,8 +357,8 @@ def fetch_weekly_events(monday: date) -> dict[str, Any]:
         "events": all_events,
         "sources_used": sources,
         "data_quality": data_quality,
-        "fred_available": fred_available,
+        "fred_available": False,  # deprecated — usamos curated en su lugar
         "fomc_count": len(fomc),
         "earnings_count": len(earnings),
-        "fred_count": len(fred),
+        "curated_count": len(curated),
     }
