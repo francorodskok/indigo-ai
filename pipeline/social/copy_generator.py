@@ -747,6 +747,74 @@ def _load_position_returns() -> list[dict[str, Any]] | None:
         return None
 
 
+def _extract_tickers_from_topic(topic: str) -> list[str]:
+    """Detecta tickers mencionados en el topic (mayúsculas 2-5 letras).
+
+    Heurística simple: palabras de 2-5 mayúsculas que no sean stopwords
+    en castellano/inglés. Útil para auto-research de opinion.
+    """
+    import re
+    stopwords = {
+        "EL", "LA", "LOS", "QUE", "DE", "EN", "Y", "O", "ES", "SI",
+        "NO", "SE", "ME", "TE", "LE", "UN", "USA", "UE", "PER",
+        "AI", "IA", "PR", "TV", "DJ", "EU", "UK", "GDP", "PCE",
+        "CPI", "NFP", "PMI", "FED", "ECB", "BCE", "FOMC", "OPEC",
+        "BOE", "BOJ", "RBA", "ETF", "ETFS", "API", "URL", "ROI",
+        "EPS", "EBT", "FCF", "DCF", "PEG", "ROIC", "WACC", "ROE",
+        "ROIIC",
+    }
+    candidates = re.findall(r"\b[A-Z]{2,5}\b", topic)
+    return [c for c in candidates if c not in stopwords]
+
+
+def _research_ticker(ticker: str) -> dict[str, Any] | None:
+    """Auto-research de un ticker mencionado: precio actual, fundamentals,
+    noticias recientes vía yfinance.
+
+    Retorna None si yfinance no responde o el ticker no existe.
+    """
+    try:
+        import yfinance as yf
+        t = yf.Ticker(ticker)
+        info = t.info or {}
+        if not info.get("symbol") and not info.get("shortName"):
+            return None
+        # News (yfinance .news es lista de dicts; tomamos los últimos 3)
+        news = []
+        try:
+            for n in (t.news or [])[:3]:
+                news.append({
+                    "title": n.get("title"),
+                    "publisher": n.get("publisher"),
+                    "publishedAt": n.get("providerPublishTime"),
+                })
+        except Exception:
+            news = []
+        return {
+            "ticker": ticker,
+            "name": info.get("shortName") or info.get("longName"),
+            "sector": info.get("sector"),
+            "industry": info.get("industry"),
+            "market_cap": info.get("marketCap"),
+            "current_price": info.get("currentPrice") or info.get("regularMarketPrice"),
+            "forward_pe": info.get("forwardPE"),
+            "trailing_pe": info.get("trailingPE"),
+            "peg_ratio": info.get("pegRatio"),
+            "price_to_book": info.get("priceToBook"),
+            "profit_margin": info.get("profitMargins"),
+            "operating_margin": info.get("operatingMargins"),
+            "revenue_growth_yoy": info.get("revenueGrowth"),
+            "earnings_growth_yoy": info.get("earningsGrowth"),
+            "52w_high": info.get("fiftyTwoWeekHigh"),
+            "52w_low": info.get("fiftyTwoWeekLow"),
+            "beta": info.get("beta"),
+            "recent_news": news,
+            "in_portfolio": False,  # se actualiza después
+        }
+    except Exception:
+        return None
+
+
 def _build_user_input_opinion(
     topic: str,
     our_context: dict[str, Any] | None,
@@ -754,15 +822,28 @@ def _build_user_input_opinion(
     """User input para post_type 'opinion'.
 
     Inyecta automáticamente: arquitectura del sistema, portfolio actual,
-    retornos por posición desde Alpaca, contexto macro, cycle meta.
+    retornos por posición desde Alpaca, contexto macro, cycle meta, y
+    auto-research de tickers mencionados en el topic (precio, fundamentals,
+    news recientes vía yfinance).
     """
+    # Auto-research: si el topic menciona tickers, fetchearlos
+    portfolio_summary = _load_current_portfolio_summary()
+    portfolio_tickers = {h["ticker"] for h in (portfolio_summary.get("holdings") if portfolio_summary else []) or []}
+    researched = []
+    for ticker in _extract_tickers_from_topic(topic):
+        data = _research_ticker(ticker)
+        if data is not None:
+            data["in_portfolio"] = ticker in portfolio_tickers
+            researched.append(data)
+
     payload = {
         "topic": topic,
         "system_architecture": _SYSTEM_ARCHITECTURE_BLOCK,
-        "current_portfolio": _load_current_portfolio_summary(),
+        "current_portfolio": portfolio_summary,
         "position_returns": _load_position_returns(),
         "macro_context": _build_macro_brief(),
         "cycle_meta": _load_cycle_meta(),
+        "researched_tickers": researched,  # auto-fetched si topic menciona tickers
         "our_context": our_context or {},
     }
     return (
@@ -770,10 +851,13 @@ def _build_user_input_opinion(
         + json.dumps(payload, indent=2, ensure_ascii=False, default=str)
         + "\n```\n\n"
         "Devolvé una opinión fundamentada siguiendo las instrucciones. "
-        "Citá datos concretos del portfolio + retornos + macro cuando aplique. "
-        "Si te preguntan desde cuándo opera el sistema, usá "
-        "`cycle_meta.cycle_start_date` y `days_since_start` — NO inventes "
-        "fechas tipo 'desde abril'."
+        "Citá datos concretos del portfolio + retornos + macro + tickers "
+        "investigados cuando apliquen. Si te preguntan desde cuándo opera "
+        "el sistema, usá `cycle_meta.cycle_start_date` y `days_since_start` "
+        "— NO inventes fechas tipo 'desde abril'. Si `researched_tickers` "
+        "tiene data sobre tickers que el usuario mencionó, ÚSALA con "
+        "criterio (current_price, P/E forward, márgenes, recent_news) — "
+        "es data real fetcheada en vivo de yfinance."
     )
 
 
@@ -1169,6 +1253,12 @@ def generate_post(
     # también viven cómodos en 8K (re-formateo, no generación de cero).
     if post_type in ADAPTER_POST_TYPES or post_type == "engagement_reply":
         max_tokens = 8_000
+    elif post_type == "opinion":
+        # Opinion necesita razonar más profundo (thinking ON) + texto largo
+        # (target 2000-6000 chars). Thinking puede usar hasta ~10K, output
+        # hasta ~10K = 32K cómodo. Es la única vía donde activamos thinking
+        # entre los post types estructurados.
+        max_tokens = 32_000
     else:
         # 16K era insuficiente para thread_post_ciclo con adaptive thinking
         # de Sonnet 4.6 + thread de 8 tweets + rationale por holding.
@@ -1194,8 +1284,11 @@ def generate_post(
     # adaptive thinking de Sonnet 4.6 quemaba todo el max_tokens budget en
     # razonamiento, sin dejar room para el JSON. Lo deshabilitamos: la salida
     # es 95% formato, no requiere análisis profundo (eso ya lo hicieron analyst
-    # y debate). engagement_reply mantiene thinking porque ahí sí razona.
-    no_thinking = post_type != "engagement_reply"
+    # y debate).
+    # Excepciones (thinking ON): engagement_reply (razona ángulo de respuesta)
+    # y opinion (razona el ángulo + integra portfolio + research).
+    thinking_post_types = {"engagement_reply", "opinion"}
+    no_thinking = post_type not in thinking_post_types
     response = call_agent(
         role=f"social_{post_type}",
         user_input=user_input,
