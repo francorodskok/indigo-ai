@@ -19,12 +19,13 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from pipeline.claude_client import call_agent
+from pipeline.claude_client import call_agent, get_client
 from pipeline.social.style_guide import build_style_guide
 
 log = logging.getLogger(__name__)
@@ -35,6 +36,13 @@ PIPELINE_OUTPUTS = ROOT / "pipeline" / "outputs"
 SOCIAL_OUTPUTS = PIPELINE_OUTPUTS / "social"
 DRAFTS_DIR = SOCIAL_OUTPUTS / "drafts"
 PROMPTS_DIR = Path(__file__).parent / "prompts"
+
+# Cache de research web por ticker (earnings/ARR/NRR/guidance fetcheado vía
+# web_search). Persistido para que opiniones repetidas — y, en el futuro, el
+# ciclo — reusen el artefacto sin re-pagar la búsqueda.
+TICKER_RESEARCH_DIR = ROOT / "pipeline" / "state" / "ticker_research"
+WEB_RESEARCH_MODEL = "claude-sonnet-4-6"
+WEB_RESEARCH_MAX_AGE_DAYS = 7
 
 # Tipos generadores (escriben de cero a partir de cycle data / topic / concept).
 SOURCE_POST_TYPES = (
@@ -790,6 +798,61 @@ def _research_ticker(ticker: str) -> dict[str, Any] | None:
                 })
         except Exception:
             news = []
+
+        # ── Enriquecimiento (gratis): earnings dates + financials trimestrales
+        #    + sorpresas de EPS. Todo defensivo: yfinance es flaky, cada bloque
+        #    falla solo sin tumbar el resto.
+        extra: dict[str, Any] = {}
+        try:
+            cal = getattr(t, "calendar", None)
+            if isinstance(cal, dict):
+                ed = cal.get("Earnings Date")
+                if ed:
+                    extra["next_earnings_date"] = (
+                        str(ed[0]) if isinstance(ed, (list, tuple)) and ed else str(ed)
+                    )
+        except Exception:
+            pass
+        try:
+            qf = t.quarterly_income_stmt
+            if qf is not None and not qf.empty and "Total Revenue" in qf.index:
+                rev_row = qf.loc["Total Revenue"].dropna()
+                quarters = [
+                    {"period": str(col)[:10], "revenue": float(val)}
+                    for col, val in list(rev_row.items())[:4]
+                ]
+                if quarters:
+                    extra["quarterly_revenue"] = quarters
+        except Exception:
+            pass
+        try:
+            ed_df = t.earnings_dates
+            if ed_df is not None and not ed_df.empty:
+                def _num(x: Any) -> float | None:
+                    if x is None:
+                        return None
+                    try:
+                        f = float(x)
+                    except (TypeError, ValueError):
+                        return None
+                    return None if f != f else f  # filtra NaN
+                surprises = []
+                for idx, r in ed_df.head(4).iterrows():
+                    rep = _num(r.get("Reported EPS"))
+                    est = _num(r.get("EPS Estimate"))
+                    if rep is None and est is None:
+                        continue
+                    surprises.append({
+                        "date": str(idx)[:10],
+                        "eps_estimate": est,
+                        "eps_reported": rep,
+                        "surprise_pct": _num(r.get("Surprise(%)")),
+                    })
+                if surprises:
+                    extra["earnings_surprises"] = surprises
+        except Exception:
+            pass
+
         return {
             "ticker": ticker,
             "name": info.get("shortName") or info.get("longName"),
@@ -809,10 +872,165 @@ def _research_ticker(ticker: str) -> dict[str, Any] | None:
             "52w_low": info.get("fiftyTwoWeekLow"),
             "beta": info.get("beta"),
             "recent_news": news,
+            **extra,
             "in_portfolio": False,  # se actualiza después
         }
     except Exception:
         return None
+
+
+# ── Web research cacheado (earnings/ARR/NRR/guidance vía web_search) ───────────
+
+
+def _web_research_cache_path(ticker: str) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", ticker.upper())
+    return TICKER_RESEARCH_DIR / f"{safe}.json"
+
+
+def _load_cached_web_research(
+    ticker: str, *, max_age_days: int
+) -> dict[str, Any] | None:
+    """Devuelve el research cacheado si existe y es más nuevo que max_age_days."""
+    path = _web_research_cache_path(ticker)
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    fetched_at = data.get("fetched_at")
+    if not fetched_at:
+        return None
+    try:
+        ts = datetime.fromisoformat(fetched_at)
+    except ValueError:
+        return None
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    if (datetime.now(timezone.utc) - ts).days > max_age_days:
+        return None
+    data["_cache_hit"] = True
+    return data
+
+
+def _web_research_ticker(
+    ticker: str,
+    *,
+    name: str | None = None,
+    max_age_days: int = WEB_RESEARCH_MAX_AGE_DAYS,
+    force_refresh: bool = False,
+) -> dict[str, Any] | None:
+    """Investiga el último reporte de earnings + KPIs (ARR/NRR/RPO/guidance) de
+    un ticker usando el server-tool `web_search` de Anthropic.
+
+    Cachea el resultado en disco por ticker con ventana de frescura: opiniones
+    repetidas en la misma semana — y, a futuro, el ciclo — reusan el artefacto
+    sin re-pagar la búsqueda. Degrada a None (sin tirar) si web_search está
+    deshabilitado por env, no habilitado en la consola, o falla; el caller
+    sigue con la data de yfinance.
+    """
+    # Gate de costo: deshabilitable por env (OPINION_WEB_RESEARCH=0).
+    if os.getenv("OPINION_WEB_RESEARCH", "1").strip().lower() in ("0", "false", "no"):
+        return None
+
+    if not force_refresh:
+        cached = _load_cached_web_research(ticker, max_age_days=max_age_days)
+        if cached is not None:
+            log.info(
+                "[web_research %s] cache hit (fetched_at=%s)",
+                ticker, cached.get("fetched_at"),
+            )
+            return cached
+
+    label = f"{ticker} ({name})" if name else ticker
+    prompt = (
+        f"Buscá en la web el reporte de resultados (earnings) más reciente de "
+        f"{label}. Quiero datos verificables y actuales, citando fuente. "
+        "Devolvé SOLO un objeto JSON válido (sin texto antes ni después) con "
+        "esta forma:\n\n"
+        "{\n"
+        '  "fiscal_period": "ej: Q1 FY2026 (trimestre cerrado ...)",\n'
+        '  "report_date": "YYYY-MM-DD o null",\n'
+        '  "revenue": "monto + % YoY, o null",\n'
+        '  "eps": "reportado vs estimado si está, o null",\n'
+        '  "saas_metrics": {"arr": "...", "net_revenue_retention": "...", '
+        '"rpo": "...", "billings": "...", "fcf": "..."},\n'
+        '  "guidance": "guidance próx trimestre/año vs consenso, o null",\n'
+        '  "recent_developments": ["2-3 hechos materiales recientes (<=30 dias)"],\n'
+        '  "sources": ["url1", "url2"],\n'
+        '  "as_of": "fecha de la data más reciente que encontraste"\n'
+        "}\n\n"
+        "Reglas: si un campo no aplica o no lo encontrás, poné null (NO "
+        "inventes). Para empresas que no son SaaS, saas_metrics puede ser null. "
+        "Priorizá fuentes primarias (press release / IR / 10-Q) y prensa "
+        "financiera reputada."
+    )
+
+    try:
+        client = get_client()
+        resp = client.messages.create(
+            model=WEB_RESEARCH_MODEL,
+            max_tokens=2_500,
+            messages=[{"role": "user", "content": prompt}],
+            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 4}],
+            output_config={"effort": "low"},
+        )
+    except Exception as e:
+        log.warning(
+            "[web_research %s] falló (¿web search habilitado en la consola de "
+            "Claude?): %s", ticker, e,
+        )
+        return None
+
+    text = " ".join(
+        getattr(b, "text", "") for b in resp.content
+        if getattr(b, "type", "") == "text"
+    ).strip()
+
+    try:
+        parsed = _extract_json_block(text)
+    except Exception:
+        parsed = {"raw_summary": text} if text else None
+    if parsed is None:
+        return None
+
+    searches = 0
+    try:
+        stu = getattr(resp.usage, "server_tool_use", None)
+        if stu is not None:
+            searches = getattr(stu, "web_search_requests", 0) or 0
+    except Exception:
+        searches = 0
+
+    token_cost = 0.0
+    try:
+        from pipeline.claude_client import _estimate_cost
+        token_cost = _estimate_cost(resp.usage, WEB_RESEARCH_MODEL)
+    except Exception:
+        token_cost = 0.0
+    total_cost = round(token_cost + searches * 0.01, 6)  # $10/1000 búsquedas
+
+    result = dict(parsed)
+    result.update({
+        "ticker": ticker.upper(),
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "_web_search_requests": searches,
+        "_cost_usd": total_cost,
+        "_cache_hit": False,
+    })
+
+    try:
+        TICKER_RESEARCH_DIR.mkdir(parents=True, exist_ok=True)
+        _web_research_cache_path(ticker).write_text(
+            json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+    except Exception as e:
+        log.warning("[web_research %s] no pude cachear: %s", ticker, e)
+
+    log.info(
+        "[web_research %s] %d búsquedas, costo ~$%.4f", ticker, searches, total_cost
+    )
+    return result
 
 
 def _build_user_input_opinion(
@@ -834,6 +1052,11 @@ def _build_user_input_opinion(
         data = _research_ticker(ticker)
         if data is not None:
             data["in_portfolio"] = ticker in portfolio_tickers
+            # Capa de research web (earnings/ARR/NRR/guidance). Cacheada y
+            # degradable: si falla o está deshabilitada, seguimos con yfinance.
+            web = _web_research_ticker(ticker, name=data.get("name"))
+            if web is not None:
+                data["web_research"] = web
             researched.append(data)
 
     payload = {
@@ -856,8 +1079,13 @@ def _build_user_input_opinion(
         "el sistema, usá `cycle_meta.cycle_start_date` y `days_since_start` "
         "— NO inventes fechas tipo 'desde abril'. Si `researched_tickers` "
         "tiene data sobre tickers que el usuario mencionó, ÚSALA con "
-        "criterio (current_price, P/E forward, márgenes, recent_news) — "
-        "es data real fetcheada en vivo de yfinance."
+        "criterio (current_price, P/E forward, márgenes, recent_news, "
+        "quarterly_revenue, earnings_surprises) — es data real de yfinance. "
+        "Si un ticker trae `web_research`, ESA es la data fresca del último "
+        "reporte (revenue/EPS, ARR/NRR/RPO/guidance, desarrollos recientes) "
+        "buscada en vivo en la web con sus fuentes — priorizala para hablar "
+        "del trimestre y de métricas SaaS. Si un dato no está (null), decí "
+        "que no lo tenés en lugar de inventarlo."
     )
 
 

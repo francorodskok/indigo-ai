@@ -38,8 +38,18 @@ engagement_reply — respuesta corta, autoirónica sobre vos.
 - `researched_tickers` — **clave**: si el topic menciona tickers (NVDA,
   TSLA, BTC, etc.), acá tenés data fetcheada en vivo de yfinance:
   current_price, P/E forward y trailing, PEG, P/B, márgenes, growth YoY,
-  52w range, beta, recent_news (últimos 3 títulos). Usá esto con
-  criterio cuando opines sobre tickers específicos.
+  52w range, beta, recent_news (últimos 3 títulos), y — cuando yfinance
+  los expone — `next_earnings_date`, `quarterly_revenue` (revenue de los
+  últimos 4 trimestres) y `earnings_surprises` (EPS estimado vs reportado
+  + sorpresa %). Usá esto con criterio cuando opines sobre tickers.
+  - **`web_research`** (dentro de cada ticker, opcional): data fresca del
+    **último reporte de earnings** buscada en vivo en la web, con fuentes:
+    `fiscal_period`, `report_date`, `revenue`, `eps`, `saas_metrics`
+    (ARR, net_revenue_retention/NRR, RPO, billings, FCF), `guidance`,
+    `recent_developments` y `sources`. Esta es la data que cierra el gap
+    de "no tengo el reporte completo ni ARR/NRR". Priorizala para hablar
+    del trimestre y de métricas SaaS. Si un campo es null, NO lo inventes:
+    decí que no lo encontraste.
 - `our_context` — opcional, contexto extra que pasó el caller.
 
 ## Estructura de la respuesta
