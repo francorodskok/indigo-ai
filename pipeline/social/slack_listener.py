@@ -39,6 +39,7 @@ ADR de referencia: docs/decisions/2026-05-04-slack-listener.md (pendiente).
 import json
 import logging
 import os
+import re
 import signal
 import time
 from pathlib import Path
@@ -330,24 +331,40 @@ def process_message(
     raw_text = (msg.get("text") or "").strip()
     msg_ts = msg.get("ts", "")
 
-    # Detección de comando `!opinion <topic>` (o aliases `!op`, `!opina`,
-    # `?<topic>` o `opinion: <topic>`).
-    # Nota: NO usamos `/opinion` porque Slack interpreta ese prefijo como
-    # slash command y no llega al listener. Los prefijos `!` y `?` pasan
-    # como texto normal.
-    lower = raw_text.lower()
+    # Detección de comando opinión `<sigil> opinion <topic>`.
+    # Sigils aceptados: `/`, `!`, o `?`. La palabra puede ser opinion/opina/op,
+    # con o sin `:`, y con o sin espacio tras el sigil.
+    #   Ejemplos válidos:
+    #     /opinion <tema>      / opinion <tema>     /opina: <tema>
+    #     !opinion <tema>      !op <tema>           opinion: <tema>
+    #     ??<tema>             ?? <tema>
+    # Nota: `/opinion` PEGADO (sin espacio) Slack lo intercepta como slash
+    # command y no llega al listener. Pero `/ opinion` (con espacio) sí llega
+    # como texto normal — esa es la forma que el usuario tipea naturalmente.
     is_opinion = False
     topic = ""
-    for prefix in (
-        "!opinion ", "!opina ", "!op ",
-        "opinion: ",
-        "??",  # `??<topic>` o `?? <topic>`: atajo corto (?? para no
-              # disparar con preguntas naturales que arrancan con un solo ?)
-    ):
-        if lower.startswith(prefix):
+
+    # 1) Atajo `??<tema>` (sin requerir la palabra "opinion").
+    if raw_text.startswith("??"):
+        is_opinion = True
+        topic = raw_text[2:].strip()
+    else:
+        # 2) Con sigil `/` o `!`: `/opinion <tema>`, `/ opina <tema>`, `!op …`.
+        m = re.match(
+            r"^\s*[/!]\s*(?:opinion|opina|op)\s*:?\s+(.*)$",
+            raw_text,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        if not m:
+            # 3) Sin sigil pero con dos puntos: `opinion: <tema>`.
+            m = re.match(
+                r"^\s*(?:opinion|opina|op)\s*:\s+(.*)$",
+                raw_text,
+                flags=re.IGNORECASE | re.DOTALL,
+            )
+        if m:
             is_opinion = True
-            topic = raw_text[len(prefix):].strip()
-            break
+            topic = m.group(1).strip()
 
     if is_opinion:
         if not topic:
@@ -604,7 +621,8 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"\n● Listener arrancando — canal #{channel}, poll cada {poll_interval}s")
     print("  Comandos:")
-    print("    !opinion <tema>   → opinión fundamentada larga (cita portfolio, returns, macro)")
+    print("    / opinion <tema>  → opinión fundamentada larga (cita portfolio, returns, macro)")
+    print("    !opinion <tema>   → idem (también /opina, /op, !op)")
     print("    ??<tema>          → atajo corto para opinion")
     print("    opinion: <tema>   → alternativa con dos puntos")
     print("    @handle <thread>  → engagement_reply para responder a otro post")
