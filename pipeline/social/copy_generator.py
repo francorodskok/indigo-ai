@@ -307,16 +307,120 @@ def _compute_nav_summary() -> dict[str, Any] | None:
 # Parser robusto del JSON que devuelve el modelo
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _repair_llm_json(text: str) -> str:
+    """
+    Repara los dos errores más comunes en JSON generado por LLMs, ambos dentro
+    de valores string:
+
+      1. **Comillas dobles internas sin escapar** — el modelo escribe prosa con
+         comillas (ej: el mercado lo recibió como "neutral") sin escaparlas, lo
+         que rompe el parse con "Expecting ',' delimiter".
+      2. **Saltos de línea / tabs literales** dentro de un string (el prompt de
+         opinion incluso pedía "saltos de línea reales"), que JSON no permite.
+
+    Algoritmo: state machine char-a-char. Estando dentro de un string, una
+    comilla `"` se trata como **cierre** solo si el próximo token no-whitespace
+    es estructural (`}` `]` `:` o EOF), o es una coma seguida de otra comilla
+    (arranque de la próxima key). En cualquier otro caso se asume comilla interna
+    y se escapa. Los control chars crudos dentro de strings se escapan siempre.
+
+    No es un parser JSON completo — es un reparador best-effort. El resultado se
+    revalida con json.loads por el caller; si la reparación falla, se conserva
+    el error original.
+    """
+    out: list[str] = []
+    in_string = False
+    n = len(text)
+    i = 0
+    while i < n:
+        ch = text[i]
+        if not in_string:
+            out.append(ch)
+            if ch == '"':
+                in_string = True
+            i += 1
+            continue
+
+        # ── dentro de un string ──
+        if ch == "\\":
+            # secuencia de escape ya formada: copiar este char y el siguiente
+            out.append(ch)
+            if i + 1 < n:
+                out.append(text[i + 1])
+                i += 2
+            else:
+                i += 1
+            continue
+
+        if ch == '"':
+            j = i + 1
+            while j < n and text[j] in " \t\r\n":
+                j += 1
+            nxt = text[j] if j < n else ""
+            closing = nxt in ("}", "]", ":", "")
+            if not closing and nxt == ",":
+                # cierre solo si tras la coma arranca otra key (comilla)
+                k = j + 1
+                while k < n and text[k] in " \t\r\n":
+                    k += 1
+                closing = k < n and text[k] == '"'
+            if closing:
+                out.append(ch)
+                in_string = False
+            else:
+                out.append('\\"')
+            i += 1
+            continue
+
+        # control chars crudos dentro del string → escapar
+        if ch == "\n":
+            out.append("\\n")
+        elif ch == "\r":
+            out.append("\\r")
+        elif ch == "\t":
+            out.append("\\t")
+        elif ord(ch) < 0x20:
+            out.append("\\u%04x" % ord(ch))
+        else:
+            out.append(ch)
+        i += 1
+
+    return "".join(out)
+
+
+def _coerce_json(candidate: str) -> dict[str, Any]:
+    """
+    Parsea `candidate` como JSON, con reparación progresiva: primero parse
+    estricto; si falla, intenta reparar errores típicos de LLM (comillas
+    internas, control chars) y reparsea. Levanta json.JSONDecodeError si ni la
+    versión reparada parsea.
+    """
+    try:
+        return json.loads(candidate)
+    except json.JSONDecodeError as first_err:
+        try:
+            repaired = json.loads(_repair_llm_json(candidate))
+            log.warning(
+                "JSON del modelo no parseaba en estricto (%s); se reparó OK "
+                "con _repair_llm_json.", first_err,
+            )
+            return repaired
+        except json.JSONDecodeError:
+            # La reparación no alcanzó — propagar el error original (más útil).
+            raise first_err from None
+
+
 def _extract_json_block(text: str) -> dict[str, Any]:
     """
     El modelo a veces envuelve el JSON en ```json ... ```, o agrega texto
-    introductorio. Extraemos el primer bloque JSON válido.
+    introductorio. Extraemos el primer bloque JSON válido, con reparación
+    tolerante de los errores típicos de LLM (ver _repair_llm_json).
     """
     # Caso 1: code fence ```json ... ```
-    fence = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    fence = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
     if fence:
         try:
-            return json.loads(fence.group(1))
+            return _coerce_json(fence.group(1))
         except json.JSONDecodeError:
             pass
 
@@ -326,10 +430,11 @@ def _extract_json_block(text: str) -> dict[str, Any]:
     if start >= 0 and end > start:
         candidate = text[start : end + 1]
         try:
-            return json.loads(candidate)
+            return _coerce_json(candidate)
         except json.JSONDecodeError as e:
             raise ValueError(
-                f"El modelo devolvió texto que parece JSON pero no parsea: {e}"
+                f"El modelo devolvió texto que parece JSON pero no parsea "
+                f"(ni tras reparación): {e}"
             ) from e
 
     raise ValueError(f"El modelo no devolvió JSON parseable. Output: {text[:200]}")

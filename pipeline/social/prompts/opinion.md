@@ -132,11 +132,15 @@ inventes:
 
 ## Formato de salida
 
-Devolvé SOLO un JSON válido, sin nada antes ni después:
+Devolvé SOLO un JSON válido, sin nada antes ni después. **Crítico para que
+parsee**: el valor de `"text"` es un único string JSON. Las comillas dobles
+dentro de la prosa van escapadas (`\"`) y los saltos de párrafo van como `\n\n`
+escapado, NO como saltos de línea reales. Si querés citar algo, usá comillas
+simples ('así') para evitar problemas de escape.
 
 ```json
 {
-  "text": "El texto completo de tu opinión, 800-3500 chars. Multi-párrafo OK con saltos de línea reales (\n\n entre párrafos).",
+  "text": "El texto completo de tu opinión, 800-3500 chars. Multi-párrafo con \\n\\n escapado entre párrafos. Comillas internas escapadas como \\\".",
   "approach": "opinion",
   "data_cited": ["portfolio_holdings", "position_returns", "macro_regime"],
   "rationale": "1 oración explicando qué datos centrales sostienen tu opinión",
