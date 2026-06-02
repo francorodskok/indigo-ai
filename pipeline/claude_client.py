@@ -52,6 +52,12 @@ _PRICES = {
         "input": 5.00, "output": 25.00,
         "cache_write": 6.25, "cache_read": 0.50,
     },
+    # NOTA: tarifa estimada en el tier Opus (igual a 4.6/4.7). Si Anthropic
+    # publica un precio distinto para 4.8, actualizar acá para no subcontar costo.
+    "claude-opus-4-8": {
+        "input": 5.00, "output": 25.00,
+        "cache_write": 6.25, "cache_read": 0.50,
+    },
 }
 
 # ── Rutas de filosofía ────────────────────────────────────────────────────────
@@ -381,9 +387,11 @@ def call_agent(
     # nombre de modelo para no asumir versiones futuras.
     supports_adaptive_thinking = model in (
         "claude-sonnet-4-6", "claude-opus-4-6", "claude-opus-4-7",
+        "claude-opus-4-8",
     )
     supports_effort = model in (
         "claude-sonnet-4-6", "claude-opus-4-6", "claude-opus-4-7",
+        "claude-opus-4-8",
         # Opus 4.5 también soporta effort GA pero no es nuestro default.
     )
 

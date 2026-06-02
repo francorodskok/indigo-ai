@@ -45,10 +45,12 @@ from pipeline.claude_client import call_agent
 
 log = logging.getLogger(__name__)
 
-# Modelo distinto al constructor (Opus 4.7) — usamos Sonnet 4.6 para tener
-# segunda perspectiva. No es perfecto (mismo provider), pero el perfil de
-# razonamiento difiere lo suficiente para capturar errores groseros.
-JUDGE_MODEL = "claude-sonnet-4-6"
+# 2026-06-02: subimos a Opus 4.8 por pedido — es el gate que aprueba/rechaza
+# operaciones con plata real, y corre 1 vez por ciclo (costo absoluto trivial).
+# TRADEOFF: el constructor también es Opus 4.8 ahora, así que perdimos la
+# "diversidad de modelo" que daba Sonnet. El judge sigue siendo una segunda
+# pasada genuina (rol/prompt distinto), pero ya no es otro perfil de modelo.
+JUDGE_MODEL = "claude-opus-4-8"
 JUDGE_EFFORT = "high"
 
 VALID_VERDICTS = {"approve", "concern", "reject"}

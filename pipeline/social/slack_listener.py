@@ -331,6 +331,60 @@ def process_message(
     raw_text = (msg.get("text") or "").strip()
     msg_ts = msg.get("ts", "")
 
+    # ── Detección de comando anuncio `<sigil> anuncio <texto>` ──────────────
+    # Mismos sigils que opinion (`/` o `!`, con o sin espacio; o sin sigil con
+    # `:`). Genera un comunicado breve del proyecto y lo postea al thread.
+    #   Ejemplos válidos:
+    #     / anuncio sumé X     /anuncio: ...     !anuncio ...     anuncio: ...
+    m_anuncio = re.match(
+        r"^\s*[/!]\s*(?:anuncio|anuncia|anun)\s*:?\s+(.*)$",
+        raw_text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if not m_anuncio:
+        m_anuncio = re.match(
+            r"^\s*(?:anuncio|anuncia|anun)\s*:\s+(.*)$",
+            raw_text,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+    if m_anuncio:
+        anuncio_topic = m_anuncio.group(1).strip()
+        if not anuncio_topic:
+            out["error"] = "comando anuncio sin contenido"
+            try:
+                post_message(token, channel_id,
+                             text="⚠️ Usá `/ anuncio <qué querés anunciar>`.",
+                             thread_ts=msg_ts)
+            except Exception:
+                pass
+            return out
+        try:
+            from pipeline.social.copy_generator import generate_post
+            from pipeline.social.regulatory_filter import review_draft
+            draft = generate_post(
+                "anuncio", topic=anuncio_topic, drafts_dir=drafts_dir, force=True,
+            )
+            draft = review_draft(draft)
+            out["draft_path"] = draft.get("_filePath")
+        except Exception as e:
+            log.exception("anuncio falló para %s: %s", msg_ts, e)
+            out["error"] = f"{type(e).__name__}: {e}"
+            try:
+                post_message(token, channel_id,
+                             text=f"❌ anuncio falló: `{out['error']}`",
+                             thread_ts=msg_ts)
+            except Exception:
+                pass
+            return out
+        anuncio_text = draft.get("content", {}).get("text", "") or "(sin texto)"
+        try:
+            post_message(token, channel_id, text=anuncio_text, thread_ts=msg_ts)
+            out["posted_ok"] = True
+        except Exception as e:
+            log.exception("Post anuncio a Slack falló: %s", e)
+            out["error"] = str(e)
+        return out
+
     # Detección de comando opinión `<sigil> opinion <topic>`.
     # Sigils aceptados: `/`, `!`, o `?`. La palabra puede ser opinion/opina/op,
     # con o sin `:`, y con o sin espacio tras el sigil.

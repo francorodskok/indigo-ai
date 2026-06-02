@@ -8,7 +8,7 @@ Cualquier cambio de modelo, presupuesto o parámetro de ciclo se hace acá.
 # ── Modelos ───────────────────────────────────────────────────────────────────
 ANALYST_MODEL = "claude-sonnet-4-6"
 DEBATE_MODEL = "claude-sonnet-4-6"   # ADR 2026-04-25: bajamos Opus→Sonnet + Batch API (~70% off)
-CONSTRUCTOR_MODEL = "claude-opus-4-7"
+CONSTRUCTOR_MODEL = "claude-opus-4-8"   # 2026-06-02: 4.7→4.8, misma tier de precio, 1 llamada/ciclo
 NEWSLETTER_MODEL = "claude-sonnet-4-6"
 
 # ── Effort levels (Opus 4.7) ──────────────────────────────────────────────────

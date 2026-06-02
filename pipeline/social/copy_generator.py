@@ -54,6 +54,7 @@ SOURCE_POST_TYPES = (
     "introduccion_lanzamiento",  # one-off thread fundacional del paso 12
     "agenda_semanal",            # post breve del lunes con eventos + chiste IA
     "opinion",                   # opinión fundamentada larga sobre tema del usuario
+    "anuncio",                   # comunicado breve sobre una novedad del proyecto
 )
 
 # Tipos adapters (toman un draft fuente aprobado y lo traducen a otra plataforma).
@@ -74,6 +75,7 @@ TYPE_TO_PLATFORM = {
     "introduccion_lanzamiento": "x",
     "agenda_semanal": "x",
     "opinion": "x",  # voz X (long-form Premium); el listener postea a Slack, usuario decide si publicarlo
+    "anuncio": "x",  # comunicado para X/Slack; el usuario decide dónde publicarlo
 }
 
 # Default model: Sonnet 4.6 con effort medium. Suficiente para copy y barato
@@ -646,6 +648,11 @@ _VALIDATORS = {
         if isinstance(parsed.get("text"), str) and len(parsed["text"].strip()) >= 200
         else ["opinion debe tener 'text' >=200 chars"]
     ),
+    "anuncio": lambda parsed: (
+        []
+        if isinstance(parsed.get("text"), str) and len(parsed["text"].strip()) >= 80
+        else ["anuncio debe tener 'text' >=80 chars"]
+    ),
 }
 
 
@@ -704,6 +711,13 @@ def _dry_run_content_for(post_type: str) -> dict[str, Any]:
             ],
             "decision_summary": "[DRY RUN]",
             "key_message": "[DRY RUN]",
+            "self_review_notes": "[DRY RUN]",
+        }
+    if post_type == "anuncio":
+        return {
+            "text": "[DRY RUN] Anuncio de prueba: novedad del proyecto.",
+            "approach": "anuncio",
+            "data_cited": [],
             "self_review_notes": "[DRY RUN]",
         }
     return {
@@ -768,23 +782,23 @@ _SYSTEM_ARCHITECTURE_BLOCK = {
          "desc": "S&P 500 → ~60 candidatos por filtros duros (cap, ROIC, balance, exclusiones GICS)."},
         {"id": 2, "name": "analyst", "engine": "claude-sonnet-4-6",
          "desc": "Analiza 60 candidates, genera tesis cuantitativa + precio objetivo. Output 15."},
-        {"id": 3, "name": "debate", "engine": "claude-opus-4-7",
+        {"id": 3, "name": "debate", "engine": "claude-sonnet-4-6",
          "desc": "Por cada uno de los 15: bull case + bear case + síntesis con veredicto."},
         {"id": 4, "name": "macro_agent", "engine": "claude-haiku-4-5",
          "desc": "Régimen macro (normal/cauteloso/defensivo) y nivel de cash."},
-        {"id": 5, "name": "constructor", "engine": "claude-opus-4-7",
+        {"id": 5, "name": "constructor", "engine": "claude-opus-4-8",
          "desc": "Arma portfolio respetando constitución: 12-15 holdings, max 10% (14% high conv), max 30% sector."},
-        {"id": 6, "name": "judge", "engine": "claude-sonnet-4-6",
+        {"id": 6, "name": "judge", "engine": "claude-opus-4-8",
          "desc": "Verificador independiente: alucinaciones, citas canon, coherencia con debate."},
         {"id": 7, "name": "executor", "engine": "Alpaca API (no LLM)",
          "desc": "Trades reales a target weights. Reporta drift vs target."},
-        {"id": 8, "name": "post-mortem", "engine": "claude-sonnet-4-6",
+        {"id": 8, "name": "post-mortem", "engine": "claude-opus-4-7",
          "desc": "Analiza decisiones de hace ~90 días, genera lecciones para próximos ciclos."},
         {"id": 9, "name": "social copy_generator", "engine": "claude-sonnet-4-6 / claude-haiku-4-5",
          "desc": "Threads, didácticos, newsletter, engagement replies (este soy yo)."},
     ],
     "cadence_days": 20,
-    "models_in_use": ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5"],
+    "models_in_use": ["claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5"],
 }
 
 
@@ -1136,6 +1150,36 @@ def _web_research_ticker(
         "[web_research %s] %d búsquedas, costo ~$%.4f", ticker, searches, total_cost
     )
     return result
+
+
+def _build_user_input_anuncio(
+    topic: str,
+    our_context: dict[str, Any] | None,
+) -> str:
+    """User input para post_type 'anuncio'.
+
+    Comunicado breve sobre una novedad del proyecto (feature nueva, hito,
+    cambio de proceso, etc.). NO hace research de tickers ni carga el portfolio
+    completo — un anuncio no necesita datos de mercado, solo el mensaje y un
+    poco de contexto del sistema para anclar fechas/días corriendo sin alucinar.
+    """
+    payload = {
+        "que_anunciar": topic,
+        "system_architecture": _SYSTEM_ARCHITECTURE_BLOCK,
+        "cycle_meta": _load_cycle_meta(),
+        "our_context": our_context or {},
+    }
+    return (
+        "QUÉ ANUNCIAR (JSON):\n\n```json\n"
+        + json.dumps(payload, indent=2, ensure_ascii=False, default=str)
+        + "\n```\n\n"
+        "Redactá el anuncio siguiendo las instrucciones. Si necesitás citar "
+        "desde cuándo opera el sistema o cuántos días lleva, usá "
+        "`cycle_meta.cycle_start_date` y `days_since_start` — NO inventes "
+        "fechas ni números. Si `que_anunciar` no te da algún dato concreto "
+        "(fecha exacta, link, cifra), NO lo inventes: anunciá lo que sí sabés "
+        "y dejalo abierto."
+    )
 
 
 def _build_user_input_opinion(
@@ -1565,6 +1609,10 @@ def generate_post(
         if not topic:
             raise ValueError("opinion requiere `topic`")
         user_input = _build_user_input_opinion(topic, our_context)
+    elif post_type == "anuncio":
+        if not topic:
+            raise ValueError("anuncio requiere `topic` (qué querés anunciar)")
+        user_input = _build_user_input_anuncio(topic, our_context)
     elif post_type in ADAPTER_POST_TYPES:
         if source_draft is None:
             raise ValueError(
@@ -1584,7 +1632,7 @@ def generate_post(
     # cap de 8K se queda corto. Subimos a 16K todos los source types salvo
     # engagement_reply (texto corto, 280 chars cap, sin thread). Los adapters
     # también viven cómodos en 8K (re-formateo, no generación de cero).
-    if post_type in ADAPTER_POST_TYPES or post_type == "engagement_reply":
+    if post_type in ADAPTER_POST_TYPES or post_type in ("engagement_reply", "anuncio"):
         max_tokens = 8_000
     elif post_type == "opinion":
         # Opinion necesita razonar más profundo (thinking ON) + texto largo
