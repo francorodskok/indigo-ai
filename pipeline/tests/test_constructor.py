@@ -194,7 +194,10 @@ class TestBuildConstructorPrompt:
     def test_ordered_by_conviction_desc(self):
         """Los tickers están ordenados por convicción ajustada descendente."""
         debate = make_debate_json()
-        prompt = build_constructor_prompt(debate)
+        # current_state={} para aislar el test del archivo de state real:
+        # sin esto, build_constructor_prompt lee current_holdings.json y el
+        # bloque "CARTERA ACTUAL" (ordenado por peso) contamina el orden buscado.
+        prompt = build_constructor_prompt(debate, current_state={})
         # NVDA (conviction=9) y LLY (conviction=9) deben aparecer antes que META (conviction=6)
         nvda_pos = prompt.find("NVDA")
         meta_pos = prompt.find("META")
