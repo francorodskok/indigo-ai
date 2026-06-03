@@ -1,0 +1,170 @@
+{
+  "cycle_id": "2026-06-03",
+  "generated_at": "2026-06-03T17:26:59.384194+00:00",
+  "equity_post_execution": 103036.27,
+  "cash_post_execution": 29449.23,
+  "summary": {
+    "total_abs_drift_bps": 2700.47,
+    "max_drift_ticker": "META",
+    "max_drift_bps": -1000.0,
+    "n_material_drifts": 8,
+    "n_missing_from_account": 2,
+    "n_unexpected_in_account": 2,
+    "cash_drift_bps": 1358.14,
+    "target_cash_weight": 0.15,
+    "actual_cash_weight": 0.285814
+  },
+  "by_ticker": [
+    {
+      "ticker": "ACGL",
+      "target_weight": 0.08,
+      "actual_weight": 0.079771,
+      "drift_bps": -2.29,
+      "drift_relative_pct": -0.29,
+      "is_material": false,
+      "qty_actual": 93,
+      "market_value": 8219.34,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "ADBE",
+      "target_weight": 0.09,
+      "actual_weight": 0.08714,
+      "drift_bps": -28.6,
+      "drift_relative_pct": -3.18,
+      "is_material": false,
+      "qty_actual": 35,
+      "market_value": 8978.55,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "ADSK",
+      "target_weight": 0.07,
+      "actual_weight": 0.0695,
+      "drift_bps": -5.0,
+      "drift_relative_pct": -0.71,
+      "is_material": false,
+      "qty_actual": 31,
+      "market_value": 7161.0,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "BKNG",
+      "target_weight": 0.0,
+      "actual_weight": 0.035367,
+      "drift_bps": 353.67,
+      "drift_relative_pct": null,
+      "is_material": true,
+      "qty_actual": 22,
+      "market_value": 3644.08,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "CPRT",
+      "target_weight": 0.08,
+      "actual_weight": 0.081123,
+      "drift_bps": 11.23,
+      "drift_relative_pct": 1.4,
+      "is_material": false,
+      "qty_actual": 276,
+      "market_value": 8358.66,
+      "submission_status": null
+    },
+    {
+      "ticker": "DECK",
+      "target_weight": 0.07,
+      "actual_weight": 0.069857,
+      "drift_bps": -1.43,
+      "drift_relative_pct": -0.2,
+      "is_material": false,
+      "qty_actual": 68,
+      "market_value": 7197.8,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "MA",
+      "target_weight": 0.07,
+      "actual_weight": 0.032015,
+      "drift_bps": -379.85,
+      "drift_relative_pct": -54.26,
+      "is_material": true,
+      "qty_actual": 7,
+      "market_value": 3298.75,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "MCK",
+      "target_weight": 0.07,
+      "actual_weight": 0.078978,
+      "drift_bps": 89.78,
+      "drift_relative_pct": 12.83,
+      "is_material": true,
+      "qty_actual": 11,
+      "market_value": 8137.64,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "META",
+      "target_weight": 0.1,
+      "actual_weight": 0.0,
+      "drift_bps": -1000.0,
+      "drift_relative_pct": -100.0,
+      "is_material": true,
+      "qty_actual": 0,
+      "market_value": 0.0,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "MSFT",
+      "target_weight": 0.08,
+      "actual_weight": 0.066017,
+      "drift_bps": -139.83,
+      "drift_relative_pct": -17.48,
+      "is_material": true,
+      "qty_actual": 16,
+      "market_value": 6802.16,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "NFLX",
+      "target_weight": 0.0,
+      "actual_weight": 0.012657,
+      "drift_bps": 126.57,
+      "drift_relative_pct": null,
+      "is_material": true,
+      "qty_actual": 16,
+      "market_value": 1304.11,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "NVDA",
+      "target_weight": 0.05,
+      "actual_weight": 0.0,
+      "drift_bps": -500.0,
+      "drift_relative_pct": -100.0,
+      "is_material": true,
+      "qty_actual": 0,
+      "market_value": 0.0,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    },
+    {
+      "ticker": "PGR",
+      "target_weight": 0.09,
+      "actual_weight": 0.096222,
+      "drift_bps": 62.22,
+      "drift_relative_pct": 6.91,
+      "is_material": true,
+      "qty_actual": 51,
+      "market_value": 9914.4,
+      "submission_status": "OrderStatus.PENDING_NEW"
+    }
+  ],
+  "missing_from_account": [
+    "META",
+    "NVDA"
+  ],
+  "unexpected_in_account": [
+    "BKNG",
+    "NFLX"
+  ]
+}
