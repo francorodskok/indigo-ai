@@ -127,10 +127,21 @@ def _find_latest_analysis() -> Path:
     return candidates[0]
 
 
-def load_top_tickers(analysis_path: Path, top_n: int) -> list[dict]:
+def load_top_tickers(
+    analysis_path: Path,
+    top_n: int,
+    always_include: set[str] | None = None,
+) -> list[dict]:
     """
     Lee el JSON de análisis y retorna los top_n tickers ordenados por conviccion desc.
     En caso de empate, el orden secundario es alfabético por ticker (determinista).
+
+    `always_include` (típicamente las posiciones actuales de la cartera) se agregan
+    SIEMPRE al set a debatir aunque no entren en el top_n por convicción (Fix
+    2026-06-03). Una posición que ya tenemos debe recibir un veredicto explícito
+    del debate (mantener/vender/comprar) en cada ciclo — no puede exiliarse a cash
+    sólo porque este ciclo no rankeó alto. Sólo se pueden forzar tickers que estén
+    en el análisis (si no, no hay datos para debatir).
     """
     text = analysis_path.read_text(encoding="utf-8")
     data = json.loads(text)
@@ -141,7 +152,20 @@ def load_top_tickers(analysis_path: Path, top_n: int) -> list[dict]:
         analyses,
         key=lambda x: (-(x.get("conviccion") or 0), x.get("ticker", "")),
     )
-    return sorted_analyses[:top_n]
+    selected = sorted_analyses[:top_n]
+    if always_include:
+        selected_tickers = {a.get("ticker", "") for a in selected}
+        forced = []
+        for a in sorted_analyses:
+            t = a.get("ticker", "")
+            if t in always_include and t not in selected_tickers:
+                selected.append(a)
+                selected_tickers.add(t)
+                forced.append(t)
+        if forced:
+            log.info("Force-debate de %d posiciones actuales fuera del top-%d: %s",
+                     len(forced), top_n, forced)
+    return selected
 
 
 def build_debate_prompt(ticker_data: dict) -> str:
@@ -728,9 +752,20 @@ def run(
     analysis_path = _find_latest_analysis()
     log.info(f"Leyendo análisis desde: {analysis_path}")
 
-    tickers = load_top_tickers(analysis_path, top_n)
+    # Posiciones actuales SIEMPRE se re-debaten (Fix 2026-06-03): no se exilia una
+    # posición a cash sin veredicto del debate sólo porque no rankeó en el top_n.
+    try:
+        from pipeline.state import load_current_holdings
+        current_state = load_current_holdings()
+        held = {h.get("ticker", "") for h in current_state.get("holdings", []) if h.get("ticker")}
+    except Exception as e:
+        log.warning("No se pudieron cargar posiciones actuales para forzar debate: %s", e)
+        held = set()
+
+    tickers = load_top_tickers(analysis_path, top_n, always_include=held)
     total = len(tickers)
-    log.info(f"Debate iniciando para {total} tickers (top_n={top_n})")
+    log.info(f"Debate iniciando para {total} tickers (top_n={top_n}, "
+             f"posiciones forzadas incluidas)")
 
     # Path selection. dry_run implica sequential (no API).
     use_batch = not (dry_run or sequential)
