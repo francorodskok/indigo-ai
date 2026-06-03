@@ -363,15 +363,6 @@ def call_agent(
 
     client = get_client()
 
-    # System prompt: bloque cacheable + instrucciones del rol.
-    # En mode='none' el system_suffix es lo único que va.
-    if philosophy and system_suffix:
-        system_prompt = f"{philosophy}\n\n---\n\n{system_suffix}"
-    elif philosophy:
-        system_prompt = philosophy
-    else:
-        system_prompt = system_suffix
-
     log.info(f"call_agent role={role} model={model} effort={effort} "
              f"mode={philosophy_mode} philosophy={len(philosophy):,}chars "
              f"input={len(user_input):,}chars")
@@ -407,13 +398,31 @@ def call_agent(
         stream_kwargs["thinking"] = {"type": "adaptive"}
     if supports_effort:
         stream_kwargs["output_config"] = {"effort": anthropic_effort}
-    if system_prompt:
-        sys_block: dict[str, Any] = {"type": "text", "text": system_prompt}
-        # Cache solo si el bloque es lo suficientemente grande para amortizarlo.
-        # Anthropic exige >=1024 tokens; usamos 4K chars como heurística conservadora.
-        if len(system_prompt) >= 4_000:
-            sys_block["cache_control"] = {"type": "ephemeral"}
-        stream_kwargs["system"] = [sys_block]
+
+    # System prompt en DOS bloques con breakpoints independientes:
+    #   bloque 1 = filosofía  → prefijo idéntico para TODOS los roles full/light.
+    #              Se cachea con TTL 1h y se escribe UNA sola vez por corrida;
+    #              el resto de los roles lo leen del caché (read = 0.1x).
+    #   bloque 2 = system_suffix (instrucciones del rol + lecciones) → breakpoint
+    #              propio para que los repeats del mismo rol (ej: analyst x15) peguen.
+    # Antes ambos iban concatenados en UN solo bloque, así que cada rol generaba
+    # un cache key distinto y la filosofía (~200K tokens) se reescribía siempre.
+    system_blocks: list[dict[str, Any]] = []
+    if philosophy:
+        phil_block: dict[str, Any] = {"type": "text", "text": philosophy}
+        # Anthropic exige >=1024 tokens; 4K chars es heurística conservadora.
+        # TTL 1h: una corrida de ciclo completa entra holgada en 1h, así la
+        # filosofía sobrevive entre las ~15 llamadas de analyst + debate + constructor.
+        if len(philosophy) >= 4_000:
+            phil_block["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
+        system_blocks.append(phil_block)
+    if system_suffix:
+        suffix_block: dict[str, Any] = {"type": "text", "text": system_suffix}
+        if len(system_suffix) >= 4_000:
+            suffix_block["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
+        system_blocks.append(suffix_block)
+    if system_blocks:
+        stream_kwargs["system"] = system_blocks
 
     # Streaming con get_final_message() para soportar max_tokens altos y evitar timeouts >10 min.
     with client.messages.stream(**stream_kwargs) as stream:
