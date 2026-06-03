@@ -29,6 +29,8 @@ from pipeline.config import (
     PORTFOLIO_MAX_SECTOR_PCT,
     PORTFOLIO_MIN_POSITION_PCT,
     PORTFOLIO_MIN_POSITIONS,
+    PORTFOLIO_MIN_POSITIONS_FALLBACK,
+    PORTFOLIO_FALLBACK_AFTER_ATTEMPTS,
 )
 from pipeline.state import format_holdings_block, load_current_holdings
 
@@ -342,6 +344,8 @@ def validate_portfolio(
     sector_map: dict[str, str],
     debate_tickers: set[str],
     debate_decisions: dict[str, str] | None = None,
+    *,
+    min_positions: int | None = None,
 ) -> None:
     """
     Aplica todas las validaciones duras sobre el portfolio.
@@ -364,12 +368,15 @@ def validate_portfolio(
     holdings: list[dict] = portfolio.get("holdings", [])
     cash_weight: float = portfolio.get("cash_weight", 0.0)
 
+    if min_positions is None:
+        min_positions = PORTFOLIO_MIN_POSITIONS
+
     # ── 1. Cantidad de posiciones ─────────────────────────────────────────────
     n = len(holdings)
-    if n < PORTFOLIO_MIN_POSITIONS or n > PORTFOLIO_MAX_POSITIONS:
+    if n < min_positions or n > PORTFOLIO_MAX_POSITIONS:
         raise ValueError(
             f"El portfolio tiene {n} holdings, pero debe tener entre "
-            f"{PORTFOLIO_MIN_POSITIONS} y {PORTFOLIO_MAX_POSITIONS}."
+            f"{min_positions} y {PORTFOLIO_MAX_POSITIONS}."
         )
 
     # ── 2 & 3. Peso por posición ──────────────────────────────────────────────
@@ -629,11 +636,30 @@ def run(dry_run: bool = False, *, with_macro: bool = True) -> Path:
         portfolio = None
 
         for attempt in range(1, MAX_ATTEMPTS + 1):
+            # Umbral de posiciones efectivo: NORMAL en los primeros intentos;
+            # recién tras PORTFOLIO_FALLBACK_AFTER_ATTEMPTS fallos se relaja al
+            # fallback extremo. Solo entonces se acepta una cartera < mínimo normal
+            # (y más abajo se fuerza needs_human_review).
+            effective_min = (
+                PORTFOLIO_MIN_POSITIONS
+                if attempt <= PORTFOLIO_FALLBACK_AFTER_ATTEMPTS
+                else PORTFOLIO_MIN_POSITIONS_FALLBACK
+            )
             log.info(
                 f"Llamando al constructor (intento {attempt}/{MAX_ATTEMPTS}, "
+                f"min_posiciones={effective_min}, "
                 f"{CONSTRUCTOR_MODEL}, effort={CONSTRUCTOR_EFFORT}, "
                 f"budget={CONSTRUCTOR_TASK_BUDGET_TOKENS} tokens)."
             )
+            if effective_min < PORTFOLIO_MIN_POSITIONS:
+                log.warning(
+                    "FALLBACK: %d intentos fallaron con el mínimo normal (%d); "
+                    "relajando a %d posiciones. La cartera resultante requerirá "
+                    "verificación humana.",
+                    PORTFOLIO_FALLBACK_AFTER_ATTEMPTS,
+                    PORTFOLIO_MIN_POSITIONS,
+                    effective_min,
+                )
             attempt_prompt = prompt
             if last_error and attempt > 1:
                 regime_hint = (
@@ -655,8 +681,8 @@ def run(dry_run: bool = False, *, with_macro: bool = True) -> Path:
                     + "Reglas duras (TODAS deben cumplirse):\n"
                     + "1. JSON con keys exactos: `holdings`, `exits`, `cash_weight`, "
                     + "`decision_summary`. `cash_weight` es un FLOAT, no un objeto.\n"
-                    + "2. holdings: lista de 12 a 15 entries con ticker (NO 'CASH'), "
-                    + "weight, action, rationale, conviction.\n"
+                    + f"2. holdings: lista de {effective_min} a {PORTFOLIO_MAX_POSITIONS} "
+                    + "entries con ticker (NO 'CASH'), weight, action, rationale, conviction.\n"
                     + "3. sum(h.weight for h in holdings) + cash_weight == 1.0 ±0.005.\n"
                     + "4. Cada h.weight ∈ [0.03, 0.10] (o hasta 0.14 si conviction>=8).\n"
                     + "5. Por sector GICS: sum(weights) ≤ 0.40.\n"
@@ -664,8 +690,9 @@ def run(dry_run: bool = False, *, with_macro: bool = True) -> Path:
                     + "Cauteloso: 0.05-0.15. Defensivo: 0.15-0.25.\n"
                     + "7. Ningún ticker con decision='no_invertir' en holdings.\n\n"
                     + f"Con regime={regime_hint} y cash≈{cash_hint:.2f}, los holdings "
-                    + f"deben sumar ≈ {1.0 - cash_hint:.2f}. Distribuí entre los 12-15 "
-                    + "tickers del pool que NO sean 'no_invertir', respetando el sector cap."
+                    + f"deben sumar ≈ {1.0 - cash_hint:.2f}. Distribuí entre {effective_min}-"
+                    + f"{PORTFOLIO_MAX_POSITIONS} tickers del pool que NO sean 'no_invertir', "
+                    + "respetando el sector cap."
                 )
 
             result = call_agent(
@@ -686,7 +713,10 @@ def run(dry_run: bool = False, *, with_macro: bool = True) -> Path:
             try:
                 portfolio = parse_portfolio(content)
                 log.info("Aplicando validaciones duras al portfolio.")
-                validate_portfolio(portfolio, sector_map, debate_tickers, debate_decisions)
+                validate_portfolio(
+                    portfolio, sector_map, debate_tickers, debate_decisions,
+                    min_positions=effective_min,
+                )
                 log.info("Portfolio validado correctamente.")
                 last_error = None
                 break
@@ -700,15 +730,32 @@ def run(dry_run: bool = False, *, with_macro: bool = True) -> Path:
                     raise
 
     # ── Validaciones duras (dry_run path) ─────────────────────────────────────
+    # El dry_run construye una sola vez (sin retries), así que valida directo
+    # con el fallback extremo para no abortar la simulación cuando el pool
+    # comprable es chico. El flag de revisión humana se computa más abajo.
     if dry_run:
         log.info("Aplicando validaciones duras al portfolio (dry_run).")
-        validate_portfolio(portfolio, sector_map, debate_tickers, debate_decisions)
+        validate_portfolio(
+            portfolio, sector_map, debate_tickers, debate_decisions,
+            min_positions=PORTFOLIO_MIN_POSITIONS_FALLBACK,
+        )
         log.info("Portfolio validado correctamente.")
 
     # ── Construir output ──────────────────────────────────────────────────────
     holdings = portfolio.get("holdings", [])
     exits = portfolio.get("exits", [])
     total_invested_pct = sum(h.get("weight", 0.0) for h in holdings)
+
+    # Si la cartera final quedó por debajo del mínimo normal, es porque se usó
+    # el fallback extremo (caso raro: el pool comprable no alcanzó). Marca para
+    # revisión humana — más concentrada que la política normal.
+    fallback_min_used = len(holdings) < PORTFOLIO_MIN_POSITIONS
+    if fallback_min_used:
+        log.warning(
+            "Cartera final con %d posiciones (< mínimo normal %d). "
+            "Se fuerza needs_human_review.",
+            len(holdings), PORTFOLIO_MIN_POSITIONS,
+        )
 
     # Enriquecer holdings con previous_weight/action derivados del state
     # si el modelo no los completó (fallback defensivo).
@@ -744,6 +791,7 @@ def run(dry_run: bool = False, *, with_macro: bool = True) -> Path:
         "macro_concerns": portfolio.get("macro_concerns", []),
         "total_invested_pct": round(total_invested_pct, 6),
         "validated": True,
+        "fallback_min_positions_used": fallback_min_used,
     }
 
     # ── Macro audit ───────────────────────────────────────────────────────────
@@ -787,6 +835,19 @@ def run(dry_run: bool = False, *, with_macro: bool = True) -> Path:
                 "summary": "El judge no pudo verificar el portfolio.",
                 "cost_usd": 0.0,
             }
+
+        # Fallback extremo → forzar revisión humana, sin importar el veredicto
+        # del judge. La cartera quedó más concentrada que la política normal.
+        if fallback_min_used:
+            judge_block = output.setdefault("judge", {})
+            judge_block["needs_human_review"] = True
+            judge_block.setdefault("observations", []).append(
+                f"Cartera construida con {len(holdings)} posiciones, por debajo "
+                f"del mínimo normal de {PORTFOLIO_MIN_POSITIONS}. Se usó el fallback "
+                f"extremo ({PORTFOLIO_MIN_POSITIONS_FALLBACK}) tras "
+                f"{PORTFOLIO_FALLBACK_AFTER_ATTEMPTS} intentos fallidos con el "
+                f"umbral normal. Verificar manualmente la concentración."
+            )
 
     # ── Guardar ───────────────────────────────────────────────────────────────
     today = date.today().isoformat()

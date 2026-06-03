@@ -8,7 +8,8 @@ Cualquier cambio de modelo, presupuesto o parámetro de ciclo se hace acá.
 # ── Modelos ───────────────────────────────────────────────────────────────────
 ANALYST_MODEL = "claude-sonnet-4-6"
 DEBATE_MODEL = "claude-sonnet-4-6"   # ADR 2026-04-25: bajamos Opus→Sonnet + Batch API (~70% off)
-CONSTRUCTOR_MODEL = "claude-opus-4-8"   # 2026-06-02: 4.7→4.8, misma tier de precio, 1 llamada/ciclo
+CONSTRUCTOR_MODEL = "claude-opus-4-7"   # 2026-06-03: revert 4.8→4.7. Opus 4.8 arma carteras
+# de 10 holdings (más concentrado) y choca con la validación dura de 12-15. Ver judge.py.
 NEWSLETTER_MODEL = "claude-sonnet-4-6"
 
 # ── Effort levels (Opus 4.7) ──────────────────────────────────────────────────
@@ -42,7 +43,14 @@ FILTER_MIN_REVENUE_CAGR_YEARS = 3            # años para calcular revenue CAGR
 FILTER_CACHE_HOURS = 24                      # horas de cache de datos de yfinance
 
 # ── Construcción de cartera ───────────────────────────────────────────────────
-PORTFOLIO_MIN_POSITIONS = 12
+PORTFOLIO_MIN_POSITIONS = 12   # umbral NORMAL de posiciones
+# Fallback extremo: si el constructor NO logra una cartera válida con el mínimo
+# normal tras PORTFOLIO_FALLBACK_AFTER_ATTEMPTS intentos, recién ahí se relaja a
+# este valor — y se fuerza needs_human_review (cartera más concentrada que la
+# política normal). 2026-06-03: el debate produjo solo 11 nombres comprables
+# (1 comprar + 10 posicion_pequeña), caso que motivó este fallback.
+PORTFOLIO_MIN_POSITIONS_FALLBACK = 11
+PORTFOLIO_FALLBACK_AFTER_ATTEMPTS = 2   # intentos con el umbral normal antes de relajar
 PORTFOLIO_MAX_POSITIONS = 15
 PORTFOLIO_MAX_POSITION_PCT = 0.10            # 10% máximo por posición (default)
 PORTFOLIO_HIGH_CONVICTION_MAX_PCT = 0.14     # 14% máximo si conviction >= 8 (excepción documentada)
