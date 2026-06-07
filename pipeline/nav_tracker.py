@@ -188,12 +188,19 @@ def _default_alpaca_equity_history_fetcher(
     for ts, eq in zip(timestamps, equities):
         if eq is None or eq <= 0:
             continue
-        # `ts` es unix epoch (seconds). Convertir a date UTC.
+        # `ts` es unix epoch (seconds) a las 00:00 UTC del día SIGUIENTE a la
+        # sesión que representa: 00:00 UTC ≈ 20:00 ET del día hábil anterior,
+        # i.e. POST-cierre de esa sesión. Alpaca sella el equity EOD de la
+        # sesión D con el timestamp 00:00 UTC de D+1. Si mapeáramos el timestamp
+        # a su propia fecha, todo el equity quedaría adelantado un día hábil
+        # (síntoma reportado: "el 18-19 no se movió... está atrasado"). Por eso
+        # asignamos cada valor al día hábil ANTERIOR al timestamp.
         try:
-            d = datetime.fromtimestamp(int(ts), tz=timezone.utc).date()
+            ts_date = datetime.fromtimestamp(int(ts), tz=timezone.utc).date()
         except (TypeError, ValueError, OSError):
             continue
-        out[d.isoformat()] = round(float(eq), 2)
+        session = _previous_trading_day(ts_date)
+        out[session.isoformat()] = round(float(eq), 2)
     return out
 
 
@@ -281,6 +288,18 @@ _NYSE_HOLIDAYS: set[date] = {
 def _is_us_market_holiday(d: date) -> bool:
     """True si `d` es feriado NYSE (mercado cerrado)."""
     return d in _NYSE_HOLIDAYS
+
+
+def _previous_trading_day(d: date) -> date:
+    """
+    Devuelve el día hábil NYSE inmediatamente anterior a `d` (salta fines de
+    semana y feriados). Usado para mapear los timestamps de Alpaca a la sesión
+    de mercado que realmente representan (ver `_default_alpaca_equity_history_fetcher`).
+    """
+    d = d - timedelta(days=1)
+    while d.weekday() >= 5 or _is_us_market_holiday(d):
+        d -= timedelta(days=1)
+    return d
 
 
 # ── Resolución de la "última sesión completa" ─────────────────────────────────
@@ -377,7 +396,11 @@ def record_today(
         equity = None
         eq_hist_fn = equity_history_fetcher or _default_alpaca_equity_history_fetcher
         try:
-            hist = eq_hist_fn(target_date, target_date)
+            # Pedimos una ventana hasta target_date+2: el equity EOD de
+            # target_date lo sella Alpaca con timestamp del día hábil SIGUIENTE
+            # (00:00 UTC post-cierre), así que un fetch [target_date, target_date]
+            # no lo contendría tras el mapeo a sesión anterior.
+            hist = eq_hist_fn(target_date, target_date + timedelta(days=2))
             equity = hist.get(target_date.isoformat())
         except Exception as e:
             log.warning("portfolio_history para %s falló: %s", target_date, e)

@@ -170,6 +170,80 @@ class TestLastCompletedSession:
         assert nav_tracker._last_completed_session(now) == date(2026, 5, 22)
 
 
+# ── _previous_trading_day + mapeo de timestamps de Alpaca ──────────────────────
+
+
+class TestPreviousTradingDay:
+    """El equity EOD de la sesión D lo sella Alpaca con timestamp 00:00 UTC de
+    D+1 (post-cierre). Hay que mapear cada timestamp al día hábil ANTERIOR."""
+
+    def test_weekday_returns_prior_weekday(self):
+        # Martes 19 → lunes 18.
+        assert nav_tracker._previous_trading_day(date(2026, 5, 19)) == date(2026, 5, 18)
+
+    def test_monday_skips_back_to_friday(self):
+        # Lunes 18 → viernes 15 (salta domingo 17 y sábado 16).
+        assert nav_tracker._previous_trading_day(date(2026, 5, 18)) == date(2026, 5, 15)
+
+    def test_saturday_timestamp_maps_to_friday(self):
+        # Timestamp del sábado (00:00 UTC) representa el EOD del viernes.
+        assert nav_tracker._previous_trading_day(date(2026, 5, 23)) == date(2026, 5, 22)
+
+    def test_skips_holiday(self):
+        # Timestamp del miércoles 27 → martes 26 (lunes 25 = Memorial Day feriado,
+        # pero el día anterior inmediato 26 sí es hábil).
+        assert nav_tracker._previous_trading_day(date(2026, 5, 27)) == date(2026, 5, 26)
+
+    def test_skips_back_over_holiday(self):
+        # Timestamp del martes 26 → viernes 22 (lunes 25 feriado + finde).
+        assert nav_tracker._previous_trading_day(date(2026, 5, 26)) == date(2026, 5, 22)
+
+
+class TestAlpacaEquityHistoryMapping:
+    """El fetcher debe asignar cada valor de equity al día hábil ANTERIOR al
+    timestamp que devuelve Alpaca, no a la fecha del propio timestamp."""
+
+    class _FakeHistory:
+        def __init__(self, timestamps, equity):
+            self.timestamp = timestamps
+            self.equity = equity
+
+    class _FakeClient:
+        def __init__(self, history):
+            self._history = history
+
+        def get_portfolio_history(self, req):
+            return self._history
+
+    def test_timestamp_maps_to_previous_session(self, monkeypatch):
+        # Alpaca sella el EOD del lunes 18 con timestamp del martes 19 00:00 UTC,
+        # y el EOD del martes 19 con timestamp del miércoles 20 00:00 UTC.
+        ts_tue = int(datetime(2026, 5, 19, 0, 0, tzinfo=timezone.utc).timestamp())
+        ts_wed = int(datetime(2026, 5, 20, 0, 0, tzinfo=timezone.utc).timestamp())
+        fake = self._FakeClient(self._FakeHistory([ts_tue, ts_wed], [103318.22, 102551.5]))
+
+        import pipeline.executor as executor
+        monkeypatch.setattr(executor, "get_trading_client", lambda: fake)
+
+        out = nav_tracker._default_alpaca_equity_history_fetcher(
+            date(2026, 5, 18), date(2026, 5, 21)
+        )
+        assert out == {"2026-05-18": 103318.22, "2026-05-19": 102551.5}
+
+    def test_saturday_timestamp_maps_to_friday(self, monkeypatch):
+        # Timestamp del sábado 00:00 UTC = EOD del viernes 22.
+        ts_sat = int(datetime(2026, 5, 23, 0, 0, tzinfo=timezone.utc).timestamp())
+        fake = self._FakeClient(self._FakeHistory([ts_sat], [103845.91]))
+
+        import pipeline.executor as executor
+        monkeypatch.setattr(executor, "get_trading_client", lambda: fake)
+
+        out = nav_tracker._default_alpaca_equity_history_fetcher(
+            date(2026, 5, 22), date(2026, 5, 24)
+        )
+        assert out == {"2026-05-22": 103845.91}
+
+
 # ── record_today ──────────────────────────────────────────────────────────────
 
 

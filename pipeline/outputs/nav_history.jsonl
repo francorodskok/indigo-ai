@@ -148,24 +148,24 @@
 {"date": "2026-05-04", "spy_close": 718.01, "qqq_close": 672.88}
 {"date": "2026-05-05", "spy_close": 723.77, "qqq_close": 681.61}
 {"date": "2026-05-06", "spy_close": 733.83, "qqq_close": 695.77}
-{"date": "2026-05-07", "spy_close": 731.58, "qqq_close": 694.94}
-{"date": "2026-05-08", "spy_close": 737.62, "qqq_close": 711.23}
-{"date": "2026-05-11", "spy_close": 739.3, "qqq_close": 713.29}
-{"date": "2026-05-12", "spy_close": 738.18, "qqq_close": 707.24}
-{"date": "2026-05-13", "spy_close": 742.31, "qqq_close": 714.71}
-{"date": "2026-05-14", "equity_usd": 100098.99, "spy_close": 748.17, "qqq_close": 719.79}
-{"date": "2026-05-15", "equity_usd": 101082.49, "spy_close": 739.17, "qqq_close": 708.93}
-{"date": "2026-05-18", "equity_usd": 103320.29, "spy_close": 738.65, "qqq_close": 705.88}
-{"date": "2026-05-19", "equity_usd": 103318.22, "spy_close": 733.73, "qqq_close": 701.53}
-{"date": "2026-05-20", "equity_usd": 102551.5, "spy_close": 741.25, "qqq_close": 713.15}
-{"date": "2026-05-21", "equity_usd": 103004.15, "spy_close": 742.72, "qqq_close": 714.51}
-{"date": "2026-05-22", "equity_usd": 103616.65, "spy_close": 745.64, "qqq_close": 717.54}
-{"date": "2026-05-26", "equity_usd": 104642.71, "spy_close": 750.59, "qqq_close": 730.28}
-{"date": "2026-05-27", "equity_usd": 104211.91, "spy_close": 750.46, "qqq_close": 729.45}
-{"date": "2026-05-28", "equity_usd": 104702.31, "spy_close": 754.6, "qqq_close": 735.6}
-{"date": "2026-05-29", "equity_usd": 105435.96, "spy_close": 756.48, "qqq_close": 738.31}
-{"date": "2026-06-01", "equity_usd": 105858.18, "spy_close": 758.54, "qqq_close": 742.74}
-{"date": "2026-06-02", "equity_usd": 106271.41, "spy_close": 759.57, "qqq_close": 746.16}
-{"date": "2026-06-03", "equity_usd": 106483.06, "spy_close": 754.24, "qqq_close": 744.21}
-{"date": "2026-06-04", "equity_usd": 103116.2, "spy_close": 757.09, "qqq_close": 740.61}
-{"date": "2026-06-05", "equity_usd": 104191.36, "spy_close": 737.55, "qqq_close": 705.06}
+{"date": "2026-05-07", "equity_usd": null, "spy_close": 731.58, "qqq_close": 694.94}
+{"date": "2026-05-08", "equity_usd": null, "spy_close": 737.62, "qqq_close": 711.23}
+{"date": "2026-05-11", "equity_usd": null, "spy_close": 739.3, "qqq_close": 713.29}
+{"date": "2026-05-12", "equity_usd": null, "spy_close": 738.18, "qqq_close": 707.24}
+{"date": "2026-05-13", "equity_usd": 100098.99, "spy_close": 742.31, "qqq_close": 714.71}
+{"date": "2026-05-14", "equity_usd": 101082.49, "spy_close": 748.17, "qqq_close": 719.79}
+{"date": "2026-05-15", "equity_usd": 101703.61, "spy_close": 739.17, "qqq_close": 708.93}
+{"date": "2026-05-18", "equity_usd": 103318.22, "spy_close": 738.65, "qqq_close": 705.88}
+{"date": "2026-05-19", "equity_usd": 102551.5, "spy_close": 733.73, "qqq_close": 701.53}
+{"date": "2026-05-20", "equity_usd": 103004.15, "spy_close": 741.25, "qqq_close": 713.15}
+{"date": "2026-05-21", "equity_usd": 103616.65, "spy_close": 742.72, "qqq_close": 714.51}
+{"date": "2026-05-22", "equity_usd": 103845.91, "spy_close": 745.64, "qqq_close": 717.54}
+{"date": "2026-05-26", "equity_usd": 104211.91, "spy_close": 750.59, "qqq_close": 730.28}
+{"date": "2026-05-27", "equity_usd": 104702.31, "spy_close": 750.46, "qqq_close": 729.45}
+{"date": "2026-05-28", "equity_usd": 105435.96, "spy_close": 754.6, "qqq_close": 735.6}
+{"date": "2026-05-29", "equity_usd": 105481.39, "spy_close": 756.48, "qqq_close": 738.31}
+{"date": "2026-06-01", "equity_usd": 106271.41, "spy_close": 758.54, "qqq_close": 742.74}
+{"date": "2026-06-02", "equity_usd": 106483.06, "spy_close": 759.57, "qqq_close": 746.16}
+{"date": "2026-06-03", "equity_usd": 103116.2, "spy_close": 754.24, "qqq_close": 744.21}
+{"date": "2026-06-04", "equity_usd": 104191.36, "spy_close": 757.09, "qqq_close": 740.61}
+{"date": "2026-06-05", "equity_usd": 103699.32, "spy_close": 737.55, "qqq_close": 705.06}
