@@ -272,6 +272,39 @@ def _is_us_market_holiday(d: date) -> bool:
     return d in _NYSE_HOLIDAYS
 
 
+# ── Resolución de la "última sesión completa" ─────────────────────────────────
+
+# Hora UTC a partir de la cual consideramos CERRADA y PUBLICADA la sesión de hoy.
+# El cierre NYSE es 20:00 UTC (horario de verano) / 21:00 UTC (invierno); le
+# sumamos buffer para que yfinance ya tenga el close publicado. Antes de esta
+# hora, la "última sesión completa" es el día hábil anterior — NO hoy.
+SESSION_FINAL_HOUR_UTC = 22
+
+
+def _last_completed_session(now_utc: datetime) -> date:
+    """
+    Devuelve el último día hábil cuya sesión de mercado YA cerró y publicó su
+    close en `now_utc`. Evita el bug de off-by-one:
+
+    El cron diario corre a la mañana de Buenos Aires (~13:45 UTC), ANTES del
+    cierre US. Si selláramos la entry con la fecha de hoy, ni el equity EOD ni
+    los closes de los benchmarks existen aún → yfinance devuelve el close de
+    AYER y queda mal etiquetado. Peor: el verdadero close del viernes nunca cae
+    bajo una etiqueta "viernes" (el sábado no corre), que es exactamente el
+    síntoma reportado ("los viernes se saltean").
+
+    Solución: sellar siempre la última sesión efectivamente completa.
+      - Antes de SESSION_FINAL_HOUR_UTC, hoy todavía no cerró → arrancamos ayer.
+      - Retrocedemos sobre fines de semana y feriados NYSE hasta un día hábil.
+    """
+    d = now_utc.date()
+    if now_utc.hour < SESSION_FINAL_HOUR_UTC:
+        d = d - timedelta(days=1)
+    while d.weekday() >= 5 or _is_us_market_holiday(d):
+        d -= timedelta(days=1)
+    return d
+
+
 # ── Función principal: record_today ───────────────────────────────────────────
 
 
@@ -280,6 +313,7 @@ def record_today(
     target_date: date | None = None,
     equity_fetcher: Callable[[], float] | None = None,
     benchmark_fetcher: Callable[[str, date], float | None] | None = None,
+    equity_history_fetcher: Callable[[date, date], dict[str, float]] | None = None,
     history_path: Path | None = None,
 ) -> dict | None:
     """
@@ -299,29 +333,53 @@ def record_today(
         (en cuyo caso NO escribimos nada).
     """
     if target_date is None:
-        target_date = datetime.now(timezone.utc).date()
+        # Path de producción (sin fecha explícita): sellar SIEMPRE la última
+        # sesión completa, no "hoy". Corremos a la mañana —antes del cierre US—,
+        # así que hoy aún no tiene equity EOD ni closes; usar hoy reintroduce el
+        # off-by-one que desactualiza el chart y "saltea" los viernes.
+        target_date = _last_completed_session(datetime.now(timezone.utc))
 
-    # Skipear fines de semana — los benchmarks no tienen close, equity de
-    # Alpaca tampoco cambia. Mantener el chart "trading days only" produce
-    # una serie limpia sin escalones planos de sábado/domingo.
+    # Guardas para fechas explícitas (tests / backfill). El path automático ya
+    # garantiza un día hábil, así que para producción son no-ops.
     if target_date.weekday() >= 5:
         log.info("nav_history: %s es fin de semana, skip.", target_date)
         return None
 
-    # Skipear feriados US (NYSE) — usa pandas_market_calendars si está, sino
-    # un fallback con los 9 feriados US 2024-2027 hardcoded.
     if _is_us_market_holiday(target_date):
         log.info("nav_history: %s es feriado US (NYSE), skip.", target_date)
         return None
 
-    eq_fn = equity_fetcher or _default_alpaca_equity_fetcher
     bm_fn = benchmark_fetcher or _default_benchmark_close_fetcher
 
-    try:
-        equity = eq_fn()
-    except Exception as e:
-        log.error("No pude obtener equity de Alpaca: %s. Skipping snapshot.", e)
-        return None
+    # ── Equity de la sesión ──────────────────────────────────────────────────
+    # Con fetcher explícito (tests / callers), se usa tal cual.
+    # Sin él (producción), preferimos el equity EOD REAL de esa sesión vía
+    # Alpaca portfolio_history — así la fila del viernes lleva el equity del
+    # cierre del viernes, no el del open del lunes. Fallback: equity live.
+    if equity_fetcher is not None:
+        try:
+            equity = equity_fetcher()
+        except Exception as e:
+            log.error("No pude obtener equity: %s. Skipping snapshot.", e)
+            return None
+    else:
+        equity = None
+        eq_hist_fn = equity_history_fetcher or _default_alpaca_equity_history_fetcher
+        try:
+            hist = eq_hist_fn(target_date, target_date)
+            equity = hist.get(target_date.isoformat())
+        except Exception as e:
+            log.warning("portfolio_history para %s falló: %s", target_date, e)
+        if equity is None or equity <= 0:
+            log.info(
+                "Sin equity EOD de Alpaca para %s; uso equity live como fallback.",
+                target_date,
+            )
+            try:
+                equity = _default_alpaca_equity_fetcher()
+            except Exception as e:
+                log.error("No pude obtener equity (history+live): %s. Skip.", e)
+                return None
 
     if equity is None or equity <= 0:
         log.error("Equity inválido (%s). Skipping snapshot.", equity)

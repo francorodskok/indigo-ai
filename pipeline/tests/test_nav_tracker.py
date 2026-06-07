@@ -11,7 +11,7 @@ Cobertura:
 from __future__ import annotations
 
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -131,6 +131,45 @@ class TestUpsertEntry:
         assert leftover == []
 
 
+# ── _last_completed_session ───────────────────────────────────────────────────
+
+
+class TestLastCompletedSession:
+    """La sesión a sellar debe ser el último día hábil YA cerrado/publicado.
+
+    Calendario de referencia: 2026-04-24 = viernes, 25 = sábado, 26 = domingo,
+    27 = lunes. SESSION_FINAL_HOUR_UTC controla cuándo "hoy" cuenta como cerrado.
+    """
+
+    def _utc(self, y, m, d, h):
+        return datetime(y, m, d, h, 0, tzinfo=timezone.utc)
+
+    def test_morning_run_uses_previous_trading_day(self):
+        # Lunes 27 a las 13:45 UTC (mañana BA, antes del cierre US) → debe
+        # sellar el VIERNES 24, no el lunes (que aún no cerró) ni el finde.
+        now = self._utc(2026, 4, 27, 13)
+        assert nav_tracker._last_completed_session(now) == date(2026, 4, 24)
+
+    def test_evening_run_uses_today_when_session_closed(self):
+        # Lunes 27 a las 22:30 UTC (post-cierre US + buffer) → sella el lunes 27.
+        now = self._utc(2026, 4, 27, 22)
+        assert nav_tracker._last_completed_session(now) == date(2026, 4, 27)
+
+    def test_saturday_run_uses_friday(self):
+        now = self._utc(2026, 4, 25, 13)  # sábado mañana
+        assert nav_tracker._last_completed_session(now) == date(2026, 4, 24)
+
+    def test_sunday_run_uses_friday(self):
+        now = self._utc(2026, 4, 26, 23)  # domingo noche
+        assert nav_tracker._last_completed_session(now) == date(2026, 4, 24)
+
+    def test_skips_holiday(self):
+        # Memorial Day 2026 = lunes 25 de mayo (feriado NYSE). El martes 26 a la
+        # mañana debe sellar el viernes 22 (lunes feriado, finde antes).
+        now = self._utc(2026, 5, 26, 13)
+        assert nav_tracker._last_completed_session(now) == date(2026, 5, 22)
+
+
 # ── record_today ──────────────────────────────────────────────────────────────
 
 
@@ -143,25 +182,25 @@ class TestRecordToday:
             return {"SPY": 500.0, "QQQ": 420.0}[ticker]
 
         entry = nav_tracker.record_today(
-            target_date=date(2026, 4, 25),
+            target_date=date(2026, 4, 24),  # viernes (día hábil)
             equity_fetcher=lambda: 100_000.0,
             benchmark_fetcher=fake_bm,
             history_path=tmp_history,
         )
         assert entry == {
-            "date": "2026-04-25",
+            "date": "2026-04-24",
             "equity_usd": 100_000.0,
             "spy_close": 500.0,
             "qqq_close": 420.0,
         }
-        assert bm_calls == [("SPY", date(2026, 4, 25)), ("QQQ", date(2026, 4, 25))]
+        assert bm_calls == [("SPY", date(2026, 4, 24)), ("QQQ", date(2026, 4, 24))]
 
     def test_returns_none_when_equity_fetcher_raises(self, tmp_history):
         def boom():
             raise RuntimeError("alpaca down")
 
         result = nav_tracker.record_today(
-            target_date=date(2026, 4, 25),
+            target_date=date(2026, 4, 24),  # viernes (día hábil)
             equity_fetcher=boom,
             benchmark_fetcher=lambda t, d: 500.0,
             history_path=tmp_history,
@@ -172,7 +211,7 @@ class TestRecordToday:
 
     def test_returns_none_when_equity_zero_or_negative(self, tmp_history):
         result = nav_tracker.record_today(
-            target_date=date(2026, 4, 25),
+            target_date=date(2026, 4, 24),  # viernes (día hábil)
             equity_fetcher=lambda: 0.0,
             benchmark_fetcher=lambda t, d: 500.0,
             history_path=tmp_history,
@@ -189,7 +228,7 @@ class TestRecordToday:
             return 500.0
 
         entry = nav_tracker.record_today(
-            target_date=date(2026, 4, 25),
+            target_date=date(2026, 4, 24),  # viernes (día hábil)
             equity_fetcher=lambda: 100_000.0,
             benchmark_fetcher=flaky_bm,
             history_path=tmp_history,
@@ -200,13 +239,13 @@ class TestRecordToday:
 
     def test_idempotent_overwrites_existing_date(self, tmp_history):
         nav_tracker.record_today(
-            target_date=date(2026, 4, 25),
+            target_date=date(2026, 4, 24),  # viernes (día hábil)
             equity_fetcher=lambda: 100_000.0,
             benchmark_fetcher=lambda t, d: 500.0,
             history_path=tmp_history,
         )
         nav_tracker.record_today(
-            target_date=date(2026, 4, 25),
+            target_date=date(2026, 4, 24),  # viernes (día hábil)
             equity_fetcher=lambda: 101_000.0,  # cambió el equity
             benchmark_fetcher=lambda t, d: 502.0,
             history_path=tmp_history,
@@ -387,7 +426,7 @@ class TestRobustness:
 
     def test_rounding_preserved(self, tmp_history):
         nav_tracker.record_today(
-            target_date=date(2026, 4, 25),
+            target_date=date(2026, 4, 24),  # viernes (día hábil)
             equity_fetcher=lambda: 100_000.123456,
             benchmark_fetcher=lambda t, d: 500.987654321,
             history_path=tmp_history,
