@@ -274,6 +274,22 @@ class TestBackfill:
         weekdays_called = sorted({d for _, d in bm_calls})
         assert weekdays_called == [date(2026, 4, 24), date(2026, 4, 27)]
 
+    def test_skips_holidays(self, tmp_history):
+        # Memorial Day 2026 = lunes 25 de mayo (feriado NYSE). El backfill no
+        # debe crear fila para ese día (sólo duplicaría el close del viernes 22).
+        bm_calls = []
+        nav_tracker.backfill(
+            start=date(2026, 5, 22),  # viernes
+            end=date(2026, 5, 26),    # martes
+            equity_fetcher=lambda: 100_000.0,
+            benchmark_fetcher=lambda t, d: bm_calls.append((t, d)) or 500.0,
+            history_path=tmp_history,
+        )
+        dates = sorted({d for _, d in bm_calls})
+        # 25 (feriado), 23-24 (finde) excluidos → sólo 22 y 26
+        assert dates == [date(2026, 5, 22), date(2026, 5, 26)]
+        assert "2026-05-25" not in {e["date"] for e in nav_tracker.load_history(tmp_history)}
+
     def test_does_not_overwrite_existing_entries(self, tmp_history):
         # Entry preexistente con datos
         _write_lines(tmp_history, [

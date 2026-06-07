@@ -39,7 +39,6 @@
 {"date": "2025-11-24", "spy_close": 668.73, "qqq_close": 605.16}
 {"date": "2025-11-25", "spy_close": 675.02, "qqq_close": 608.89}
 {"date": "2025-11-26", "spy_close": 679.68, "qqq_close": 614.27}
-{"date": "2025-11-27", "spy_close": 679.68, "qqq_close": 614.27}
 {"date": "2025-11-28", "spy_close": 683.39, "qqq_close": 619.25}
 {"date": "2025-12-01", "spy_close": 680.27, "qqq_close": 617.17}
 {"date": "2025-12-02", "spy_close": 681.53, "qqq_close": 622.0}
@@ -59,12 +58,10 @@
 {"date": "2025-12-22", "spy_close": 684.83, "qqq_close": 619.21}
 {"date": "2025-12-23", "spy_close": 687.96, "qqq_close": 622.11}
 {"date": "2025-12-24", "spy_close": 690.38, "qqq_close": 623.93}
-{"date": "2025-12-25", "spy_close": 690.38, "qqq_close": 623.93}
 {"date": "2025-12-26", "spy_close": 690.31, "qqq_close": 623.89}
 {"date": "2025-12-29", "spy_close": 687.85, "qqq_close": 620.87}
 {"date": "2025-12-30", "spy_close": 687.01, "qqq_close": 619.43}
 {"date": "2025-12-31", "spy_close": 681.92, "qqq_close": 614.31}
-{"date": "2026-01-01", "spy_close": 681.92, "qqq_close": 614.31}
 {"date": "2026-01-02", "spy_close": 683.17, "qqq_close": 613.12}
 {"date": "2026-01-05", "spy_close": 687.72, "qqq_close": 617.99}
 {"date": "2026-01-06", "spy_close": 691.81, "qqq_close": 623.42}
@@ -76,7 +73,6 @@
 {"date": "2026-01-14", "spy_close": 690.36, "qqq_close": 619.55}
 {"date": "2026-01-15", "spy_close": 692.24, "qqq_close": 621.78}
 {"date": "2026-01-16", "spy_close": 691.66, "qqq_close": 621.26}
-{"date": "2026-01-19", "spy_close": 691.66, "qqq_close": 621.26}
 {"date": "2026-01-20", "spy_close": 677.58, "qqq_close": 608.06}
 {"date": "2026-01-21", "spy_close": 685.4, "qqq_close": 616.28}
 {"date": "2026-01-22", "spy_close": 688.98, "qqq_close": 620.76}
@@ -96,7 +92,6 @@
 {"date": "2026-02-11", "spy_close": 691.96, "qqq_close": 613.11}
 {"date": "2026-02-12", "spy_close": 681.27, "qqq_close": 600.64}
 {"date": "2026-02-13", "spy_close": 681.75, "qqq_close": 601.92}
-{"date": "2026-02-16", "spy_close": 681.75, "qqq_close": 601.92}
 {"date": "2026-02-17", "spy_close": 682.85, "qqq_close": 601.3}
 {"date": "2026-02-18", "spy_close": 686.29, "qqq_close": 605.79}
 {"date": "2026-02-19", "spy_close": 684.48, "qqq_close": 603.47}
@@ -130,7 +125,6 @@
 {"date": "2026-03-31", "spy_close": 650.34, "qqq_close": 577.18}
 {"date": "2026-04-01", "spy_close": 655.24, "qqq_close": 584.31}
 {"date": "2026-04-02", "spy_close": 655.83, "qqq_close": 584.98}
-{"date": "2026-04-03", "spy_close": 655.83, "qqq_close": 584.98}
 {"date": "2026-04-06", "spy_close": 658.93, "qqq_close": 588.5}
 {"date": "2026-04-07", "spy_close": 659.22, "qqq_close": 588.59}
 {"date": "2026-04-08", "spy_close": 676.01, "qqq_close": 606.09}
@@ -155,10 +149,10 @@
 {"date": "2026-05-05", "spy_close": 723.77, "qqq_close": 681.61}
 {"date": "2026-05-06", "spy_close": 733.83, "qqq_close": 695.77}
 {"date": "2026-05-07", "spy_close": 731.58, "qqq_close": 694.94}
-{"date": "2026-05-08", "equity_usd": 100000.0, "spy_close": 737.62, "qqq_close": 711.23}
+{"date": "2026-05-08", "spy_close": 737.62, "qqq_close": 711.23}
 {"date": "2026-05-11", "spy_close": 739.3, "qqq_close": 713.29}
-{"date": "2026-05-12", "equity_usd": 100000.0, "spy_close": 738.18, "qqq_close": 707.24}
-{"date": "2026-05-13", "equity_usd": 100000.0, "spy_close": 742.31, "qqq_close": 714.71}
+{"date": "2026-05-12", "spy_close": 738.18, "qqq_close": 707.24}
+{"date": "2026-05-13", "spy_close": 742.31, "qqq_close": 714.71}
 {"date": "2026-05-14", "equity_usd": 100098.99, "spy_close": 748.17, "qqq_close": 719.79}
 {"date": "2026-05-15", "equity_usd": 101082.49, "spy_close": 739.17, "qqq_close": 708.93}
 {"date": "2026-05-18", "equity_usd": 103320.29, "spy_close": 738.65, "qqq_close": 705.88}
@@ -166,7 +160,6 @@
 {"date": "2026-05-20", "equity_usd": 102551.5, "spy_close": 741.25, "qqq_close": 713.15}
 {"date": "2026-05-21", "equity_usd": 103004.15, "spy_close": 742.72, "qqq_close": 714.51}
 {"date": "2026-05-22", "equity_usd": 103616.65, "spy_close": 745.64, "qqq_close": 717.54}
-{"date": "2026-05-25", "spy_close": 745.64, "qqq_close": 717.54}
 {"date": "2026-05-26", "equity_usd": 104642.71, "spy_close": 750.59, "qqq_close": 730.28}
 {"date": "2026-05-27", "equity_usd": 104211.91, "spy_close": 750.46, "qqq_close": 729.45}
 {"date": "2026-05-28", "equity_usd": 104702.31, "spy_close": 754.6, "qqq_close": 735.6}

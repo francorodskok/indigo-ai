@@ -244,6 +244,17 @@ def _default_benchmark_close_fetcher(ticker: str, target_date: date) -> float | 
 # Cobertura 2024-2028. Si necesitamos años posteriores: usar pandas_market_calendars
 # (más robusto) o actualizar este set anualmente.
 _NYSE_HOLIDAYS: set[date] = {
+    # 2025
+    date(2025, 1, 1),   # New Year
+    date(2025, 1, 20),  # MLK Day
+    date(2025, 2, 17),  # Presidents Day
+    date(2025, 4, 18),  # Good Friday
+    date(2025, 5, 26),  # Memorial Day
+    date(2025, 6, 19),  # Juneteenth
+    date(2025, 7, 4),   # Independence Day
+    date(2025, 9, 1),   # Labor Day
+    date(2025, 11, 27), # Thanksgiving
+    date(2025, 12, 25), # Christmas
     # 2026
     date(2026, 1, 1),   # New Year
     date(2026, 1, 19),  # MLK Day
@@ -458,9 +469,9 @@ def backfill(
     skipped = 0
 
     for d in _daterange(start, end):
-        # Saltar fines de semana — los benchmarks no operan; tampoco vale la
-        # pena pedirle a yfinance.
-        if d.weekday() >= 5:
+        # Saltar fines de semana y feriados NYSE — el mercado no operó, no hay
+        # close real; meter una fila duplicaría el close del día anterior.
+        if d.weekday() >= 5 or _is_us_market_holiday(d):
             skipped += 1
             continue
 
@@ -539,8 +550,9 @@ def backfill_from_alpaca(
     skipped = 0
 
     for d in _daterange(start, end):
-        # Saltar fines de semana — los benchmarks no operan.
-        if d.weekday() >= 5:
+        # Saltar fines de semana y feriados NYSE — el mercado no operó; una fila
+        # de feriado sólo duplica el close del día hábil anterior (chart plano).
+        if d.weekday() >= 5 or _is_us_market_holiday(d):
             skipped += 1
             continue
 
