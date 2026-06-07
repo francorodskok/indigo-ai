@@ -234,6 +234,7 @@ export function EquityChart({ history }: Props) {
               stroke={COLORS.text}
               tick={{ fontSize: 11, fill: COLORS.text }}
               minTickGap={32}
+              interval="preserveStartEnd"
               tickLine={false}
               axisLine={{ stroke: COLORS.grid }}
             />
