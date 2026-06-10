@@ -103,11 +103,14 @@ export default async function PosicionesPage() {
 
   return (
     <div className="space-y-10">
-      <section>
-        <h1 className="text-3xl font-semibold tracking-tight mb-2">
+      <section className="space-y-3">
+        <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-[color:var(--accent)] font-semibold bg-[color:var(--accent-bg)] border border-[color:var(--accent)]/15 rounded-full px-3.5 py-1.5">
+          {sortedHoldings.length} holdings
+        </div>
+        <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">
           Posiciones · razonamiento detallado
         </h1>
-        <p className="text-[color:var(--muted)] text-sm max-w-2xl">
+        <p className="text-[color:var(--muted)] text-sm sm:text-base max-w-2xl leading-relaxed">
           Para cada holding del portafolio, el detalle del razonamiento que lo sustenta:
           tesis del analyst, debate bull/bear, veredicto de síntesis y fundamentales.
           Todo lo que el sistema vio antes de decidir.
@@ -115,7 +118,7 @@ export default async function PosicionesPage() {
       </section>
 
       {sortedHoldings.length === 0 ? (
-        <div className="border border-[color:var(--border)] rounded-lg px-4 py-6 text-sm text-[color:var(--muted)]">
+        <div className="card border-dashed shadow-none px-4 py-6 text-sm text-[color:var(--muted)]">
           Cartera no construida aún.
         </div>
       ) : (
@@ -134,7 +137,7 @@ export default async function PosicionesPage() {
               <article
                 key={h.ticker}
                 id={`holding-${h.ticker}`}
-                className="border border-[color:var(--border)] rounded-lg p-5 space-y-5 scroll-mt-20"
+                className="card p-6 space-y-5 scroll-mt-20"
               >
                 <header>
                   <div className="flex flex-wrap items-baseline justify-between gap-3 mb-1">
@@ -169,17 +172,17 @@ export default async function PosicionesPage() {
                   )}
                 </header>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                  <div className="border border-[color:var(--border)] rounded p-2">
-                    <div className="text-[color:var(--muted)] uppercase tracking-wider text-[10px]">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                  <div className="rounded-lg bg-[color:var(--border-soft)]/70 p-3">
+                    <div className="text-[color:var(--muted)] uppercase tracking-wider text-[10px] font-medium">
                       Revenue CAGR
                     </div>
                     <div className="mono font-semibold text-sm mt-1">
                       {formatPctRaw(coerceNum(a?.revenue_cagr))}
                     </div>
                   </div>
-                  <div className="border border-[color:var(--border)] rounded p-2">
-                    <div className="text-[color:var(--muted)] uppercase tracking-wider text-[10px]">
+                  <div className="rounded-lg bg-[color:var(--border-soft)]/70 p-3">
+                    <div className="text-[color:var(--muted)] uppercase tracking-wider text-[10px] font-medium">
                       ROIC (proxy)
                     </div>
                     <div className="mono font-semibold text-sm mt-1">
@@ -189,16 +192,16 @@ export default async function PosicionesPage() {
                       })()}
                     </div>
                   </div>
-                  <div className="border border-[color:var(--border)] rounded p-2">
-                    <div className="text-[color:var(--muted)] uppercase tracking-wider text-[10px]">
+                  <div className="rounded-lg bg-[color:var(--border-soft)]/70 p-3">
+                    <div className="text-[color:var(--muted)] uppercase tracking-wider text-[10px] font-medium">
                       Net Debt / EBITDA
                     </div>
                     <div className="mono font-semibold text-sm mt-1">
                       {formatNum(coerceNum(a?.net_debt_ebitda))}×
                     </div>
                   </div>
-                  <div className="border border-[color:var(--border)] rounded p-2">
-                    <div className="text-[color:var(--muted)] uppercase tracking-wider text-[10px]">
+                  <div className="rounded-lg bg-[color:var(--border-soft)]/70 p-3">
+                    <div className="text-[color:var(--muted)] uppercase tracking-wider text-[10px] font-medium">
                       Precio obj. analyst
                     </div>
                     <div className="mono font-semibold text-sm mt-1">
@@ -249,9 +252,9 @@ export default async function PosicionesPage() {
                     </h4>
                     <div className="grid md:grid-cols-2 gap-3">
                       {d.bull_argument && (
-                        <div className="border border-emerald-200 bg-emerald-50/60 rounded-lg p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold mb-1">
-                            Bull
+                        <div className="border border-emerald-200 bg-emerald-50/60 rounded-xl p-4">
+                          <div className="text-[10px] uppercase tracking-wider text-emerald-700 font-semibold mb-1.5">
+                            ▲ Bull
                           </div>
                           <p className="text-sm text-[color:var(--foreground)]/90 leading-relaxed whitespace-pre-line">
                             {d.bull_argument}
@@ -259,9 +262,9 @@ export default async function PosicionesPage() {
                         </div>
                       )}
                       {d.bear_argument && (
-                        <div className="border border-red-200 bg-red-50/60 rounded-lg p-3">
-                          <div className="text-[10px] uppercase tracking-wider text-red-700 font-semibold mb-1">
-                            Bear
+                        <div className="border border-red-200 bg-red-50/60 rounded-xl p-4">
+                          <div className="text-[10px] uppercase tracking-wider text-red-700 font-semibold mb-1.5">
+                            ▼ Bear
                           </div>
                           <p className="text-sm text-[color:var(--foreground)]/90 leading-relaxed whitespace-pre-line">
                             {d.bear_argument}
@@ -277,7 +280,7 @@ export default async function PosicionesPage() {
                     <h4 className="text-xs uppercase tracking-wider text-[color:var(--muted)] mb-1">
                       Veredicto de síntesis
                     </h4>
-                    <div className="border border-[color:var(--border)] rounded-lg p-3 text-sm space-y-1">
+                    <div className="rounded-xl bg-[color:var(--border-soft)]/70 p-4 text-sm space-y-1">
                       <div className="flex items-center gap-3 flex-wrap">
                         <span className="text-[color:var(--muted)] text-xs">decisión:</span>
                         <span className={`font-semibold uppercase text-xs tracking-wider ${verdictInfo.color}`}>

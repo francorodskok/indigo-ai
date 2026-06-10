@@ -127,7 +127,7 @@ function CustomTooltip({
 export function EquityChart({ history }: Props) {
   if (!history || history.length < 2) {
     return (
-      <div className="border border-dashed border-[color:var(--border)] rounded-lg h-72 flex items-center justify-center text-sm text-[color:var(--muted)]">
+      <div className="border border-dashed border-[color:var(--border)] rounded-xl h-72 flex items-center justify-center text-sm text-[color:var(--muted)]">
         {history && history.length === 1
           ? "1 punto registrado — necesita ≥2 días para graficar."
           : "Curva de equity disponible tras el primer ciclo real."}
@@ -145,7 +145,7 @@ export function EquityChart({ history }: Props) {
 
   if (window.length < 2) {
     return (
-      <div className="border border-dashed border-[color:var(--border)] rounded-lg h-72 flex items-center justify-center text-sm text-[color:var(--muted)]">
+      <div className="border border-dashed border-[color:var(--border)] rounded-xl h-72 flex items-center justify-center text-sm text-[color:var(--muted)]">
         Sólo {window.length} día con equity — necesitamos ≥2 para graficar.
       </div>
     );
@@ -175,7 +175,7 @@ export function EquityChart({ history }: Props) {
     indigoReturn != null && spyReturn != null ? indigoReturn - spyReturn : null;
 
   return (
-    <div className="border border-[color:var(--border)] rounded-lg p-5 bg-[color:var(--background-elevated)] shadow-sm">
+    <div className="card p-5 sm:p-6">
       {/* Resumen arriba del chart */}
       <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 mb-4 pb-4 border-b border-[color:var(--border-soft)]">
         <div>

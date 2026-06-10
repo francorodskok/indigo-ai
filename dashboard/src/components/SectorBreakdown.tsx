@@ -66,7 +66,7 @@ export function SectorBreakdown({ holdings, sectorByTicker, cashWeight }: Props)
 
   if (slices.length === 0) {
     return (
-      <div className="border border-dashed border-[color:var(--border)] rounded-lg p-4 text-sm text-[color:var(--muted)]">
+      <div className="border border-dashed border-[color:var(--border)] rounded-xl p-4 text-sm text-[color:var(--muted)]">
         Sin holdings con peso para clasificar por sector.
       </div>
     );
@@ -80,8 +80,8 @@ export function SectorBreakdown({ holdings, sectorByTicker, cashWeight }: Props)
   }));
 
   return (
-    <div className="border border-[color:var(--border)] rounded-lg p-4">
-      <div className="grid md:grid-cols-2 gap-4 items-center">
+    <div className="card p-5 sm:p-6">
+      <div className="grid md:grid-cols-2 gap-6 items-center">
         {/* Pie chart */}
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">

@@ -30,6 +30,10 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 html,
 body {
   background: var(--background);
@@ -38,10 +42,55 @@ body {
 
 body {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--accent-bg);
+  color: var(--accent);
 }
 
 .mono {
   font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ── Utilidades de diseño compartidas ─────────────────────────────────────────
+   Card estándar del dashboard: borde suave, esquinas redondeadas y sombra
+   apenas perceptible. Usar `card` + paddings por uso. */
+.card {
+  background: var(--background-elevated);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+.card-hover {
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+.card-hover:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  box-shadow: 0 4px 16px rgb(15 23 42 / 0.07);
+}
+
+/* Título de sección con barrita de acento — jerarquía visual consistente. */
+.section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.625rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: 1rem;
+}
+.section-title::before {
+  content: "";
+  align-self: center;
+  width: 0.25rem;
+  height: 1rem;
+  border-radius: 9999px;
+  background: var(--accent);
+  flex: none;
 }
 
 /* Markdown prose styling for /constitution. */

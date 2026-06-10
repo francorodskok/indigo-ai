@@ -40,9 +40,9 @@ export default async function CyclesPage() {
 
   return (
     <div className="space-y-10">
-      <section>
-        <h1 className="text-3xl font-semibold tracking-tight mb-1">Ciclos</h1>
-        <p className="text-[color:var(--muted)] text-sm">
+      <section className="space-y-3">
+        <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">Ciclos</h1>
+        <p className="text-[color:var(--muted)] text-sm sm:text-base max-w-2xl leading-relaxed">
           Cada {CYCLE_DAYS} días calendario el pipeline corre la pipeline completa
           (analyst → debate → constructor → executor) y reconstruye la cartera.
           Los ciclos viejos quedan acá para auditoría.
@@ -51,7 +51,7 @@ export default async function CyclesPage() {
 
       {/* Próximo ciclo */}
       {latest && nextCycleDate && (
-        <section className="border border-[color:var(--border)] rounded-lg p-5 flex flex-wrap items-baseline gap-x-6 gap-y-2">
+        <section className="card p-5 sm:p-6 flex flex-wrap items-baseline gap-x-10 gap-y-3">
           <div>
             <div className="text-[10px] uppercase tracking-wider text-[color:var(--muted)]">
               Último ciclo
@@ -92,7 +92,7 @@ export default async function CyclesPage() {
 
       {/* Listado */}
       {cycles.length === 0 ? (
-        <div className="border border-dashed border-[color:var(--border)] rounded-lg p-6 text-sm text-[color:var(--muted)]">
+        <div className="border border-dashed border-[color:var(--border)] rounded-xl p-6 text-sm text-[color:var(--muted)]">
           Sin ciclos registrados todavía. Tras la primera corrida del pipeline va
           a aparecer acá.
         </div>
@@ -108,7 +108,7 @@ export default async function CyclesPage() {
             return (
               <article
                 key={c._dateISO}
-                className="border border-[color:var(--border)] rounded-lg p-5 space-y-3"
+                className="card p-5 sm:p-6 space-y-4"
               >
                 <header className="flex flex-wrap items-baseline justify-between gap-3">
                   <div className="flex items-baseline gap-3 flex-wrap">
@@ -159,7 +159,7 @@ export default async function CyclesPage() {
                       .map((h) => (
                         <span
                           key={h.ticker}
-                          className="border border-[color:var(--border)] rounded px-1.5 py-0.5 text-xs mono"
+                          className="rounded-md bg-[color:var(--border-soft)]/80 px-2 py-1 text-xs mono"
                         >
                           {h.ticker}{" "}
                           <span className="text-[color:var(--muted)]">

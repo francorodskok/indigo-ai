@@ -34,19 +34,19 @@ export function MetricCard({
   tone = "neutral",
   empty = false,
 }: MetricCardProps) {
-  const borderClass = empty
-    ? "border-dashed border-[color:var(--border)]"
-    : "border-[color:var(--border)] bg-[color:var(--background-elevated)]";
+  const baseClass = empty
+    ? "border border-dashed border-[color:var(--border)] rounded-xl"
+    : "card card-hover";
   return (
-    <div className={`border ${borderClass} rounded-lg p-4 flex flex-col gap-1 shadow-sm`}>
-      <div className="text-[10px] uppercase tracking-[0.1em] text-[color:var(--muted-strong)] font-semibold">
+    <div className={`${baseClass} p-4 flex flex-col gap-1.5`}>
+      <div className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--muted-strong)] font-semibold">
         {label}
       </div>
-      <div className={`mono text-2xl font-semibold leading-tight ${TONE_CLASSES[tone]}`}>
+      <div className={`mono text-2xl font-semibold leading-tight tracking-tight ${TONE_CLASSES[tone]}`}>
         {value}
       </div>
       {sub && (
-        <div className="text-xs text-[color:var(--muted)] mono">{sub}</div>
+        <div className="text-[11px] text-[color:var(--muted)] mono">{sub}</div>
       )}
     </div>
   );

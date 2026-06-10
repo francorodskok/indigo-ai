@@ -126,16 +126,26 @@ export default async function HomePage() {
     <div className="space-y-14">
       {/* Hero — vista de un vistazo */}
       <section className="relative">
-        <div className="space-y-4 max-w-3xl">
-          <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[color:var(--accent)] font-semibold">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-28 -right-16 h-80 w-80 rounded-full bg-[color:var(--accent)]/[0.07] blur-3xl"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-10 left-1/3 h-56 w-56 rounded-full bg-sky-400/[0.06] blur-3xl"
+        />
+        <div className="relative space-y-5 max-w-3xl">
+          <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-[color:var(--accent)] font-semibold bg-[color:var(--accent-bg)] border border-[color:var(--accent)]/15 rounded-full px-3.5 py-1.5">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-[color:var(--accent)]" />
             Sistema autónomo · Ciclo cada 20 días
           </div>
-          <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight leading-[1.05]">
+          <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight leading-[1.08]">
             Un portafolio del S&amp;P 500
             <br />
-            <span className="text-[color:var(--accent)]">decidido por una IA</span>,{" "}
-            auditable en tiempo real.
+            <span className="bg-gradient-to-r from-[#4f46e5] via-[#6366f1] to-[#8b5cf6] bg-clip-text text-transparent">
+              decidido por una IA
+            </span>
+            , auditable en tiempo real.
           </h1>
           <p className="text-[color:var(--muted)] text-base sm:text-lg leading-relaxed max-w-2xl">
             Constitución explícita, debate bull-bear por posición, kill switches
@@ -146,10 +156,10 @@ export default async function HomePage() {
 
       {/* Métricas headline — 5 KPIs: total return, CAGR, Sharpe, max DD, alpha vs SPY */}
       <section>
-        <h2 className="text-lg font-semibold mb-3">
+        <h2 className="section-title">
           Performance
           {lastNavEntry?.date && (
-            <span className="text-sm font-normal text-[color:var(--muted)] ml-2">
+            <span className="text-sm font-normal text-[color:var(--muted)]">
               al {lastNavEntry.date} · {summary.n_observations} días
             </span>
           )}
@@ -204,14 +214,14 @@ export default async function HomePage() {
 
       {/* Curva de equity — Indigo vs SPY vs QQQ rebased to 100 */}
       <section>
-        <h2 className="text-lg font-semibold mb-3">Curva de equity</h2>
+        <h2 className="section-title">Curva de equity</h2>
         <EquityChart history={navHistory} />
       </section>
 
       {/* Distribución por sector */}
       {sortedHoldings.length > 0 && (
         <section>
-          <h2 className="text-lg font-semibold mb-3">Distribución por sector</h2>
+          <h2 className="section-title">Distribución por sector</h2>
           <SectorBreakdown
             holdings={sortedHoldings}
             sectorByTicker={sectorByTicker}
@@ -222,26 +232,26 @@ export default async function HomePage() {
 
       {/* Tabla de pesos */}
       <section>
-        <h2 className="text-lg font-semibold mb-3">
+        <h2 className="section-title">
           Cartera actual
           {portfolio?._dateISO && (
-            <span className="text-sm font-normal text-[color:var(--muted)] ml-2">
+            <span className="text-sm font-normal text-[color:var(--muted)]">
               {portfolio._dateISO}
             </span>
           )}
         </h2>
         {portfolio && sortedHoldings.length > 0 ? (
-          <div className="border border-[color:var(--border)] rounded-lg overflow-hidden mb-4">
+          <div className="card overflow-hidden mb-4">
             <table className="w-full text-sm">
-              <thead className="bg-[color:var(--border)]/40 text-xs uppercase tracking-wider text-[color:var(--muted)]">
+              <thead className="bg-[color:var(--border-soft)] text-[11px] uppercase tracking-wider text-[color:var(--muted-strong)]">
                 <tr>
-                  <th className="text-left px-4 py-2">Ticker</th>
-                  <th className="text-left px-4 py-2">Sector</th>
-                  <th className="text-left px-4 py-2">Acción</th>
-                  <th className="text-right px-4 py-2">Peso</th>
-                  <th className="text-right px-4 py-2">Δ vs prev.</th>
-                  <th className="text-right px-4 py-2">Convicción</th>
-                  <th className="text-right px-4 py-2">Precio obj.</th>
+                  <th className="text-left px-4 py-2.5 font-semibold">Ticker</th>
+                  <th className="text-left px-4 py-2.5 font-semibold">Sector</th>
+                  <th className="text-left px-4 py-2.5 font-semibold">Acción</th>
+                  <th className="text-right px-4 py-2.5 font-semibold">Peso</th>
+                  <th className="text-right px-4 py-2.5 font-semibold">Δ vs prev.</th>
+                  <th className="text-right px-4 py-2.5 font-semibold">Convicción</th>
+                  <th className="text-right px-4 py-2.5 font-semibold">Precio obj.</th>
                 </tr>
               </thead>
               <tbody>
@@ -250,19 +260,25 @@ export default async function HomePage() {
                   const badge = actionBadge(h.action);
                   const delta = weightDelta(h.weight, h.previous_weight);
                   return (
-                    <tr key={h.ticker} className="border-t border-[color:var(--border)]">
-                      <td className="px-4 py-2 mono font-semibold">
-                        <a href={`#holding-${h.ticker}`} className="hover:underline">
+                    <tr
+                      key={h.ticker}
+                      className="border-t border-[color:var(--border-soft)] hover:bg-[color:var(--border-soft)]/50 transition-colors"
+                    >
+                      <td className="px-4 py-2.5 mono font-semibold">
+                        <a
+                          href={`#holding-${h.ticker}`}
+                          className="hover:text-[color:var(--accent)] transition-colors"
+                        >
                           {h.ticker}
                         </a>
                       </td>
-                      <td className="px-4 py-2 text-[color:var(--muted)] text-xs">
+                      <td className="px-4 py-2.5 text-[color:var(--muted)] text-xs">
                         {a?.sector ?? "—"}
                       </td>
-                      <td className="px-4 py-2">
+                      <td className="px-4 py-2.5">
                         {badge ? (
                           <span
-                            className={`inline-block border rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wider mono ${badge.className}`}
+                            className={`inline-block border rounded-md px-1.5 py-0.5 text-[10px] font-semibold tracking-wider mono ${badge.className}`}
                           >
                             {badge.label}
                           </span>
@@ -270,25 +286,25 @@ export default async function HomePage() {
                           <span className="text-[color:var(--muted)] text-xs">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-2 text-right mono">{formatPct(h.weight)}</td>
-                      <td className="px-4 py-2 text-right mono text-xs text-[color:var(--muted)]">
+                      <td className="px-4 py-2.5 text-right mono font-medium">{formatPct(h.weight)}</td>
+                      <td className="px-4 py-2.5 text-right mono text-xs text-[color:var(--muted)]">
                         {delta ?? "—"}
                       </td>
-                      <td className="px-4 py-2 text-right mono">
+                      <td className="px-4 py-2.5 text-right mono">
                         {h.conviction != null ? `${h.conviction}/10` : "—"}
                       </td>
-                      <td className="px-4 py-2 text-right mono text-[color:var(--muted)]">
+                      <td className="px-4 py-2.5 text-right mono text-[color:var(--muted)]">
                         {formatUsd(coerceNum(a?.precio_objetivo))}
                       </td>
                     </tr>
                   );
                 })}
                 {portfolio.cash_weight != null && (
-                  <tr className="border-t border-[color:var(--border)] bg-[color:var(--border)]/20">
-                    <td className="px-4 py-2 mono font-semibold text-[color:var(--muted)]">CASH</td>
+                  <tr className="border-t border-[color:var(--border)] bg-[color:var(--border-soft)]/60">
+                    <td className="px-4 py-2.5 mono font-semibold text-[color:var(--muted)]">CASH</td>
                     <td />
                     <td />
-                    <td className="px-4 py-2 text-right mono text-[color:var(--muted)]">
+                    <td className="px-4 py-2.5 text-right mono text-[color:var(--muted)]">
                       {formatPct(portfolio.cash_weight)}
                     </td>
                     <td colSpan={3} />
@@ -298,15 +314,15 @@ export default async function HomePage() {
             </table>
           </div>
         ) : (
-          <div className="border border-[color:var(--border)] rounded-lg px-4 py-6 text-sm text-[color:var(--muted)]">
+          <div className="card border-dashed shadow-none px-4 py-6 text-sm text-[color:var(--muted)]">
             Cartera no construida aún.
           </div>
         )}
 
         {/* Tesis del portfolio completo */}
         {portfolio?.decision_summary && (
-          <div className="border border-[color:var(--border)] rounded-lg p-4 text-sm text-[color:var(--foreground)]/85 leading-relaxed mb-4">
-            <span className="font-semibold text-xs uppercase tracking-wider text-[color:var(--muted)] block mb-1">
+          <div className="card p-5 text-sm text-[color:var(--foreground)]/85 leading-relaxed mb-4 border-l-[3px] border-l-[color:var(--accent)]">
+            <span className="font-semibold text-[11px] uppercase tracking-wider text-[color:var(--accent)] block mb-1.5">
               Tesis del portfolio
             </span>
             {portfolio.decision_summary}
@@ -315,11 +331,11 @@ export default async function HomePage() {
 
         {/* Macro concerns */}
         {portfolio?.macro_concerns && portfolio.macro_concerns.length > 0 && (
-          <div className="border border-[color:var(--border)] rounded-lg p-4 text-sm text-[color:var(--foreground)]/85 leading-relaxed mb-4">
-            <span className="font-semibold text-xs uppercase tracking-wider text-[color:var(--muted)] block mb-2">
+          <div className="card p-5 text-sm text-[color:var(--foreground)]/85 leading-relaxed mb-4 border-l-[3px] border-l-amber-400">
+            <span className="font-semibold text-[11px] uppercase tracking-wider text-amber-600 block mb-2">
               Macro concerns
             </span>
-            <ul className="space-y-1 list-disc list-inside">
+            <ul className="space-y-1.5 list-disc list-inside marker:text-amber-400">
               {portfolio.macro_concerns.map((c, i) => (
                 <li key={i}>{c}</li>
               ))}
@@ -329,7 +345,7 @@ export default async function HomePage() {
 
         {/* Exits de este ciclo (Paso D — memoria entre ciclos) */}
         {portfolio?.exits && portfolio.exits.length > 0 && (
-          <div className="border border-red-200 bg-red-50/60 rounded-lg p-4 text-sm">
+          <div className="border border-red-200 bg-red-50/60 rounded-xl p-5 text-sm">
             <span className="font-semibold text-xs uppercase tracking-wider text-red-700 block mb-2">
               Exits de este ciclo
             </span>
@@ -360,21 +376,18 @@ export default async function HomePage() {
       {/* CTA al detalle por posición — vive en /posiciones para alivianar el home */}
       {sortedHoldings.length > 0 && (
         <section>
-          <a
-            href="/posiciones"
-            className="block border border-[color:var(--border)] hover:border-[color:var(--accent)]/60 rounded-lg p-5 transition-colors group"
-          >
+          <a href="/posiciones" className="card card-hover block p-6 group">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h3 className="text-lg font-semibold mb-1">
-                  Razonamiento por posición →
+                <h3 className="text-lg font-semibold mb-1 group-hover:text-[color:var(--accent)] transition-colors">
+                  Razonamiento por posición
                 </h3>
                 <p className="text-sm text-[color:var(--muted)]">
                   Tesis del analyst, debate bull vs bear y veredicto de síntesis
                   para cada uno de los {sortedHoldings.length} holdings.
                 </p>
               </div>
-              <span className="text-[color:var(--accent)] text-2xl group-hover:translate-x-1 transition-transform">
+              <span className="flex-none flex items-center justify-center h-10 w-10 rounded-full bg-[color:var(--accent-bg)] text-[color:var(--accent)] text-xl group-hover:translate-x-1 transition-transform">
                 →
               </span>
             </div>

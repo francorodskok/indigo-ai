@@ -10,53 +10,53 @@ function formatUsd(n: number | null | undefined): string {
 export default async function TradesPage() {
   const trades = await getLatestTrades();
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight mb-1">Trades</h1>
-        <p className="text-sm text-[color:var(--muted)]">
+    <div className="space-y-8">
+      <header className="space-y-3">
+        <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">Trades</h1>
+        <p className="text-sm sm:text-base text-[color:var(--muted)] leading-relaxed">
           Órdenes paper enviadas a Alpaca por el ciclo más reciente.
         </p>
       </header>
 
       {trades.length === 0 ? (
-        <div className="border border-[color:var(--border)] rounded-lg px-4 py-6 text-sm text-[color:var(--muted)]">
+        <div className="card border-dashed shadow-none px-4 py-6 text-sm text-[color:var(--muted)]">
           Ningún trade ejecutado todavía.
         </div>
       ) : (
-        <div className="border border-[color:var(--border)] rounded-lg overflow-hidden">
+        <div className="card overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-[color:var(--border)]/40 text-xs uppercase tracking-wider text-[color:var(--muted)]">
+            <thead className="bg-[color:var(--border-soft)] text-[11px] uppercase tracking-wider text-[color:var(--muted-strong)]">
               <tr>
-                <th className="text-left px-4 py-2">Fecha</th>
-                <th className="text-left px-4 py-2">Ticker</th>
-                <th className="text-left px-4 py-2">Lado</th>
-                <th className="text-right px-4 py-2">Qty</th>
-                <th className="text-right px-4 py-2">Precio est.</th>
-                <th className="text-left px-4 py-2">Status</th>
+                <th className="text-left px-4 py-2.5 font-semibold">Fecha</th>
+                <th className="text-left px-4 py-2.5 font-semibold">Ticker</th>
+                <th className="text-left px-4 py-2.5 font-semibold">Lado</th>
+                <th className="text-right px-4 py-2.5 font-semibold">Qty</th>
+                <th className="text-right px-4 py-2.5 font-semibold">Precio est.</th>
+                <th className="text-left px-4 py-2.5 font-semibold">Status</th>
               </tr>
             </thead>
             <tbody>
               {trades.map((t, i) => (
                 <tr
                   key={`${t.ticker}-${t.fecha}-${i}`}
-                  className="border-t border-[color:var(--border)]"
+                  className="border-t border-[color:var(--border-soft)] hover:bg-[color:var(--border-soft)]/50 transition-colors"
                 >
-                  <td className="px-4 py-2 mono text-[color:var(--muted)]">{t.fecha}</td>
-                  <td className="px-4 py-2 mono font-semibold">{t.ticker}</td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2.5 mono text-[color:var(--muted)]">{t.fecha}</td>
+                  <td className="px-4 py-2.5 mono font-semibold">{t.ticker}</td>
+                  <td className="px-4 py-2.5">
                     <span
-                      className={
+                      className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-semibold mono ${
                         t.lado === "BUY"
-                          ? "text-emerald-400 mono"
-                          : "text-rose-400 mono"
-                      }
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : "bg-red-50 text-red-700 border border-red-200"
+                      }`}
                     >
                       {t.lado}
                     </span>
                   </td>
-                  <td className="px-4 py-2 text-right mono">{t.qty}</td>
-                  <td className="px-4 py-2 text-right mono">{formatUsd(t.precio_estimado)}</td>
-                  <td className="px-4 py-2 text-[color:var(--muted)]">{t.status ?? "—"}</td>
+                  <td className="px-4 py-2.5 text-right mono">{t.qty}</td>
+                  <td className="px-4 py-2.5 text-right mono">{formatUsd(t.precio_estimado)}</td>
+                  <td className="px-4 py-2.5 text-[color:var(--muted)]">{t.status ?? "—"}</td>
                 </tr>
               ))}
             </tbody>

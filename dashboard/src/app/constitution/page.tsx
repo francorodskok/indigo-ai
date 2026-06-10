@@ -18,13 +18,13 @@ export default async function ConstitutionPage() {
   const firma = extractFirma(md);
 
   return (
-    <div className="space-y-6">
-      <header className="border-b border-[color:var(--border)] pb-4">
-        <h1 className="text-2xl font-semibold tracking-tight">
+    <div className="space-y-8">
+      <header className="border-b border-[color:var(--border)] pb-6 space-y-2">
+        <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">
           Constitución de Indigo AI v1.0
         </h1>
         {firma && (
-          <p className="text-xs text-[color:var(--muted)] mt-1 mono">
+          <p className="text-xs text-[color:var(--muted)] mono">
             Firmada: {firma}
           </p>
         )}
