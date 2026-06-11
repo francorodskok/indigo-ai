@@ -155,6 +155,60 @@ class TestEstimateCost:
         usage = make_mock_usage(input_t=0, output_t=0, cache_write=0, cache_read=0)
         assert _estimate_cost(usage, "claude-sonnet-4-6") == 0.0
 
+    def test_cache_write_1h_is_double_input(self):
+        """call_agent cachea con TTL 1h: write = 2× input ($6 Sonnet, $10 Opus)."""
+        from pipeline.claude_client import _estimate_cost
+        usage = make_mock_usage(input_t=0, output_t=0, cache_write=1_000_000, cache_read=0)
+        assert abs(_estimate_cost(usage, "claude-sonnet-4-6") - 6.00) < 0.01
+        assert abs(_estimate_cost(usage, "claude-opus-4-7") - 10.00) < 0.01
+
+    def test_cache_write_5m_is_quarter_over_input(self):
+        """Los batch usan TTL 5m: write = 1.25× input ($3.75 Sonnet)."""
+        from pipeline.claude_client import _estimate_cost
+        usage = make_mock_usage(input_t=0, output_t=0, cache_write=1_000_000, cache_read=0)
+        assert abs(_estimate_cost(usage, "claude-sonnet-4-6", cache_ttl="5m") - 3.75) < 0.01
+
+    def test_haiku_has_own_prices(self):
+        """Haiku ya no se estima a precio Sonnet (3× de más)."""
+        from pipeline.claude_client import _estimate_cost
+        usage = make_mock_usage(input_t=1_000_000, output_t=0, cache_write=0, cache_read=0)
+        assert abs(_estimate_cost(usage, "claude-haiku-4-5") - 1.00) < 0.01
+
+
+class TestLogBatchResult:
+    def test_logs_with_batch_suffix_and_50pct_off(self, tmp_path, monkeypatch):
+        """log_batch_result escribe al cost_log con rol *_batch y descuento 50%."""
+        import json as _json
+        import pipeline.claude_client as cc
+
+        monkeypatch.setattr(cc, "COST_LOG", tmp_path / "cost_log.jsonl")
+        usage = make_mock_usage(
+            input_t=1_000_000, output_t=0, cache_write=0, cache_read=0
+        )
+        cost = cc.log_batch_result("analyst", "claude-sonnet-4-6", usage)
+
+        # 1M input Sonnet = $3.00; batch 50% → $1.50
+        assert abs(cost - 1.50) < 0.01
+
+        lines = (tmp_path / "cost_log.jsonl").read_text(encoding="utf-8").strip().splitlines()
+        assert len(lines) == 1
+        record = _json.loads(lines[0])
+        assert record["role"] == "analyst_batch"
+        assert record["model"] == "claude-sonnet-4-6"
+        assert abs(record["cost_usd"] - 1.50) < 0.01
+
+    def test_batch_cache_write_uses_5m_rate(self, tmp_path, monkeypatch):
+        """El cache write de batch se tarifa a 5m (1.25×), no 1h (2×)."""
+        import pipeline.claude_client as cc
+
+        monkeypatch.setattr(cc, "COST_LOG", tmp_path / "cost_log.jsonl")
+        usage = make_mock_usage(
+            input_t=0, output_t=0, cache_write=1_000_000, cache_read=0
+        )
+        cost = cc.log_batch_result("bull", "claude-sonnet-4-6", usage)
+        # 1M write 5m Sonnet = $3.75; batch 50% → $1.875
+        assert abs(cost - 1.875) < 0.01
+
 
 class TestDryRun:
     def test_dry_run_returns_without_api_call(self):

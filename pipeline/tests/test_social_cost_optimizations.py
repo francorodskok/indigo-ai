@@ -238,12 +238,15 @@ class TestRegulatoryReviewUseNonePhilosophy:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4) engagement_reply → Haiku por default
+# 4) engagement_reply → modelo dedicado (Sonnet desde 2026-05-12; antes Haiku,
+#    que ignoraba la regla dura "siempre responder" y devolvía replies: [])
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 class TestEngagementReplyUsesHaikuByDefault:
-    def test_default_model_is_haiku(self, tmp_drafts, fake_engagement_response):
+    def test_default_model_is_engagement_model(
+        self, tmp_drafts, fake_engagement_response
+    ):
         with patch.object(
             copy_generator, "call_agent", return_value=fake_engagement_response
         ) as mock_call:
@@ -255,7 +258,7 @@ class TestEngagementReplyUsesHaikuByDefault:
                 drafts_dir=tmp_drafts,
             )
         assert mock_call.call_args.kwargs["model"] == ENGAGEMENT_REPLY_MODEL
-        assert ENGAGEMENT_REPLY_MODEL == "claude-haiku-4-5"
+        assert ENGAGEMENT_REPLY_MODEL == "claude-sonnet-4-6"
 
     def test_explicit_model_override_respected(
         self, tmp_drafts, fake_engagement_response

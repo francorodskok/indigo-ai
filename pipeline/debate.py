@@ -41,7 +41,7 @@ from typing import Any
 import anthropic
 
 from pipeline.claude_client import (
-    _estimate_cost,  # helper interno: convierte Usage → USD
+    log_batch_result,  # loggea usage de batch al cost_log (50% off, cache 5m)
     call_agent,
     get_client,
     get_philosophy,
@@ -627,7 +627,7 @@ def _process_phase1(results: list[Any], tickers: list[dict]) -> tuple[dict, floa
         text = _extract_text(r.result.message.content)
         bull_bear.setdefault(ticker, {})[role] = text
         try:
-            cost += _estimate_cost(r.result.message.usage, DEBATE_MODEL) * 0.5  # batch 50% off
+            cost += log_batch_result(role, DEBATE_MODEL, r.result.message.usage)
         except Exception:
             pass
     return bull_bear, cost
@@ -657,7 +657,7 @@ def _process_phase2(
             text = _extract_text(r.result.message.content)
             verdict = _parse_verdict(text)
             try:
-                cost += _estimate_cost(r.result.message.usage, ANALYST_MODEL) * 0.5
+                cost += log_batch_result("synthesis", ANALYST_MODEL, r.result.message.usage)
             except Exception:
                 pass
         parts = bull_bear.get(ticker, {})

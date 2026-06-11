@@ -570,6 +570,17 @@ def run(dry_run: bool = False, *, with_macro: bool = True) -> Path:
     debate_decisions = _extract_decisions_map(debate_data)
     debate_tickers: set[str] = {d.get("ticker", "") for d in debates_list if d.get("ticker")}
 
+    # Pool comprable: tickers que el debate NO vetó. Si es menor al mínimo
+    # normal de posiciones, los primeros intentos fallarían con certeza
+    # matemática (no hay de dónde sacar 12 holdings válidos) — arrancamos
+    # directo con el mínimo fallback y needs_human_review se fuerza más abajo.
+    # Motivado por el ciclo 2026-06-03: pool de 11 quemó 2 llamadas Opus.
+    buyable_pool = [
+        t for t in sorted(debate_tickers)
+        if debate_decisions.get(t) != "no_invertir"
+    ]
+    pool_limited = len(buyable_pool) < PORTFOLIO_MIN_POSITIONS
+
     # Cargar estado de la cartera actual (memoria entre ciclos).
     # Si es el primer ciclo, devuelve estado vacío y el prompt no agrega bloque.
     current_state = load_current_holdings()
@@ -635,14 +646,26 @@ def run(dry_run: bool = False, *, with_macro: bool = True) -> Path:
         last_error: str | None = None
         portfolio = None
 
+        if pool_limited:
+            log.warning(
+                "Pool comprable de %d nombres (< mínimo normal %d): se usa el "
+                "mínimo fallback %d desde el primer intento para no quemar "
+                "llamadas destinadas a fallar.",
+                len(buyable_pool),
+                PORTFOLIO_MIN_POSITIONS,
+                PORTFOLIO_MIN_POSITIONS_FALLBACK,
+            )
+
         for attempt in range(1, MAX_ATTEMPTS + 1):
             # Umbral de posiciones efectivo: NORMAL en los primeros intentos;
             # recién tras PORTFOLIO_FALLBACK_AFTER_ATTEMPTS fallos se relaja al
             # fallback extremo. Solo entonces se acepta una cartera < mínimo normal
-            # (y más abajo se fuerza needs_human_review).
+            # (y más abajo se fuerza needs_human_review). Excepción: si el pool
+            # comprable ya es menor al mínimo normal, el fallback aplica desde
+            # el intento 1 (exigir 12 con pool de 11 es fallo garantizado).
             effective_min = (
                 PORTFOLIO_MIN_POSITIONS
-                if attempt <= PORTFOLIO_FALLBACK_AFTER_ATTEMPTS
+                if attempt <= PORTFOLIO_FALLBACK_AFTER_ATTEMPTS and not pool_limited
                 else PORTFOLIO_MIN_POSITIONS_FALLBACK
             )
             log.info(
@@ -651,7 +674,7 @@ def run(dry_run: bool = False, *, with_macro: bool = True) -> Path:
                 f"{CONSTRUCTOR_MODEL}, effort={CONSTRUCTOR_EFFORT}, "
                 f"budget={CONSTRUCTOR_TASK_BUDGET_TOKENS} tokens)."
             )
-            if effective_min < PORTFOLIO_MIN_POSITIONS:
+            if effective_min < PORTFOLIO_MIN_POSITIONS and not pool_limited:
                 log.warning(
                     "FALLBACK: %d intentos fallaron con el mínimo normal (%d); "
                     "relajando a %d posiciones. La cartera resultante requerirá "
@@ -685,7 +708,7 @@ def run(dry_run: bool = False, *, with_macro: bool = True) -> Path:
                     + "entries con ticker (NO 'CASH'), weight, action, rationale, conviction.\n"
                     + "3. sum(h.weight for h in holdings) + cash_weight == 1.0 ±0.005.\n"
                     + "4. Cada h.weight ∈ [0.03, 0.10] (o hasta 0.14 si conviction>=8).\n"
-                    + "5. Por sector GICS: sum(weights) ≤ 0.40.\n"
+                    + f"5. Por sector GICS: sum(weights) ≤ {PORTFOLIO_MAX_SECTOR_PCT:.2f}.\n"
                     + "6. cash_weight ∈ [0, 0.25]. Régimen normal: 0.0-0.05. "
                     + "Cauteloso: 0.05-0.15. Defensivo: 0.15-0.25.\n"
                     + "7. Ningún ticker con decision='no_invertir' en holdings.\n\n"

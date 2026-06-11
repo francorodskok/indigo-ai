@@ -732,11 +732,89 @@ def _dry_run_content_for(post_type: str) -> dict[str, Any]:
 # Generadores específicos por tipo
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Tope por ensayo bull/bear inyectado al thread. El prompt pide "qué argumentó
+# el bear" en UNA oración — el lead del ensayo alcanza; el texto completo de
+# 15 tickers × 2 lados era el grueso de los ~33K tokens de input por thread.
+_DEBATE_ARG_MAX_CHARS = 700
+
+
+def _truncate_arg(text: Any, limit: int = _DEBATE_ARG_MAX_CHARS) -> Any:
+    if not isinstance(text, str) or len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + " […]"
+
+
+def _slim_cycle_data_for_thread(cycle_data: dict[str, Any]) -> dict[str, Any]:
+    """
+    Reduce cycle_data a lo que el prompt del thread referencia. No muta el
+    original. Qué queda afuera y por qué:
+      - judge/macro_decision del portfolio: bloques internos; el prompt
+        prohíbe explícitamente mencionar "el juez interno".
+      - previous_portfolio: solo tickers+weights+cash (sirve para narrar el
+        diff de composición, no necesita rationales del ciclo viejo).
+      - bull/bear: truncados a _DEBATE_ARG_MAX_CHARS (el veredicto va entero).
+    Baja el input de ~33K a ~10K tokens por thread.
+    """
+    out: dict[str, Any] = {
+        k: cycle_data.get(k)
+        for k in ("cycle_id", "cycle_date", "nav_summary", "current_prices")
+        if k in cycle_data
+    }
+
+    p = cycle_data.get("portfolio") or {}
+    if p:
+        slim_p: dict[str, Any] = {
+            k: p.get(k)
+            for k in (
+                "cycle_id", "previous_cycle_id", "holdings", "exits",
+                "cash_weight", "decision_summary", "macro_concerns",
+                "total_invested_pct",
+            )
+            if k in p
+        }
+        macro = p.get("macro_decision") or {}
+        if macro:
+            slim_p["macro_regime"] = {
+                "regime": macro.get("regime"),
+                "cash_pct_recommended": macro.get("cash_pct_recommended"),
+            }
+        out["portfolio"] = slim_p
+
+    prev = cycle_data.get("previous_portfolio") or {}
+    if prev:
+        out["previous_portfolio"] = {
+            "cycle_id": prev.get("cycle_id"),
+            "cash_weight": prev.get("cash_weight"),
+            "holdings": [
+                {"ticker": h.get("ticker"), "weight": h.get("weight")}
+                for h in prev.get("holdings", []) or []
+            ],
+        }
+
+    debate = cycle_data.get("debate") or {}
+    debates = debate.get("debates") if isinstance(debate, dict) else None
+    if debates:
+        out["debate"] = {
+            "debates": [
+                {
+                    "ticker": d.get("ticker"),
+                    "sector": d.get("sector"),
+                    "verdict": d.get("verdict"),
+                    "bull_argument": _truncate_arg(d.get("bull_argument")),
+                    "bear_argument": _truncate_arg(d.get("bear_argument")),
+                }
+                for d in debates
+            ]
+        }
+    return out
+
+
 def _build_user_input_thread_post_ciclo(cycle_data: dict[str, Any]) -> str:
-    """User input para post-ciclo: dump del cycle_data como JSON pretty."""
+    """User input para post-ciclo: vista slim del cycle_data como JSON compacto."""
+    slim = _slim_cycle_data_for_thread(cycle_data)
     return (
         "DATOS DEL CICLO (JSON):\n\n```json\n"
-        + json.dumps(cycle_data, indent=2, ensure_ascii=False, default=str)
+        + json.dumps(slim, ensure_ascii=False, default=str)
         + "\n```\n\n"
         "Generá el thread siguiendo las instrucciones."
     )
@@ -776,30 +854,51 @@ def _build_user_input_didactico(
     )
 
 
-_SYSTEM_ARCHITECTURE_BLOCK = {
-    "pipeline_stages": [
-        {"id": 1, "name": "filter", "engine": "quantitative (no LLM)",
-         "desc": "S&P 500 → ~60 candidatos por filtros duros (cap, ROIC, balance, exclusiones GICS)."},
-        {"id": 2, "name": "analyst", "engine": "claude-sonnet-4-6",
-         "desc": "Analiza 60 candidates, genera tesis cuantitativa + precio objetivo. Output 15."},
-        {"id": 3, "name": "debate", "engine": "claude-sonnet-4-6",
-         "desc": "Por cada uno de los 15: bull case + bear case + síntesis con veredicto."},
-        {"id": 4, "name": "macro_agent", "engine": "claude-haiku-4-5",
-         "desc": "Régimen macro (normal/cauteloso/defensivo) y nivel de cash."},
-        {"id": 5, "name": "constructor", "engine": "claude-opus-4-8",
-         "desc": "Arma portfolio respetando constitución: 12-15 holdings, max 10% (14% high conv), max 30% sector."},
-        {"id": 6, "name": "judge", "engine": "claude-opus-4-8",
-         "desc": "Verificador independiente: alucinaciones, citas canon, coherencia con debate."},
-        {"id": 7, "name": "executor", "engine": "Alpaca API (no LLM)",
-         "desc": "Trades reales a target weights. Reporta drift vs target."},
-        {"id": 8, "name": "post-mortem", "engine": "claude-opus-4-7",
-         "desc": "Analiza decisiones de hace ~90 días, genera lecciones para próximos ciclos."},
-        {"id": 9, "name": "social copy_generator", "engine": "claude-sonnet-4-6 / claude-haiku-4-5",
-         "desc": "Threads, didácticos, newsletter, engagement replies (este soy yo)."},
-    ],
-    "cadence_days": 20,
-    "models_in_use": ["claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5"],
-}
+def _system_architecture_block() -> dict[str, Any]:
+    """
+    Specs del pipeline para inyectar en posts que explican el sistema.
+    Los modelos se leen de config/módulos en runtime — antes estaban
+    hardcodeados acá y quedaban stale tras cada cambio de modelo (caso real:
+    publicamos "constructor: opus-4-8" semanas después del revert a 4.7).
+    Imports lazy: macro_agent arrastra yfinance y no queremos pagarlo en
+    cada import del módulo social.
+    """
+    from pipeline.config import (
+        ANALYST_MODEL as _ANALYST,
+        CONSTRUCTOR_MODEL as _CONSTRUCTOR,
+        CYCLE_INTERVAL_DAYS as _CADENCE,
+        DEBATE_MODEL as _DEBATE,
+        POSTMORTEM_MODEL as _POSTMORTEM,
+    )
+    from pipeline.judge import JUDGE_MODEL as _JUDGE
+    from pipeline.macro_agent import MACRO_MODEL as _MACRO
+
+    return {
+        "pipeline_stages": [
+            {"id": 1, "name": "filter", "engine": "quantitative (no LLM)",
+             "desc": "S&P 500 → ~60 candidatos por filtros duros (cap, ROIC, balance, exclusiones GICS)."},
+            {"id": 2, "name": "analyst", "engine": _ANALYST,
+             "desc": "Analiza 60 candidates, genera tesis cuantitativa + precio objetivo. Output 15."},
+            {"id": 3, "name": "debate", "engine": _DEBATE,
+             "desc": "Por cada uno de los 15: bull case + bear case + síntesis con veredicto."},
+            {"id": 4, "name": "macro_agent", "engine": _MACRO,
+             "desc": "Régimen macro (normal/cauteloso/defensivo) y nivel de cash."},
+            {"id": 5, "name": "constructor", "engine": _CONSTRUCTOR,
+             "desc": "Arma portfolio respetando constitución: 12-15 holdings, max 10% (14% high conv), max 30% sector."},
+            {"id": 6, "name": "judge", "engine": _JUDGE,
+             "desc": "Verificador independiente: alucinaciones, citas canon, coherencia con debate."},
+            {"id": 7, "name": "executor", "engine": "Alpaca API (no LLM)",
+             "desc": "Trades reales a target weights. Reporta drift vs target."},
+            {"id": 8, "name": "post-mortem", "engine": _POSTMORTEM,
+             "desc": "Analiza decisiones de hace ~90 días, genera lecciones para próximos ciclos."},
+            {"id": 9, "name": "social copy_generator", "engine": f"{DEFAULT_MODEL} / {ENGAGEMENT_REPLY_MODEL}",
+             "desc": "Threads, didácticos, newsletter, engagement replies (este soy yo)."},
+        ],
+        "cadence_days": _CADENCE,
+        "models_in_use": sorted({
+            _ANALYST, _DEBATE, _MACRO, _CONSTRUCTOR, _JUDGE, _POSTMORTEM, DEFAULT_MODEL,
+        }),
+    }
 
 
 def _load_current_portfolio_summary() -> dict[str, Any] | None:
@@ -1165,7 +1264,7 @@ def _build_user_input_anuncio(
     """
     payload = {
         "que_anunciar": topic,
-        "system_architecture": _SYSTEM_ARCHITECTURE_BLOCK,
+        "system_architecture": _system_architecture_block(),
         "cycle_meta": _load_cycle_meta(),
         "our_context": our_context or {},
     }
@@ -1210,7 +1309,7 @@ def _build_user_input_opinion(
 
     payload = {
         "topic": topic,
-        "system_architecture": _SYSTEM_ARCHITECTURE_BLOCK,
+        "system_architecture": _system_architecture_block(),
         "current_portfolio": portfolio_summary,
         "position_returns": _load_position_returns(),
         "macro_context": _build_macro_brief(),
@@ -1349,7 +1448,7 @@ def _build_user_input_engagement_reply(
         "target_account_metadata": account_meta,
         "thread_text": thread_text,
         "our_context": our_context or {},
-        "system_architecture": _SYSTEM_ARCHITECTURE_BLOCK,
+        "system_architecture": _system_architecture_block(),
         "current_portfolio": _load_current_portfolio_summary(),
         "position_returns": _load_position_returns(),
         "macro_context": _build_macro_brief(),

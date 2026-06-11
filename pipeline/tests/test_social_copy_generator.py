@@ -334,6 +334,54 @@ class TestGenerateThreadPostCiclo:
         assert "AAPL" in user_input
         assert draft["cycle_id"] == "ciclo-2026-04-22"
 
+    def test_cycle_data_is_slimmed(self, tmp_drafts, fake_thread_response):
+        """El input del thread no incluye bloques internos ni ensayos enteros."""
+        long_essay = "x" * 5000
+        cycle_data = {
+            "cycle_id": "ciclo-2026-06-03",
+            "portfolio": {
+                "holdings": [{"ticker": "AAPL", "weight": 0.05, "rationale": "r"}],
+                "decision_summary": "resumen del ciclo",
+                "judge": {"verdict": "approve", "issues": ["NOTA_INTERNA_JUDGE"]},
+            },
+            "previous_portfolio": {
+                "cycle_id": "ciclo-anterior",
+                "cash_weight": 0.05,
+                "holdings": [
+                    {"ticker": "MSFT", "weight": 0.04, "rationale": "RATIONALE_VIEJO"}
+                ],
+            },
+            "debate": {
+                "debates": [
+                    {
+                        "ticker": "AAPL",
+                        "verdict": {"decision": "comprar", "razon": "veredicto entero"},
+                        "bull_argument": long_essay,
+                        "bear_argument": long_essay,
+                    }
+                ]
+            },
+        }
+        with patch.object(
+            copy_generator, "call_agent", return_value=fake_thread_response
+        ) as mock_call:
+            generate_post(
+                "thread_post_ciclo",
+                cycle_data=cycle_data,
+                target_date=date(2026, 6, 11),
+                drafts_dir=tmp_drafts,
+            )
+        user_input = mock_call.call_args.kwargs["user_input"]
+        # Bloques internos fuera (el prompt prohíbe mencionar al juez)
+        assert "NOTA_INTERNA_JUDGE" not in user_input
+        # Previous portfolio: solo composición, sin rationales viejos
+        assert "RATIONALE_VIEJO" not in user_input
+        assert "MSFT" in user_input
+        # Ensayos bull/bear truncados, veredicto entero
+        assert "x" * 800 not in user_input
+        assert "[…]" in user_input
+        assert "veredicto entero" in user_input
+
 
 class TestPostTypeRouting:
     def test_invalid_type(self, tmp_drafts):
@@ -687,8 +735,9 @@ class TestGenerateNewsletter:
         ui = mock_call.call_args.kwargs["user_input"]
         assert "alpha vs beta" in ui
         assert "Marks 2024" in ui
-        # Newsletter usa max_tokens más alto.
-        assert mock_call.call_args.kwargs["max_tokens"] == 16_000
+        # Newsletter usa max_tokens más alto (24K desde el bump por adaptive
+        # thinking de Sonnet 4.6 — ver comentario en copy_generator.generate).
+        assert mock_call.call_args.kwargs["max_tokens"] == 24_000
         assert draft["type"] == "newsletter"
 
 

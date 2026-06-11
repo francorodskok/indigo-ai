@@ -696,6 +696,136 @@ class TestDryRun:
         mock_call_agent.assert_not_called()
 
 
+# ── TestRetryLoopPoolLimited ──────────────────────────────────────────────────
+
+# 11 nombres comprables con ≤3 por sector (sector cap 30% con pesos ~8.6%)
+POOL_11_BUYABLE = [
+    ("NVDA", SECTOR_IT, 9, 950.0, "comprar"),
+    ("MSFT", SECTOR_IT, 8, 430.0, "comprar"),
+    ("AAPL", SECTOR_IT, 7, 200.0, "comprar"),
+    ("AMZN", SECTOR_CD, 8, 210.0, "comprar"),
+    ("UNH", SECTOR_HC, 8, 580.0, "comprar"),
+    ("JNJ", SECTOR_HC, 7, 165.0, "comprar"),
+    ("LLY", SECTOR_HC, 9, 900.0, "comprar"),
+    ("JPM", SECTOR_FIN, 8, 210.0, "comprar"),
+    ("GS", SECTOR_FIN, 7, 480.0, "comprar"),
+    ("BRK", SECTOR_FIN, 8, 380.0, "comprar"),
+    ("CAT", SECTOR_IND, 7, 320.0, "comprar"),
+]
+POOL_11_WITH_VETOED = POOL_11_BUYABLE + [
+    ("AMT", "Real Estate", 5, 210.0, "no_invertir"),
+    ("CVX", SECTOR_EN, 4, 160.0, "no_invertir"),
+]
+
+
+class TestRetryLoopPoolLimited:
+    """
+    Cuando el pool comprable (decision != no_invertir) es menor al mínimo
+    normal de posiciones, el constructor debe usar el mínimo fallback desde
+    el PRIMER intento — exigir 12 holdings con pool de 11 es fallo garantizado
+    y quema llamadas Opus (caso real: ciclo 2026-06-03).
+    """
+
+    def _setup(self, monkeypatch, tmp_path, tickers_data, agent_responses):
+        """Aísla run() de disco/API. Retorna el mock de call_agent."""
+        import pipeline.constructor as ctor
+
+        debate = make_debate_json(tickers_data)
+        debate_path = tmp_path / "debate_2026-06-03.json"
+        debate_path.write_text(json.dumps(debate), encoding="utf-8")
+
+        monkeypatch.setattr(ctor, "OUTPUTS_DIR", tmp_path)
+        monkeypatch.setattr(ctor, "_find_latest_debate", lambda: debate_path)
+        monkeypatch.setattr(ctor, "load_current_holdings", lambda: {})
+
+        mock_agent = MagicMock(side_effect=agent_responses)
+        monkeypatch.setattr(ctor, "call_agent", mock_agent)
+
+        # El judge corre dentro de run() cuando dry_run=False — lo anulamos.
+        import pipeline.judge as judge_mod
+        monkeypatch.setattr(
+            judge_mod, "judge_portfolio",
+            MagicMock(return_value={
+                "verdict": "approve", "needs_human_review": False,
+                "issues": [], "observations": [], "summary": "", "cost_usd": 0.0,
+            }),
+        )
+        return mock_agent
+
+    @staticmethod
+    def _agent_response(portfolio: dict) -> dict:
+        return {
+            "content": json.dumps(portfolio),
+            "model": "claude-opus-4-7",
+            "usage": None,
+            "cost_usd": 0.5,
+        }
+
+    def test_pool_under_minimum_uses_fallback_from_first_attempt(
+        self, tmp_path, monkeypatch
+    ):
+        """Pool de 11 → una sola llamada (no quema intentos con mínimo 12)."""
+        import pipeline.constructor as ctor
+
+        portfolio_11 = make_valid_portfolio(POOL_11_BUYABLE)
+        mock_agent = self._setup(
+            monkeypatch, tmp_path, POOL_11_WITH_VETOED,
+            [self._agent_response(portfolio_11)],
+        )
+
+        result_path = ctor.run(dry_run=False, with_macro=False)
+
+        assert mock_agent.call_count == 1, (
+            "Con pool < mínimo normal, la cartera de 11 debe aceptarse en el "
+            "primer intento (fallback inmediato), sin retries desperdiciados."
+        )
+        data = json.loads(result_path.read_text(encoding="utf-8"))
+        assert len(data["holdings"]) == 11
+        assert data["fallback_min_positions_used"] is True
+        # El fallback extremo siempre fuerza revisión humana
+        assert data["judge"]["needs_human_review"] is True
+
+    def test_normal_pool_still_requires_normal_minimum(self, tmp_path, monkeypatch):
+        """Con pool de 20, una respuesta de 11 holdings se rechaza y se reintenta."""
+        import pipeline.constructor as ctor
+
+        # Respuesta 1: 11 holdings (inválida con pool normal) → retry.
+        # Respuesta 2: 12 holdings válida.
+        eleven = make_valid_portfolio(POOL_11_BUYABLE)
+        twelve_tickers = POOL_11_BUYABLE + [("PG", "Consumer Staples", 6, 170.0, "comprar")]
+        twelve = make_valid_portfolio(twelve_tickers)
+        mock_agent = self._setup(
+            monkeypatch, tmp_path, SAMPLE_TICKERS,
+            [self._agent_response(eleven), self._agent_response(twelve)],
+        )
+
+        result_path = ctor.run(dry_run=False, with_macro=False)
+
+        assert mock_agent.call_count == 2
+        data = json.loads(result_path.read_text(encoding="utf-8"))
+        assert len(data["holdings"]) == 12
+        assert data["fallback_min_positions_used"] is False
+
+    def test_retry_prompt_uses_config_sector_cap(self, tmp_path, monkeypatch):
+        """El mensaje de retry cita el cap de sector de config (0.30), no 0.40."""
+        import pipeline.constructor as ctor
+        from pipeline.config import PORTFOLIO_MAX_SECTOR_PCT
+
+        eleven = make_valid_portfolio(POOL_11_BUYABLE)
+        twelve_tickers = POOL_11_BUYABLE + [("PG", "Consumer Staples", 6, 170.0, "comprar")]
+        twelve = make_valid_portfolio(twelve_tickers)
+        mock_agent = self._setup(
+            monkeypatch, tmp_path, SAMPLE_TICKERS,
+            [self._agent_response(eleven), self._agent_response(twelve)],
+        )
+
+        ctor.run(dry_run=False, with_macro=False)
+
+        retry_input = mock_agent.call_args_list[1].kwargs["user_input"]
+        assert f"≤ {PORTFOLIO_MAX_SECTOR_PCT:.2f}" in retry_input
+        assert "0.40" not in retry_input
+
+
 # ── TestBuildDryRunPortfolio ──────────────────────────────────────────────────
 
 class TestBuildDryRunPortfolio:

@@ -5,8 +5,10 @@ Recibe un draft generado por `copy_generator.py` y devuelve un veredicto
 estructurado (green/yellow/red) más violations específicas y suggested_fixes.
 Es el firewall regulatorio + de tono antes de que un humano apruebe.
 
-Modelo: Opus 4.6 con effort=high. Acá la calidad de criterio importa más que
-el costo — un solo post mal puede traer problemas con CNV.
+Modelo: Sonnet 4.6 con effort=high (2026-06-11; antes Opus). El review es un
+checklist con criterios explícitos — la barrera real es el prompt, no el
+modelo. Un solo post mal puede traer problemas con CNV: si aparecen falsos
+negativos, revertir DEFAULT_MODEL a Opus.
 
 ADR: docs/decisions/2026-04-25-social-copy-pipeline.md
 """
@@ -32,8 +34,12 @@ log = logging.getLogger(__name__)
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
-# Modelo más caro pero con mejor judgment para edge cases regulatorios.
-DEFAULT_MODEL = "claude-opus-4-7"
+# 2026-06-11: Opus 4.7 → Sonnet 4.6 (-40% por review). El review es un
+# checklist de compliance con criterios explícitos (status/severity cerrados,
+# reglas enumeradas en el prompt) — no requiere el judgment extra de Opus.
+# Histórico: 71 reviews en Opus costaron $5.67; en Sonnet ~$3.40.
+# Si aparecen falsos negativos regulatorios, revertir a "claude-opus-4-7".
+DEFAULT_MODEL = "claude-sonnet-4-6"
 DEFAULT_EFFORT = "high"
 
 VALID_STATUS = {"green", "yellow", "red"}
@@ -160,7 +166,7 @@ def review_draft(
 
     Args:
         draft: el dict tal como sale de `copy_generator.generate_post`.
-        model / effort: defaults son Opus 4.6 / high.
+        model / effort: defaults son Sonnet 4.6 / high.
         dry_run: no llama a la API; devuelve review mock con status=yellow.
 
     Returns:

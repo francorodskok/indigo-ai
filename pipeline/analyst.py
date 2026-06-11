@@ -28,7 +28,7 @@ from pathlib import Path
 import anthropic
 import pandas as pd
 
-from pipeline.claude_client import call_agent, get_client, get_philosophy
+from pipeline.claude_client import call_agent, get_client, get_philosophy, log_batch_result
 from pipeline.config import ANALYST_EFFORT, ANALYST_MODEL
 from pipeline.valuation import VALUATION_CRITERIA_SUFFIX, build_valuation_block
 
@@ -324,6 +324,10 @@ def _poll_single_batch(client: anthropic.Anthropic, batch_id: str, poll_interval
             )
             thesis = _parse_thesis(raw, ticker)
             usage = result.result.message.usage
+            try:
+                log_batch_result("analyst", ANALYST_MODEL, usage)
+            except Exception:
+                log.warning(f"[{ticker}] No se pudo loggear usage del batch al cost_log")
             results.append({
                 "ticker": ticker,
                 "thesis": thesis,

@@ -20,16 +20,28 @@ tokens). Alcanza holgadamente para las ideas fuerza de cada uno.
 
 Más no sirve — empieza a comerse la cuota de los otros autores y a hinchar el cache write.
 
-## Autores cargados en v1.0
+## Autores cargados (v1.1 — 2026-06-11: canon 100% curado)
 
-El canon vigente del sistema (que se cachea en cada llamada a Claude) son cuatro autores:
+Los seis autores del canon tienen `essentials` curados. Los corpus crudos
+(`canon/buffett_letters.md` 1.9MB, `canon/marks_memos.md` 5MB) quedan en el
+repo como **material fuente** para re-curar, pero el loader ya no los carga:
+antes entraban truncados arbitrariamente (~350K chars cada uno, cortados a
+mitad de carta/memo) y eran ~89% del bloque cacheado. El bloque de filosofía
+bajó de ~800K chars (~200K tokens) a ~200K chars (~50K tokens) con MEJOR
+señal por token.
 
-1. **Buffett** — `canon/buffett_letters.md` (corpus crudo, cartas anuales 1998-2024).
-2. **Marks** — `canon/marks_memos.md` (corpus crudo, memos 1990-2025).
+1. **`buffett_essentials.md`** — Cartas Berkshire 1977-2024 + Owner's Manual
+   - Mr. Market, margen de seguridad, círculo de competencia, moat/pricing power, owner earnings, test del dólar retenido, See's/GEICO economics, fearful/greedy.
+2. **`marks_essentials.md`** — Memos Oaktree 1990-2025 + *The Most Important Thing* + *Mastering the Market Cycle*
+   - Second-level thinking, riesgo ≠ volatilidad, el péndulo, ciclos y temperatura del mercado, contrarianism con análisis, staying power, asimetría.
 3. **`lynch_essentials.md`** — *One Up on Wall Street* + *Beating the Street*
    - Secciones clave: las 6 categorías de empresas, PEG ratio, "invest in what you know", señales de alerta (diworsification, whisper stocks), ventaja del inversor individual.
 4. **`munger_essentials.md`** — Transcripciones Daily Journal + *Poor Charlie's Almanack*
    - Mental models (inversión de problemas, second-order effects), checklist investing, temperamento sobre IQ, moat como barrera psicológica-económica.
+5. **`sleep_essentials.md`** — Cartas Nomad Partnership
+   - Scale economies shared, horizonte como ventaja, destination analysis.
+6. **`thiel_essentials.md`** — *Zero to One*
+   - Monopolio durable (4 características), secretos, definite optimism, last mover advantage.
 
 ## Autores futuros (out of scope para v1.0)
 

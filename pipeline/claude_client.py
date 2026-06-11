@@ -8,11 +8,15 @@ Responsabilidades:
   - Loggear tokens, costo estimado, modelo, role y timestamp a PostgreSQL (o archivo si no hay DB)
   - Circuit breaker: abortar si el gasto diario supera DAILY_BUDGET_USD
 
-Costo estimado por llamada (precios Anthropic a abril 2026):
+Costo estimado por llamada (precios Anthropic a junio 2026):
   Sonnet 4.6:  $3.00 input / $15.00 output por millón de tokens
   Opus 4.7:    $5.00 input / $25.00 output por millón de tokens
-  Cache write: $3.75 (Sonnet) / $5.00 (Opus) por millón — extendida 1h (+25%)
-  Cache read:  $0.30 (Sonnet) / $0.50 (Opus) por millón
+  Cache write 5min: 1.25× input ($3.75 Sonnet / $6.25 Opus) por millón
+  Cache write 1h:   2.00× input ($6.00 Sonnet / $10.00 Opus) por millón
+  Cache read:       0.1× input ($0.30 Sonnet / $0.50 Opus) por millón
+  Batch API: 50% de descuento sobre TODOS los precios (incluye cache).
+
+call_agent usa cache TTL 1h; los paths batch (analyst/debate) usan TTL 5m.
 """
 
 import json
@@ -42,21 +46,29 @@ from pipeline.config import (
 
 log = logging.getLogger(__name__)
 
-# ── Precios por millón de tokens (abril 2026) ─────────────────────────────────
+# ── Precios por millón de tokens (junio 2026) ─────────────────────────────────
+# cache_write_5m = 1.25× input (TTL default de la API / paths batch).
+# cache_write_1h = 2.00× input (TTL extendido que usa call_agent).
+# El log histórico anterior al 2026-06-11 subcontaba los writes 1h un 37.5%
+# (usaba la tarifa 5m) y estimaba Haiku a precio Sonnet (3×).
 _PRICES = {
     "claude-sonnet-4-6": {
         "input": 3.00, "output": 15.00,
-        "cache_write": 3.75, "cache_read": 0.30,
+        "cache_write_5m": 3.75, "cache_write_1h": 6.00, "cache_read": 0.30,
     },
     "claude-opus-4-7": {
         "input": 5.00, "output": 25.00,
-        "cache_write": 6.25, "cache_read": 0.50,
+        "cache_write_5m": 6.25, "cache_write_1h": 10.00, "cache_read": 0.50,
     },
     # NOTA: tarifa estimada en el tier Opus (igual a 4.6/4.7). Si Anthropic
     # publica un precio distinto para 4.8, actualizar acá para no subcontar costo.
     "claude-opus-4-8": {
         "input": 5.00, "output": 25.00,
-        "cache_write": 6.25, "cache_read": 0.50,
+        "cache_write_5m": 6.25, "cache_write_1h": 10.00, "cache_read": 0.50,
+    },
+    "claude-haiku-4-5": {
+        "input": 1.00, "output": 5.00,
+        "cache_write_5m": 1.25, "cache_write_1h": 2.00, "cache_read": 0.10,
     },
 }
 
@@ -191,17 +203,44 @@ def _load_philosophy() -> str:
     return SEP.join(parts)
 
 
-def _estimate_cost(usage: anthropic.types.Usage, model: str) -> float:
-    """Calcula costo estimado en USD a partir del objeto Usage de la API."""
+def _estimate_cost(
+    usage: anthropic.types.Usage, model: str, *, cache_ttl: str = "1h"
+) -> float:
+    """
+    Calcula costo estimado en USD a partir del objeto Usage de la API.
+
+    cache_ttl: "1h" (default — es lo que usa call_agent) o "5m" (paths batch,
+    que cachean con el TTL default de la API). El write 1h cuesta 2× input;
+    el 5m cuesta 1.25×.
+    """
     prices = _PRICES.get(model, _PRICES["claude-sonnet-4-6"])
     m = 1_000_000
+    cache_write_price = (
+        prices["cache_write_1h"] if cache_ttl == "1h" else prices["cache_write_5m"]
+    )
 
     input_cost = (getattr(usage, "input_tokens", 0) / m) * prices["input"]
     output_cost = (getattr(usage, "output_tokens", 0) / m) * prices["output"]
-    cache_write = (getattr(usage, "cache_creation_input_tokens", 0) / m) * prices["cache_write"]
+    cache_write = (getattr(usage, "cache_creation_input_tokens", 0) / m) * cache_write_price
     cache_read = (getattr(usage, "cache_read_input_tokens", 0) / m) * prices["cache_read"]
 
     return input_cost + output_cost + cache_write + cache_read
+
+
+def log_batch_result(role: str, model: str, usage: anthropic.types.Usage) -> float:
+    """
+    Loggea al cost_log el usage de UN request del Batch API y retorna su costo.
+
+    Aplica: (a) descuento batch del 50% sobre todos los precios, (b) tarifa de
+    cache write 5m (los requests batch cachean con el TTL default, no 1h).
+
+    Antes del 2026-06-11 los paths batch no escribían al cost_log: el gasto de
+    analyst (60 reqs/ciclo) y debate (45 reqs/ciclo) era invisible para el
+    tracking y para el circuit breaker de DAILY_BUDGET_USD.
+    """
+    cost = _estimate_cost(usage, model, cache_ttl="5m") * 0.5
+    _log_usage(f"{role}_batch", model, usage, cost)
+    return cost
 
 
 def _log_usage(role: str, model: str, usage: anthropic.types.Usage, cost_usd: float) -> None:
