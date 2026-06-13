@@ -11,7 +11,7 @@ export default async function TradesPage() {
   const trades = await getLatestTrades();
   return (
     <div className="space-y-8">
-      <header className="space-y-3">
+      <header className="space-y-3 animate-in">
         <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">Trades</h1>
         <p className="text-sm sm:text-base text-[color:var(--muted)] leading-relaxed">
           Órdenes paper enviadas a Alpaca por el ciclo más reciente.

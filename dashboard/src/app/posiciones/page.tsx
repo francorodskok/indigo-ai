@@ -6,14 +6,26 @@ import {
   getLatestAnalysis,
   getLatestDebate,
   getLatestPortfolio,
+  getPositionsSnapshot,
 } from "@/lib/data";
-import type { Analysis, Debate, DebateVerdict, HoldingAction } from "@/lib/types";
+import type {
+  Analysis,
+  Debate,
+  DebateVerdict,
+  HoldingAction,
+  PositionReturn,
+} from "@/lib/types";
 
 export const revalidate = 60;
 
 function formatPct(weight: number | null | undefined): string {
   if (weight == null || Number.isNaN(weight)) return "—";
   return (weight * 100).toFixed(2) + "%";
+}
+
+function formatSignedPct(n: number | null | undefined, digits = 2): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  return (n > 0 ? "+" : "") + n.toFixed(digits) + "%";
 }
 
 function formatUsd(n: number | null | undefined): string {
@@ -86,16 +98,19 @@ function decisionLabel(d: string | undefined): { label: string; color: string } 
 }
 
 export default async function PosicionesPage() {
-  const [analysis, debate, portfolio] = await Promise.all([
+  const [analysis, debate, portfolio, positionsSnap] = await Promise.all([
     getLatestAnalysis(),
     getLatestDebate(),
     getLatestPortfolio(),
+    getPositionsSnapshot(),
   ]);
 
   const analysisByTicker = new Map<string, Analysis>();
   (analysis?.analyses ?? []).forEach((a) => analysisByTicker.set(a.ticker, a));
   const debateByTicker = new Map<string, Debate>();
   (debate?.debates ?? []).forEach((d) => debateByTicker.set(d.ticker, d));
+  const pnlByTicker = new Map<string, PositionReturn>();
+  (positionsSnap?.positions ?? []).forEach((p) => pnlByTicker.set(p.ticker, p));
 
   const sortedHoldings = (portfolio?.holdings ?? [])
     .slice()
@@ -103,7 +118,7 @@ export default async function PosicionesPage() {
 
   return (
     <div className="space-y-10">
-      <section className="space-y-3">
+      <section className="space-y-3 animate-in">
         <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-[color:var(--accent)] font-semibold bg-[color:var(--accent-bg)] border border-[color:var(--accent)]/15 rounded-full px-3.5 py-1.5">
           {sortedHoldings.length} holdings
         </div>
@@ -132,12 +147,13 @@ export default async function PosicionesPage() {
             const riesgos = parseRiesgos(a?.riesgos);
             const verdictInfo = decisionLabel(verdict?.decision);
             const badge = actionBadge(h.action);
+            const pnl = pnlByTicker.get(h.ticker);
 
             return (
               <article
                 key={h.ticker}
                 id={`holding-${h.ticker}`}
-                className="card p-6 space-y-5 scroll-mt-20"
+                className="card card-hover p-6 space-y-5 scroll-mt-20"
               >
                 <header>
                   <div className="flex flex-wrap items-baseline justify-between gap-3 mb-1">
@@ -149,6 +165,19 @@ export default async function PosicionesPage() {
                           className={`inline-block border rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wider mono ${badge.className}`}
                         >
                           {badge.label}
+                        </span>
+                      )}
+                      {pnl && (
+                        <span
+                          className={`pill mono ${
+                            pnl.unrealized_pl_usd > 0
+                              ? "pill-pos"
+                              : pnl.unrealized_pl_usd < 0
+                              ? "pill-neg"
+                              : "pill-flat"
+                          }`}
+                        >
+                          {formatSignedPct(pnl.unrealized_pl_pct)}
                         </span>
                       )}
                     </div>

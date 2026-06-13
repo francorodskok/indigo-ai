@@ -216,6 +216,32 @@ export type SocialDraft = {
   _fileName?: string;
 };
 
+// Rendimiento por posición — snapshot escrito por `pipeline/position_tracker.py`
+// desde la cuenta de Alpaca. Mirror de positions_latest.json.
+export type PositionReturn = {
+  ticker: string;
+  qty: number;
+  avg_cost: number;          // precio de entrada promedio
+  current_price: number;
+  cost_basis: number;
+  market_value: number;
+  unrealized_pl_usd: number; // ganancia/pérdida no realizada en USD
+  unrealized_pl_pct: number; // ídem en % sobre cost_basis
+  weight_actual_pct: number; // peso real hoy (market_value / equity)
+};
+
+export type PositionsSnapshot = {
+  generated_at: string;
+  equity_usd: number;
+  cash_usd: number;
+  positions_value_usd: number;
+  total_cost_basis_usd: number;
+  total_unrealized_pl_usd: number;
+  total_unrealized_pl_pct: number;
+  positions_count: number;
+  positions: PositionReturn[];
+};
+
 // NAV equity-curve snapshot — un punto por día calendario.
 // Mirror del schema escrito por `pipeline/nav_tracker.record_today`.
 // equity_usd = portfolio total equity (Alpaca account.equity).

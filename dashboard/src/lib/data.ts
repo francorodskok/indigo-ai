@@ -10,6 +10,7 @@ import type {
   AnalysisFile,
   DebateFile,
   PortfolioFile,
+  PositionsSnapshot,
   Trade,
 } from "./types";
 import { outputsDir, philosophyDir } from "./paths";
@@ -195,6 +196,20 @@ export async function getLatestTrades(): Promise<Trade[]> {
     return trades;
   } catch {
     return [];
+  }
+}
+
+// Lee positions_latest.json (rendimiento por acción). Devuelve null si no
+// existe todavía (primer deploy antes del primer snapshot del evening task).
+export async function getPositionsSnapshot(): Promise<PositionsSnapshot | null> {
+  const full = path.join(OUTPUTS_DIR, "positions_latest.json");
+  try {
+    const raw = await fs.readFile(full, "utf8");
+    const parsed = safeJsonParse<PositionsSnapshot>(raw);
+    if (!parsed || !Array.isArray(parsed.positions)) return null;
+    return parsed;
+  } catch {
+    return null;
   }
 }
 

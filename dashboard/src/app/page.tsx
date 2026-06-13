@@ -1,13 +1,15 @@
+import Link from "next/link";
 import {
   getLatestAnalysis,
   getLatestPortfolio,
+  getPositionsSnapshot,
 } from "@/lib/data";
 import { getNavHistory, spanInDays } from "@/lib/nav";
 import { computeSummary } from "@/lib/metrics";
 import { EquityChartClient as EquityChart } from "@/components/EquityChartClient";
 import { MetricCard } from "@/components/MetricCard";
 import { SectorBreakdownClient as SectorBreakdown } from "@/components/SectorBreakdownClient";
-import type { Analysis, HoldingAction } from "@/lib/types";
+import type { Analysis, HoldingAction, PositionReturn } from "@/lib/types";
 
 // Revalidate cada 60s para que cuando llegue un nuevo snapshot del NAV
 // (escrito por nav_tracker.record_today via daily_tasks), aparezca en el
@@ -63,13 +65,6 @@ function actionBadge(a: HoldingAction | undefined): { label: string; className: 
   }
 }
 
-function weightDelta(curr: number | null | undefined, prev: number | null | undefined): string | null {
-  if (curr == null || prev == null || Number.isNaN(curr) || Number.isNaN(prev)) return null;
-  const d = (curr - prev) * 100;
-  if (Math.abs(d) < 0.05) return null;
-  return (d > 0 ? "+" : "") + d.toFixed(1) + "pp";
-}
-
 function formatSignedPct(n: number | null | undefined, digits = 2): string {
   if (n == null || Number.isNaN(n)) return "—";
   const sign = n > 0 ? "+" : "";
@@ -88,15 +83,21 @@ function metricTone(n: number | null | undefined): "positive" | "negative" | "ne
 }
 
 export default async function HomePage() {
-  const [analysis, portfolio, navHistory] = await Promise.all([
+  const [analysis, portfolio, navHistory, positionsSnap] = await Promise.all([
     getLatestAnalysis(),
     getLatestPortfolio(),
     getNavHistory(),
+    getPositionsSnapshot(),
   ]);
 
   // Index analyst por ticker para cruzar con los holdings (sector, precio obj).
   const analysisByTicker = new Map<string, Analysis>();
   (analysis?.analyses ?? []).forEach((a) => analysisByTicker.set(a.ticker, a));
+
+  // Index del P&L por ticker para mostrar rendimiento real en la tabla de cartera.
+  const pnlByTicker = new Map<string, PositionReturn>();
+  (positionsSnap?.positions ?? []).forEach((p) => pnlByTicker.set(p.ticker, p));
+  const hasPnl = pnlByTicker.size > 0;
 
   const sortedHoldings = (portfolio?.holdings ?? [])
     .slice()
@@ -134,7 +135,7 @@ export default async function HomePage() {
           aria-hidden
           className="pointer-events-none absolute -top-10 left-1/3 h-56 w-56 rounded-full bg-sky-400/[0.06] blur-3xl"
         />
-        <div className="relative space-y-5 max-w-3xl">
+        <div className="relative space-y-5 max-w-3xl animate-in">
           <div className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-[color:var(--accent)] font-semibold bg-[color:var(--accent-bg)] border border-[color:var(--accent)]/15 rounded-full px-3.5 py-1.5">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-[color:var(--accent)]" />
             Sistema autónomo · Ciclo cada 20 días
@@ -165,7 +166,7 @@ export default async function HomePage() {
           )}
         </h2>
         {hasNavData ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 stagger">
             <MetricCard
               label="Total return"
               value={formatSignedPct(summary.total_return_pct)}
@@ -242,6 +243,7 @@ export default async function HomePage() {
         </h2>
         {portfolio && sortedHoldings.length > 0 ? (
           <div className="card overflow-hidden mb-4">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-[color:var(--border-soft)] text-[11px] uppercase tracking-wider text-[color:var(--muted-strong)]">
                 <tr>
@@ -249,7 +251,7 @@ export default async function HomePage() {
                   <th className="text-left px-4 py-2.5 font-semibold">Sector</th>
                   <th className="text-left px-4 py-2.5 font-semibold">Acción</th>
                   <th className="text-right px-4 py-2.5 font-semibold">Peso</th>
-                  <th className="text-right px-4 py-2.5 font-semibold">Δ vs prev.</th>
+                  {hasPnl && <th className="text-right px-4 py-2.5 font-semibold">P&amp;L</th>}
                   <th className="text-right px-4 py-2.5 font-semibold">Convicción</th>
                   <th className="text-right px-4 py-2.5 font-semibold">Precio obj.</th>
                 </tr>
@@ -258,7 +260,7 @@ export default async function HomePage() {
                 {sortedHoldings.map((h) => {
                   const a = analysisByTicker.get(h.ticker);
                   const badge = actionBadge(h.action);
-                  const delta = weightDelta(h.weight, h.previous_weight);
+                  const pnl = pnlByTicker.get(h.ticker);
                   return (
                     <tr
                       key={h.ticker}
@@ -286,10 +288,26 @@ export default async function HomePage() {
                           <span className="text-[color:var(--muted)] text-xs">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-2.5 text-right mono font-medium">{formatPct(h.weight)}</td>
-                      <td className="px-4 py-2.5 text-right mono text-xs text-[color:var(--muted)]">
-                        {delta ?? "—"}
-                      </td>
+                      <td className="px-4 py-2.5 text-right mono tabular font-medium">{formatPct(h.weight)}</td>
+                      {hasPnl && (
+                        <td className="px-4 py-2.5 text-right">
+                          {pnl ? (
+                            <span
+                              className={`pill mono ${
+                                pnl.unrealized_pl_usd > 0
+                                  ? "pill-pos"
+                                  : pnl.unrealized_pl_usd < 0
+                                  ? "pill-neg"
+                                  : "pill-flat"
+                              }`}
+                            >
+                              {formatSignedPct(pnl.unrealized_pl_pct)}
+                            </span>
+                          ) : (
+                            <span className="text-[color:var(--muted)] text-xs">—</span>
+                          )}
+                        </td>
+                      )}
                       <td className="px-4 py-2.5 text-right mono">
                         {h.conviction != null ? `${h.conviction}/10` : "—"}
                       </td>
@@ -304,14 +322,15 @@ export default async function HomePage() {
                     <td className="px-4 py-2.5 mono font-semibold text-[color:var(--muted)]">CASH</td>
                     <td />
                     <td />
-                    <td className="px-4 py-2.5 text-right mono text-[color:var(--muted)]">
+                    <td className="px-4 py-2.5 text-right mono tabular text-[color:var(--muted)]">
                       {formatPct(portfolio.cash_weight)}
                     </td>
-                    <td colSpan={3} />
+                    <td colSpan={hasPnl ? 3 : 2} />
                   </tr>
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         ) : (
           <div className="card border-dashed shadow-none px-4 py-6 text-sm text-[color:var(--muted)]">
@@ -373,25 +392,41 @@ export default async function HomePage() {
         )}
       </section>
 
-      {/* CTA al detalle por posición — vive en /posiciones para alivianar el home */}
+      {/* CTAs — rendimiento por acción + razonamiento por posición */}
       {sortedHoldings.length > 0 && (
-        <section>
-          <a href="/posiciones" className="card card-hover block p-6 group">
-            <div className="flex items-center justify-between gap-4">
+        <section className="grid sm:grid-cols-2 gap-3">
+          <Link href="/rendimiento" className="card card-hover block p-6 group">
+            <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-lg font-semibold mb-1 group-hover:text-[color:var(--accent)] transition-colors">
-                  Razonamiento por posición
+                  Rendimiento por acción
                 </h3>
-                <p className="text-sm text-[color:var(--muted)]">
-                  Tesis del analyst, debate bull vs bear y veredicto de síntesis
-                  para cada uno de los {sortedHoldings.length} holdings.
+                <p className="text-sm text-[color:var(--muted)] leading-relaxed">
+                  P&amp;L real de cada posición: precio de entrada vs. actual, con
+                  gráfico y tabla ordenable.
                 </p>
               </div>
               <span className="flex-none flex items-center justify-center h-10 w-10 rounded-full bg-[color:var(--accent-bg)] text-[color:var(--accent)] text-xl group-hover:translate-x-1 transition-transform">
                 →
               </span>
             </div>
-          </a>
+          </Link>
+          <Link href="/posiciones" className="card card-hover block p-6 group">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-1 group-hover:text-[color:var(--accent)] transition-colors">
+                  Razonamiento por posición
+                </h3>
+                <p className="text-sm text-[color:var(--muted)] leading-relaxed">
+                  Tesis del analyst, debate bull vs bear y veredicto de síntesis
+                  de los {sortedHoldings.length} holdings.
+                </p>
+              </div>
+              <span className="flex-none flex items-center justify-center h-10 w-10 rounded-full bg-[color:var(--accent-bg)] text-[color:var(--accent)] text-xl group-hover:translate-x-1 transition-transform">
+                →
+              </span>
+            </div>
+          </Link>
         </section>
       )}
     </div>

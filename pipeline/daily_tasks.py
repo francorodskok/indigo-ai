@@ -74,6 +74,26 @@ def _run_nav_snapshot(*, dry_run: bool) -> dict[str, Any]:
         return {"ok": False, "detail": str(e)}
 
 
+def _run_positions_snapshot(*, dry_run: bool) -> dict[str, Any]:
+    """
+    Captura el snapshot de P&L por posición (positions_latest.json) para el
+    dashboard. Corre junto al NAV (mismo fetch de Alpaca). Nunca raisea.
+    """
+    if dry_run:
+        log.info("[daily/positions] dry-run — no fetcheo posiciones.")
+        return {"ok": True, "dry_run": True, "snapshot": None}
+
+    try:
+        from pipeline.position_tracker import record_positions
+        snap = record_positions()
+        if snap is None:
+            return {"ok": False, "detail": "record_positions devolvió None (ver logs)."}
+        return {"ok": True, "snapshot": snap}
+    except Exception as e:
+        log.exception("[daily/positions] falló: %s", e)
+        return {"ok": False, "detail": str(e)}
+
+
 def _run_social_scheduler(
     *,
     today: date | None,
@@ -120,8 +140,13 @@ def run(
     if not skip_nav:
         log.info("[daily] NAV snapshot…")
         out["nav"] = _run_nav_snapshot(dry_run=dry_run)
+        # Snapshot de P&L por posición — usa el mismo fetch de Alpaca que el
+        # NAV, así que va atado al mismo flag (--skip-nav).
+        log.info("[daily] positions snapshot…")
+        out["positions"] = _run_positions_snapshot(dry_run=dry_run)
     else:
         out["nav"] = {"ok": True, "skipped": True}
+        out["positions"] = {"ok": True, "skipped": True}
 
     if not skip_social:
         log.info("[daily] social scheduler (today=%s)…", today)
@@ -134,45 +159,52 @@ def run(
     else:
         out["social"] = {"ok": True, "skipped": True}
 
-    # ── Git push de NAV history → dispara redeploy de Vercel ─────────────────
-    # Sin esto, el chart del dashboard nunca se actualiza (los archivos viven
-    # localmente pero Vercel pulls desde GitHub). Skipea si dry_run o si no
-    # hay cambios.
+    # ── Git push de NAV history + posiciones → dispara redeploy de Vercel ─────
+    # Sin esto, el dashboard nunca se actualiza (los archivos viven localmente
+    # pero Vercel pulls desde GitHub). Skipea si dry_run o si no hay cambios.
     if not dry_run and not skip_nav and out.get("nav", {}).get("ok"):
-        out["git_push"] = _push_nav_to_git()
+        out["git_push"] = _push_dashboard_data_to_git()
     else:
         out["git_push"] = {"ok": True, "skipped": True}
 
     return out
 
 
-def _push_nav_to_git() -> dict[str, Any]:
-    """Auto-commit + push de nav_history.jsonl para que Vercel redeployee.
+# Archivos de datos del dashboard que se versionan para que Vercel los sirva.
+_DASHBOARD_DATA_FILES = [
+    "pipeline/outputs/nav_history.jsonl",
+    "pipeline/outputs/positions_latest.json",
+]
 
-    Idempotente: si no hay cambios reales, exit 0 sin push.
-    Nunca raisea — atrapa todo y reporta.
+
+def _push_dashboard_data_to_git() -> dict[str, Any]:
+    """Auto-commit + push de los datos del dashboard para que Vercel redeployee.
+
+    Versiona nav_history.jsonl (curva de equity) y positions_latest.json
+    (rendimiento por acción). Idempotente: si no hay cambios reales, exit 0
+    sin push. Nunca raisea — atrapa todo y reporta.
     """
     import subprocess
     repo_root = Path(__file__).resolve().parent.parent
     try:
-        # ¿Hay cambios en el archivo?
+        # ¿Hay cambios en alguno de los archivos de datos?
         status = subprocess.run(
-            ["git", "status", "--porcelain", "pipeline/outputs/nav_history.jsonl"],
+            ["git", "status", "--porcelain", *_DASHBOARD_DATA_FILES],
             cwd=str(repo_root), capture_output=True, text=True, timeout=15,
         )
         if not status.stdout.strip():
-            log.info("[daily/git] nav_history sin cambios — skip push.")
+            log.info("[daily/git] datos del dashboard sin cambios — skip push.")
             return {"ok": True, "skipped": "no_changes"}
 
-        # Add (force porque pipeline/outputs/ está gitignored excepto los que ya rastrea)
+        # Add (force porque pipeline/outputs/ está gitignored salvo lo ya rastreado)
         subprocess.run(
-            ["git", "add", "-f", "pipeline/outputs/nav_history.jsonl"],
+            ["git", "add", "-f", *_DASHBOARD_DATA_FILES],
             cwd=str(repo_root), check=True, timeout=15,
         )
         # Commit con mensaje automatizado
         today_iso = date.today().isoformat()
         subprocess.run(
-            ["git", "commit", "-m", f"data(nav): auto-snapshot {today_iso}"],
+            ["git", "commit", "-m", f"data(dashboard): auto-snapshot {today_iso}"],
             cwd=str(repo_root), check=True, timeout=15,
         )
         # Push
@@ -180,7 +212,7 @@ def _push_nav_to_git() -> dict[str, Any]:
             ["git", "push", "origin", "main"],
             cwd=str(repo_root), check=True, timeout=60,
         )
-        log.info("[daily/git] nav_history pusheado a origin/main.")
+        log.info("[daily/git] datos del dashboard pusheados a origin/main.")
         return {"ok": True, "pushed": True}
     except subprocess.CalledProcessError as e:
         log.warning("[daily/git] falló: %s", e)
@@ -207,6 +239,22 @@ def _print_summary(result: dict[str, Any], *, dry_run: bool) -> None:
             print("│  ✓  nav: dry-run, no fetch")
     else:
         print(f"│  ✗  nav: {nav.get('detail', 'error')}")
+
+    pos = result.get("positions", {})
+    if pos.get("skipped"):
+        print("│  ⊘  positions: skip")
+    elif pos.get("ok"):
+        snap = pos.get("snapshot")
+        if snap:
+            print(
+                f"│  ✓  positions: {snap['positions_count']} posiciones, "
+                f"P&L ${snap['total_unrealized_pl_usd']:,.2f} "
+                f"({snap['total_unrealized_pl_pct']:+.2f}%)"
+            )
+        else:
+            print("│  ✓  positions: dry-run, no fetch")
+    else:
+        print(f"│  ✗  positions: {pos.get('detail', 'error')}")
 
     soc = result.get("social", {})
     if soc.get("skipped"):

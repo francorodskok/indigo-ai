@@ -40,7 +40,7 @@ export default async function CyclesPage() {
 
   return (
     <div className="space-y-10">
-      <section className="space-y-3">
+      <section className="space-y-3 animate-in">
         <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">Ciclos</h1>
         <p className="text-[color:var(--muted)] text-sm sm:text-base max-w-2xl leading-relaxed">
           Cada {CYCLE_DAYS} días calendario el pipeline corre la pipeline completa

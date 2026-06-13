@@ -18,6 +18,13 @@
   --negative-bg: #fef2f2;       /* red-50 */
   --warning: #d97706;           /* amber-600 */
   --warning-bg: #fffbeb;        /* amber-50 */
+
+  /* Gradiente de marca — reutilizable en headlines y acentos. */
+  --brand-gradient: linear-gradient(135deg, #4f46e5 0%, #6366f1 45%, #8b5cf6 100%);
+  /* Sombras en escala — jerarquía de elevación consistente. */
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.04);
+  --shadow-md: 0 4px 16px rgb(15 23 42 / 0.07);
+  --shadow-lg: 0 12px 32px rgb(15 23 42 / 0.10);
 }
 
 @theme inline {
@@ -55,23 +62,103 @@ body {
   font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+/* Números alineados — esencial para columnas de precios/pesos/P&L. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ── Color semántico de P&L ───────────────────────────────────────────────── */
+.text-pos { color: var(--positive); }
+.text-neg { color: var(--negative); }
+.text-flat { color: var(--muted); }
+
+/* Pills de estado P&L — fondo suave + texto contrastado. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 9999px;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+.pill-pos { background: var(--positive-bg); color: var(--positive); }
+.pill-neg { background: var(--negative-bg); color: var(--negative); }
+.pill-flat { background: var(--border-soft); color: var(--muted); }
+
+/* Texto con gradiente de marca. */
+.gradient-text {
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ── Animaciones de entrada ───────────────────────────────────────────────── */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes bar-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+.animate-in {
+  animation: fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-fade {
+  animation: fade-in 0.6s ease both;
+}
+/* Stagger por hijos — set --stagger en el contenedor o usa nth-child. */
+.stagger > * { animation: fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.stagger > *:nth-child(1) { animation-delay: 0.04s; }
+.stagger > *:nth-child(2) { animation-delay: 0.08s; }
+.stagger > *:nth-child(3) { animation-delay: 0.12s; }
+.stagger > *:nth-child(4) { animation-delay: 0.16s; }
+.stagger > *:nth-child(5) { animation-delay: 0.20s; }
+.stagger > *:nth-child(6) { animation-delay: 0.24s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-in, .animate-fade, .stagger > * { animation: none; }
+  html { scroll-behavior: auto; }
+}
+
 /* ── Utilidades de diseño compartidas ─────────────────────────────────────────
    Card estándar del dashboard: borde suave, esquinas redondeadas y sombra
    apenas perceptible. Usar `card` + paddings por uso. */
 .card {
   background: var(--background-elevated);
   border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  border-radius: 0.875rem;
+  box-shadow: var(--shadow-sm);
 }
 
 .card-hover {
-  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 .card-hover:hover {
   border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-  box-shadow: 0 4px 16px rgb(15 23 42 / 0.07);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
+
+/* Fila de tabla interactiva — hover sutil + cursor en headers ordenables. */
+.row-hover {
+  transition: background-color 120ms ease;
+}
+.sort-th {
+  cursor: pointer;
+  user-select: none;
+  transition: color 120ms ease;
+}
+.sort-th:hover { color: var(--accent); }
 
 /* Título de sección con barrita de acento — jerarquía visual consistente. */
 .section-title {

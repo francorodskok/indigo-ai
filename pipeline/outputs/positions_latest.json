@@ -1,0 +1,133 @@
+{
+  "generated_at": "2026-06-13T16:09:08.328313+00:00",
+  "equity_usd": 100478.99,
+  "cash_usd": 15304.36,
+  "positions_value_usd": 85174.63,
+  "total_cost_basis_usd": 87193.03,
+  "total_unrealized_pl_usd": -2018.4,
+  "total_unrealized_pl_pct": -2.31,
+  "positions_count": 11,
+  "positions": [
+    {
+      "ticker": "DECK",
+      "qty": 68.0,
+      "avg_cost": 94.89,
+      "current_price": 113.83,
+      "cost_basis": 6452.65,
+      "market_value": 7740.44,
+      "unrealized_pl_usd": 1287.79,
+      "unrealized_pl_pct": 19.96,
+      "weight_actual_pct": 7.7
+    },
+    {
+      "ticker": "MCK",
+      "qty": 10.0,
+      "avg_cost": 739.54,
+      "current_price": 784.05,
+      "cost_basis": 7395.44,
+      "market_value": 7840.5,
+      "unrealized_pl_usd": 445.06,
+      "unrealized_pl_pct": 6.02,
+      "weight_actual_pct": 7.8
+    },
+    {
+      "ticker": "MA",
+      "qty": 15.0,
+      "avg_cost": 471.34,
+      "current_price": 489.98,
+      "cost_basis": 7070.1,
+      "market_value": 7349.7,
+      "unrealized_pl_usd": 279.6,
+      "unrealized_pl_pct": 3.95,
+      "weight_actual_pct": 7.31
+    },
+    {
+      "ticker": "PGR",
+      "qty": 48.0,
+      "avg_cost": 196.38,
+      "current_price": 203.11,
+      "cost_basis": 9426.42,
+      "market_value": 9749.28,
+      "unrealized_pl_usd": 322.86,
+      "unrealized_pl_pct": 3.43,
+      "weight_actual_pct": 9.7
+    },
+    {
+      "ticker": "ACGL",
+      "qty": 93.0,
+      "avg_cost": 93.06,
+      "current_price": 91.66,
+      "cost_basis": 8654.92,
+      "market_value": 8524.38,
+      "unrealized_pl_usd": -130.54,
+      "unrealized_pl_pct": -1.51,
+      "weight_actual_pct": 8.48
+    },
+    {
+      "ticker": "NVDA",
+      "qty": 24.0,
+      "avg_cost": 215.88,
+      "current_price": 205.19,
+      "cost_basis": 5181.12,
+      "market_value": 4924.56,
+      "unrealized_pl_usd": -256.56,
+      "unrealized_pl_pct": -4.95,
+      "weight_actual_pct": 4.9
+    },
+    {
+      "ticker": "MSFT",
+      "qty": 19.0,
+      "avg_cost": 412.61,
+      "current_price": 390.74,
+      "cost_basis": 7839.6,
+      "market_value": 7424.06,
+      "unrealized_pl_usd": -415.54,
+      "unrealized_pl_pct": -5.3,
+      "weight_actual_pct": 7.39
+    },
+    {
+      "ticker": "CPRT",
+      "qty": 276.0,
+      "avg_cost": 32.69,
+      "current_price": 30.75,
+      "cost_basis": 9021.26,
+      "market_value": 8487.0,
+      "unrealized_pl_usd": -534.26,
+      "unrealized_pl_pct": -5.92,
+      "weight_actual_pct": 8.45
+    },
+    {
+      "ticker": "META",
+      "qty": 17.0,
+      "avg_cost": 617.74,
+      "current_price": 566.98,
+      "cost_basis": 10501.58,
+      "market_value": 9638.66,
+      "unrealized_pl_usd": -862.92,
+      "unrealized_pl_pct": -8.22,
+      "weight_actual_pct": 9.59
+    },
+    {
+      "ticker": "ADSK",
+      "qty": 31.0,
+      "avg_cost": 226.45,
+      "current_price": 198.43,
+      "cost_basis": 7019.8,
+      "market_value": 6151.33,
+      "unrealized_pl_usd": -868.47,
+      "unrealized_pl_pct": -12.37,
+      "weight_actual_pct": 6.12
+    },
+    {
+      "ticker": "ADBE",
+      "qty": 36.0,
+      "avg_cost": 239.73,
+      "current_price": 204.02,
+      "cost_basis": 8630.14,
+      "market_value": 7344.72,
+      "unrealized_pl_usd": -1285.42,
+      "unrealized_pl_pct": -14.89,
+      "weight_actual_pct": 7.31
+    }
+  ]
+}
